@@ -17,6 +17,10 @@ secrets/
 # Databases
 *.sqlite3
 *.db
+backend/qbit-dev.db*
+
+# Local runtime data dirs (never commit platform data)
+backend/qbit-data/
 
 # Data directories (never commit platform data)
 /qbit-data/

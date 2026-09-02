@@ -1,7 +1,7 @@
 # QBIT — Self-Hosted Enterprise Data & Marketing Operations Platform
 
-> **Status: PHASE 0 — ARCHITECTURE COMPLETE. Awaiting approval before any code is
-> written (per governing brief).**
+> **Status: PHASE 2 COMPLETE — Core Database, Local Storage & Core Infrastructure
+> implemented, tested (109 tests) and verified end-to-end.**
 
 QBIT is a self-hosted **admin/operations portal** — not a marketing website — for
 managing: Data Scraping · Lead/Data Management · Multi-channel Marketing ·
@@ -19,8 +19,10 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 |---|---|
 | Repo | `qbitconnect/Qbit-connect-repo` (private) |
 | Audit result | Empty repository — greenfield build (see `docs/01-repository-audit.md`) |
-| Phase | 0 of 14 complete — **architecture only, no production code yet** |
-| Next step | Product-owner approval of this architecture → Phase 1 |
+| Phase | Phase 0 (architecture) + Phase 2 (core foundation) complete — see `docs/25-phase2-completion-report.md` |
+| Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC — `backend/` |
+| Tests | 109 passing (`backend/tests`, isolated per-test database) |
+| Next step | Phase 3 — job queue / worker foundation & scraping module |
 
 ## Documentation Index
 

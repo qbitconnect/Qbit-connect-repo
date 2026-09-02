@@ -1,0 +1,79 @@
+# QBIT Connect — self-hosted stack (Brief §29)
+# Services: qbit-api, qbit-db, qbit-redis. Worker services arrive in later phases.
+# Data safety: both DB and file storage use persistent volumes — never ephemeral.
+
+services:
+  qbit-db:
+    image: postgres:16-alpine
+    container_name: qbit-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-qbit}
+      POSTGRES_USER: ${POSTGRES_USER:-qbit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - qbit-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-qbit} -d ${POSTGRES_DB:-qbit}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - qbit-internal
+    # No published ports: database is internal-only (architecture doc 20).
+
+  qbit-redis:
+    image: redis:7-alpine
+    container_name: qbit-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}"]
+    environment:
+      # Required by the healthcheck (redis-cli -a $REDIS_PASSWORD inside the container).
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    volumes:
+      - qbit-redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - qbit-internal
+
+  qbit-api:
+    build:
+      context: ./backend
+    image: qbit-connect-api:0.2.0
+    container_name: qbit-api
+    restart: unless-stopped
+    depends_on:
+      qbit-db:
+        condition: service_healthy
+      qbit-redis:
+        condition: service_healthy
+    environment:
+      QBIT_ENV: ${QBIT_ENV:-production}
+      QBIT_SECRET_KEY: ${QBIT_SECRET_KEY:?set QBIT_SECRET_KEY in .env}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-qbit}:${POSTGRES_PASSWORD}@qbit-db:5432/${POSTGRES_DB:-qbit}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@qbit-redis:6379/0
+      QBIT_DATA_DIR: /qbit-data
+      QBIT_CORS_ORIGINS: ${QBIT_CORS_ORIGINS:-}
+      QBIT_LOG_LEVEL: ${QBIT_LOG_LEVEL:-INFO}
+    volumes:
+      # Persistent QBIT data on the host (bind mount) — survives container replacement.
+      - ${QBIT_DATA_HOST_PATH:-./qbit-data}:/qbit-data
+    ports:
+      - "${QBIT_API_PORT:-8000}:8000"
+    networks:
+      - qbit-internal
+
+  # Worker services (scraping/marketing/export) will be added in later phases,
+  # reusing this same image with different commands.
+
+networks:
+  qbit-internal:
+    driver: bridge
+
+volumes:
+  qbit-pgdata:
+  qbit-redisdata:
