@@ -14,6 +14,15 @@
       <span class="brand-name">QBIT <em>CONNECT</em></span>
     </div>
     <nav>
+      <a href="/leads" class="nav-item {% block nav_leads %}{% endblock %}">
+        <span class="nav-ico">&#9670;</span> Leads
+      </a>
+      <a href="/leads/import" class="nav-item {% block nav_imports %}{% endblock %}">
+        <span class="nav-ico">&#8613;</span> Imports
+      </a>
+      <a href="/leads/exports" class="nav-item {% block nav_exports %}{% endblock %}">
+        <span class="nav-ico">&#8615;</span> Exports
+      </a>
       <a href="/scraping" class="nav-item {% block nav_scrapers %}{% endblock %}">
         <span class="nav-ico">&#9881;</span> Scrapers
       </a>
@@ -23,6 +32,11 @@
       <a href="/scraping/jobs?status=COMPLETED" class="nav-item {% block nav_results %}{% endblock %}">
         <span class="nav-ico">&#9636;</span> Results
       </a>
+      <span class="nav-item nav-disabled" title="Planned for a later phase">Campaigns</span>
+      <span class="nav-item nav-disabled" title="Planned for a later phase">Connections</span>
+      <span class="nav-item nav-disabled" title="Planned for a later phase">Inbox</span>
+      <span class="nav-item nav-disabled" title="Planned for a later phase">Analytics</span>
+      <span class="nav-item nav-disabled" title="Planned for a later phase">Settings</span>
     </nav>
     <div class="sidebar-foot">
       {% if user %}

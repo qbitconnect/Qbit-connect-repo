@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Import leads — QBIT Connect{% endblock %}
+{% block nav_imports %}active{% endblock %}
+{% block content %}
+<div class="crumb"><a href="/leads">Leads</a> / Import</div>
+<h1>IMPORT LEADS</h1>
+<p class="muted">Upload a CSV, XLSX, JSON or JSONL file. You will map the columns next — nothing is imported until you confirm.</p>
+
+<div class="wizard-steps">
+  <span class="wizard-step active">1 · Upload</span>
+  <span class="wizard-step">2 · Map columns</span>
+  <span class="wizard-step">3 · Options</span>
+  <span class="wizard-step">4 · Import</span>
+  <span class="wizard-step">5 · Results</span>
+</div>
+
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+<div class="card form-card" style="max-width:560px">
+  <form method="post" action="/leads/import" enctype="multipart/form-data">
+    <label>File (CSV · XLSX · JSON · JSONL)
+      <input type="file" name="file" accept=".csv,.xlsx,.json,.jsonl" required>
+    </label>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Upload &amp; inspect</button></div>
+  </form>
+  <p class="muted small">Max upload size is configured by QBIT_MAX_UPLOAD_MB. Files are stored via the encrypted-at-rest local storage service and referenced only by file id.</p>
+</div>
+{% endblock %}

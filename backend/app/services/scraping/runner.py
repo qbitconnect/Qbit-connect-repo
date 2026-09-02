@@ -143,6 +143,7 @@ class JobRunner:
             initial={
                 "records_found": job.records_found or 0,
                 "records_saved": job.records_saved or 0,
+                "records_updated": getattr(job, "records_updated", 0) or 0,
                 "records_duplicate": job.records_duplicate or 0,
                 "records_failed": job.records_failed or 0,
             },
@@ -290,10 +291,12 @@ class JobRunner:
                 _event_row(
                     job.id, "JOB_COMPLETED",
                     f"Completed: found {fresh.records_found}, saved {fresh.records_saved}, "
+                    f"updated {getattr(fresh, 'records_updated', 0)}, "
                     f"duplicates {fresh.records_duplicate}, failed {fresh.records_failed}",
                     {
                         "records_found": fresh.records_found,
                         "records_saved": fresh.records_saved,
+                        "records_updated": getattr(fresh, "records_updated", 0),
                     },
                 )
             )
@@ -428,6 +431,8 @@ class JobRunner:
                     return
                 fresh.records_found = counters["records_found"]
                 fresh.records_saved = counters["records_saved"]
+                if "records_updated" in counters:
+                    fresh.records_updated = counters["records_updated"]
                 fresh.records_duplicate = counters["records_duplicate"]
                 fresh.records_failed = counters["records_failed"]
                 fresh.progress = counters["progress"]

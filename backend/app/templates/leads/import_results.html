@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Import results — QBIT Connect{% endblock %}
+{% block nav_imports %}active{% endblock %}
+{% block content %}
+<div class="crumb"><a href="/leads">Leads</a> / <a href="/leads/import">Import</a> / Results</div>
+<h1>IMPORT RESULTS</h1>
+<p class="muted">Batch {{ batch.id[:8] }} · <strong>{{ batch.filename }}</strong> ({{ batch.format | upper }})</p>
+
+<div class="wizard-steps">
+  <span class="wizard-step">1 · Upload</span>
+  <span class="wizard-step">2 · Map columns</span>
+  <span class="wizard-step">3 · Options</span>
+  <span class="wizard-step">4 · Import</span>
+  <span class="wizard-step {% if batch.status in ('COMPLETED','PARTIAL','FAILED','CANCELLED') %}active{% endif %}">5 · Results</span>
+</div>
+
+<div class="result-grid card" style="padding:16px">
+  <div><span class="stat-label">STATUS</span><span class="stat-value">
+    {% if batch.status in ('QUEUED','PROCESSING') %}
+      <span id="import-status">{{ batch.status }}…</span>
+    {% else %}
+      <span class="badge badge-{{ batch.status | lower }}">{{ batch.status }}</span>
+    {% endif %}
+  </span></div>
+  <div><span class="stat-label">ROWS</span><span class="stat-value">{{ batch.total_rows }}</span></div>
+  <div><span class="stat-label">IMPORTED</span><span class="stat-value" style="color:var(--ok)">{{ batch.imported_rows }}</span></div>
+  <div><span class="stat-label">UPDATED</span><span class="stat-value">{{ batch.updated_rows }}</span></div>
+  <div><span class="stat-label">DUPLICATES</span><span class="stat-value" style="color:var(--warn)">{{ batch.duplicate_rows }}</span></div>
+  <div><span class="stat-label">FOR REVIEW</span><span class="stat-value">{{ batch.review_rows }}</span></div>
+  <div><span class="stat-label">REJECTED</span><span class="stat-value" style="color:var(--bad)">{{ batch.invalid_rows }}</span></div>
+</div>
+
+{% if batch.status in ('QUEUED','PROCESSING') %}
+<div class="alert alert-warn" id="progress-note">Processing in the background worker — this page updates automatically (live counters below).</div>
+<div class="card log-card">
+  <div class="log" id="live-counters">Waiting for worker…</div>
+</div>
+<script>
+  const batchId = "{{ batch.id }}";
+  const poll = async () => {
+    const res = await fetch(`/leads/import/${batchId}/status`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const done = ["COMPLETED","PARTIAL","FAILED","CANCELLED"].includes(data.status);
+    document.getElementById("import-status").textContent = data.status + "…";
+    document.getElementById("live-counters").textContent =
+      `rows=${data.total_rows}  imported=${data.imported_rows}  updated=${data.updated_rows}  ` +
+      `duplicates=${data.duplicate_rows}  review=${data.review_rows}  rejected=${data.invalid_rows}`;
+    if (done) location.reload();
+    else setTimeout(poll, 3000);
+  };
+  setTimeout(poll, 3000);
+</script>
+{% endif %}
+
+{% if batch.error_summary %}
+<div class="card log-card">
+  <h2>Validation errors (first {{ batch.error_summary | length }})</h2>
+  <div class="log">
+    {% for e in batch.error_summary %}
+      <div class="log-line"><span class="log-time">Row {{ e.row }}</span><span class="t-job-failed">{{ e.error }}</span></div>
+    {% endfor %}
+  </div>
+  {% if batch.error_file_id %}
+    <a class="btn btn-sm btn-ghost export-row" href="/leads/imports/{{ batch.id }}/rejected">Download rejected rows (CSV)</a>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="export-row">
+  <a class="btn btn-ghost" href="/leads/imports">All imports</a>
+  <a class="btn btn-primary" href="/leads">Open leads workspace</a>
+</div>
+{% endblock %}

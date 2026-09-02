@@ -57,7 +57,10 @@ def _insert_permissions_if_missing(bind) -> None:
                     "VALUES (:id, :code, :description, :ts, :ts)"
                 ),
                 {
-                    "id": str(uuid_module.uuid4()),
+                    # hex32 matches SQLAlchemy Uuid storage on SQLite; PostgreSQL
+                    # accepts the 32-digit form too (dashed strings break the
+                    # ORM's UPDATE-by-PK on SQLite later).
+                    "id": uuid_module.uuid4().hex,
                     "code": code,
                     "description": description,
                     "ts": now,

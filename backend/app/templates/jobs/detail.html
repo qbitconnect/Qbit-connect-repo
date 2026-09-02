@@ -42,7 +42,7 @@
   </div>
   <div class="stat card"><span class="stat-label">RECORDS</span>
     <span class="stat-value mono" id="job-found">{{ job.records_found }}</span>
-    <span class="muted small">saved <b class="mono" id="job-saved">{{ job.records_saved }}</b></span>
+    <span class="muted small">saved <b class="mono" id="job-saved">{{ job.records_saved }}</b> · updated <b class="mono" id="job-updated">{{ job.records_updated }}</b></span>
   </div>
   <div class="stat card"><span class="stat-label">DUPLICATES</span>
     <span class="stat-value mono" id="job-dup">{{ job.records_duplicate }}</span>
@@ -68,6 +68,7 @@
   <div class="result-grid">
     <div><span class="muted small">TOTAL FOUND</span><span class="stat-value mono">{{ job.records_found }}</span></div>
     <div><span class="muted small">SAVED</span><span class="stat-value mono">{{ job.records_saved }}</span></div>
+    <div><span class="muted small">UPDATED</span><span class="stat-value mono">{{ job.records_updated }}</span></div>
     <div><span class="muted small">DUPLICATES</span><span class="stat-value mono">{{ job.records_duplicate }}</span></div>
     <div><span class="muted small">FAILED</span><span class="stat-value mono">{{ job.records_failed }}</span></div>
   </div>
@@ -117,6 +118,7 @@
       document.getElementById('job-status').className = 'badge badge-' + j.status.toLowerCase();
       document.getElementById('job-found').textContent = j.records_found;
       document.getElementById('job-saved').textContent = j.records_saved;
+      document.getElementById('job-updated').textContent = j.records_updated;
       document.getElementById('job-dup').textContent = j.records_duplicate;
       document.getElementById('job-failed').textContent = j.records_failed;
       if (j.progress) document.getElementById('job-progress').textContent = j.progress + '%';

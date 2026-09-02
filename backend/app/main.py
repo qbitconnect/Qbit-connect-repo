@@ -165,7 +165,7 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     register_error_handlers(app)
 
     # --- routers ----------------------------------------------------------------
-    from app.api.v1 import auth, files, roles, users
+    from app.api.v1 import auth, files, leads, roles, users
     from app.api.v1 import health as health_routes
     from app.api.v1 import scrape_jobs as scrape_jobs_routes
     from app.api.v1 import scrapers as scrapers_routes
@@ -180,14 +180,17 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     app.include_router(files.router, prefix=api_v1_prefix)
     app.include_router(scrapers_routes.router, prefix=api_v1_prefix)
     app.include_router(scrape_jobs_routes.router, prefix=api_v1_prefix)
+    app.include_router(leads.router, prefix=api_v1_prefix)
 
     # --- operator UI (cookie-authenticated server-rendered pages) ---------------
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import RedirectResponse
 
     from app.ui import UiRedirect, router as ui_router
+    from app.ui.leads import router as leads_ui_router
 
     app.include_router(ui_router)
+    app.include_router(leads_ui_router)
 
     async def _ui_redirect_handler(request: Request, exc: UiRedirect):
         return RedirectResponse(url=exc.url, status_code=303)

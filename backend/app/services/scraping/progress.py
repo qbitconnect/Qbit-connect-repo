@@ -32,6 +32,8 @@ class ProgressReporter:
         initial = initial or {}
         self.records_found = int(initial.get("records_found", 0))
         self.records_saved = int(initial.get("records_saved", 0))
+        #: Phase 4 §26 — existing leads UPDATED (merged into) by this job
+        self.records_updated = int(initial.get("records_updated", 0))
         self.records_duplicate = int(initial.get("records_duplicate", 0))
         self.records_failed = int(initial.get("records_failed", 0))
         self.items_processed = 0
@@ -48,6 +50,10 @@ class ProgressReporter:
 
     def add_saved(self, n: int = 1) -> None:
         self.records_saved += n
+        self._dirty = True
+
+    def add_updated(self, n: int = 1) -> None:
+        self.records_updated += n
         self._dirty = True
 
     def add_duplicate(self, n: int = 1) -> None:
@@ -78,6 +84,7 @@ class ProgressReporter:
         return {
             "records_found": self.records_found,
             "records_saved": self.records_saved,
+            "records_updated": self.records_updated,
             "records_duplicate": self.records_duplicate,
             "records_failed": self.records_failed,
             "items_processed": self.items_processed,

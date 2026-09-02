@@ -19,7 +19,7 @@ async def seeded_session(app):
 async def test_seed_rbac_is_idempotent(seeded_session: AsyncSession):
     counts1 = await rbac_service.seed_rbac(seeded_session)
     counts2 = await rbac_service.seed_rbac(seeded_session)
-    assert counts1 == counts2 == {"roles": 5, "permissions": 25}
+    assert counts1 == counts2 == {"roles": 5, "permissions": 34}
 
 
 async def test_all_five_roles_exist(seeded_session: AsyncSession):

@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from sqlalchemy import select
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 ALEMBIC_INI = BACKEND_DIR / "alembic.ini"
@@ -29,6 +30,13 @@ CORE_TABLES = {
 #: Phase 3 scraping engine tables (migration 0002) — additive only.
 SCRAPING_TABLES = {
     "scrape_jobs", "scrape_job_events", "scrape_job_checkpoints", "leads",
+}
+
+#: Phase 4 lead workspace tables (migration 0003) — additive only.
+LEAD_WORKSPACE_TABLES = {
+    "lead_tags", "lead_tag_assignments", "lead_notes", "lead_activities",
+    "lead_merge_history", "lead_duplicate_candidates", "saved_views",
+    "import_batches", "lead_exports",
 }
 
 
@@ -120,4 +128,38 @@ def test_greenfield_repo_had_no_preexisting_schema(tmp_path: Path):
     from app.db.base import Base
 
     # No "legacy" tables are part of the metadata beyond the approved sets.
-    assert set(Base.metadata.tables) == CORE_TABLES | SCRAPING_TABLES
+    assert set(Base.metadata.tables) == CORE_TABLES | SCRAPING_TABLES | LEAD_WORKSPACE_TABLES
+
+
+def test_seed_rbac_works_on_migrated_schema(migration_db: Path):
+    """Regression (Phase 4): migration-inserted permission rows must be
+    updatable by the ORM. Raw INSERTs once used dashed uuid strings while the
+    app's Uuid type stores hex32 on SQLite — later UPDATE-by-PK matched 0 rows
+    (StaleDataError). The migration now writes hex32; this test proves the
+    ORM can load AND update migration-seeded rows."""
+    import asyncio
+
+    command.upgrade(_alembic_config(migration_db), "head")
+
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+
+    from app.models.rbac import Permission
+    from app.services import rbac as rbac_service
+
+    async def _seed_and_update() -> None:
+        engine = create_async_engine(f"sqlite+aiosqlite:///{migration_db}")
+        session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with session_factory() as session:
+            counts = await rbac_service.seed_rbac(session)
+            assert counts["permissions"] == len(rbac_service.PERMISSIONS)
+            # second run = idempotent UPDATE path over migration-inserted rows
+            counts = await rbac_service.seed_rbac(session)
+            row = await session.scalar(
+                select(Permission).where(Permission.code == "leads.import")
+            )
+            assert row is not None
+            row.description = "Import leads from CSV/XLSX/JSON/JSONL"
+            await session.commit()  # would raise StaleDataError on id mismatch
+        await engine.dispose()
+
+    asyncio.run(_seed_and_update())

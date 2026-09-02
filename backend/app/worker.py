@@ -31,6 +31,7 @@ from app.services.scraping.engine import JobEngine
 from app.services.scraping.queue import build_queue_backend
 from app.services.scraping.registry import ActorRegistry
 from app.services.scraping.runner import JobRunner
+from app.services.storage import StorageService
 
 logger = get_logger("qbit.worker")
 
@@ -87,6 +88,7 @@ class ScrapeWorker:
         )
 
         sweep_task = asyncio.create_task(self._periodic_sweep())
+        data_task = asyncio.create_task(self._data_jobs_loop())
         try:
             while not self._shutdown.is_set():
                 if len(self._tasks) >= self.settings.QBIT_WORKER_MAX_CONCURRENT_JOBS:
@@ -102,11 +104,43 @@ class ScrapeWorker:
                 task.add_done_callback(self._tasks.discard)
         finally:
             sweep_task.cancel()
+            data_task.cancel()
             await self._drain()
             await self.queue.aclose()
             await self.db.close()
             await self.redis.close()
             log_with(logger, 20, "Scrape worker stopped")
+
+    async def _data_jobs_loop(self) -> None:
+        """Phase 4: large imports/exports are processed next to scrape jobs.
+
+        Runs on its own cadence; a failure in one data job never touches the
+        scrape loop (isolation rule §15).
+        """
+        from app.services.files import FileService
+        from app.services.audit import AuditService
+        from app.services.leads.jobs import DataJobWorker
+
+        worker = DataJobWorker(
+            StorageService(self.settings),
+            FileService(StorageService(self.settings), AuditService()),
+            owner=f"data-{uuid.uuid4().hex[:8]}",
+        )
+        try:
+            while not self._shutdown.is_set():
+                try:
+                    async with self.db.session() as session:
+                        ran = await worker.process_pending(session)
+                except Exception:  # noqa: BLE001 — keep the loop alive
+                    logger.exception("Data jobs loop iteration failed")
+                    ran = 0
+                await asyncio.sleep(
+                    self.settings.QBIT_WORKER_POLL_SECONDS if ran else max(
+                        self.settings.QBIT_WORKER_POLL_SECONDS * 5, 5.0
+                    )
+                )
+        except asyncio.CancelledError:
+            return
 
     def _handle_signal(self) -> None:
         log_with(logger, 20, "Shutdown signal received; pausing in-flight jobs")

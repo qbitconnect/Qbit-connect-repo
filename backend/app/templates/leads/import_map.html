@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Map import columns — QBIT Connect{% endblock %}
+{% block nav_imports %}active{% endblock %}
+{% block content %}
+<div class="crumb"><a href="/leads">Leads</a> / <a href="/leads/import">Import</a> / Map columns</div>
+<h1>MAP COLUMNS</h1>
+<p class="muted">Batch {{ batch.id[:8] }} · file <strong>{{ batch.filename }}</strong> ({{ batch.format | upper }}){% if total_rows is defined %} · {{ total_rows }} data rows detected{% endif %}</p>
+
+<div class="wizard-steps">
+  <span class="wizard-step">1 · Upload</span>
+  <span class="wizard-step active">2 · Map columns</span>
+  <span class="wizard-step">3 · Options</span>
+  <span class="wizard-step">4 · Import</span>
+  <span class="wizard-step">5 · Results</span>
+</div>
+
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+{% if inspection %}
+<div class="card">
+  <h2>Preview (first rows)</h2>
+  <div class="table-scroll">
+    <table>
+      <thead><tr>{% for c in columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for row in sample %}
+        <tr>{% for c in columns %}<td>{{ row.get(c, '') }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<form method="post" action="/leads/import/{{ batch.id }}">
+  <div class="card">
+    <h2>Column mapping</h2>
+    <p class="muted small">Choose the lead field each file column fills. Unmapped columns are preserved in the lead metadata as extra_fields.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>File column</th><th>Lead field</th></tr></thead>
+        <tbody>
+          {% for c in columns %}
+          <tr>
+            <td>{{ c }}</td>
+            <td>
+              <select name="map__{{ c }}">
+                <option value="">— ignore —</option>
+                {% for m in mappable %}<option value="{{ m }}" {% if mapping.get(c) == m %}selected{% endif %}>{{ m }}</option>{% endfor %}
+              </select>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Import options</h2>
+    <label>Duplicate strategy
+      <select name="duplicate_strategy">
+        <option value="SKIP_DUPLICATES">Skip duplicates (default)</option>
+        <option value="UPDATE_EXISTING">Update existing (fill empty fields only)</option>
+        <option value="CREATE_NEW">Create new (no dedup)</option>
+        <option value="REVIEW">Review duplicates (queue for manual merge)</option>
+      </select>
+    </label>
+    <label>Default status for imported leads
+      <select name="default_status">
+        {% for s in statuses %}<option value="{{ s }}" {% if s == 'NEW' %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Tags to apply (comma-separated, created if missing)
+      <input type="text" name="tags" placeholder="e.g. CSV Import, Hot, Needs Verification" maxlength="500">
+    </label>
+    <label>Source label (provenance)
+      <input type="text" name="source_name" placeholder="default: import:&lt;filename&gt;" maxlength="100">
+    </label>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Run import</button></div>
+  </div>
+</form>
+{% else %}
+<div class="card"><p class="muted">File could not be inspected. Check the format and re-upload.</p></div>
+{% endif %}
+{% endblock %}

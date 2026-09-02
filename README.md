@@ -1,7 +1,8 @@
 # QBIT — Self-Hosted Enterprise Data & Marketing Operations Platform
 
-> **Status: PHASE 3 COMPLETE — Scraper / Actor Engine implemented on the Phase 2
-> foundation. 196 tests passing. Registry + job engine + worker + 6 actors + UI.**
+> **Status: PHASE 4 COMPLETE — Lead Management + Import/Export + Data Workspace on the
+> Phase 2/3 foundation. 248 tests passing. Lead database + dedup/merge + import wizard
+> + streaming exports + quality dashboard + workspace UI.**
 
 QBIT is a self-hosted **admin/operations portal** — not a marketing website — for
 managing: Data Scraping · Lead/Data Management · Multi-channel Marketing ·
@@ -19,10 +20,11 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 |---|---|
 | Repo | `qbitconnect/Qbit-connect-repo` (private) |
 | Audit result | Empty repository — greenfield build (see `docs/01-repository-audit.md`) |
-| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) complete — see `docs/25-phase2-completion-report.md`, `docs/26-phase3-completion-report.md` |
-| Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine — `backend/` |
-| Tests | 196 passing (`backend/tests`, isolated per-test database) |
-| Next step | Phase 4 — Lead management UI/services depth + Connections (see docs/26 §20) |
+| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) complete — see `docs/25`–`28` completion reports |
+| Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine + lead data workspace — `backend/` |
+| Version | `0.4.0` (backend/app/__init__.py) |
+| Tests | 248 passing (`backend/tests`, isolated per-test database) |
+| Next step | Phase 5 — Marketing engine foundation (campaigns/templates/suppression; no sending) |
 
 ## Documentation Index
 
@@ -52,6 +54,11 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 | 22 | [Observability](docs/22-observability-architecture.md) | Structured logs, correlation chain, health, metrics, incident trace |
 | 23 | [Scaling · Cost · Failure](docs/23-scaling-cost-failure.md) | 10k/100k/1M+ scaling, cost strategy, **all 17 failure scenarios** |
 | 24 | [Implementation Phases](docs/24-implementation-phases.md) | Phase 0→14 with exit criteria and dependency graph |
+| 25 | Phase 2 completion report | core foundation checklist |
+| 26 | Phase 3 completion report | scraper engine checklist |
+| 27 | [Leads](docs/leads.md) | lead schema, provenance, search/filter/sort, tags/notes/activity, RBAC, API |
+| 28 | [Import / Export](docs/import-export.md) | formats, column mapping, duplicate strategies, batches, rejected reports, streaming exports |
+| 29 | [Data Workspace](docs/data-workspace.md) | architecture, dedup ladder, performance, observability |
 
 ## Final Architecture Output (Brief §43, items A–T)
 

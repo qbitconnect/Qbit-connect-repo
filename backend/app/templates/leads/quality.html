@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Data quality — QBIT Connect{% endblock %}
+{% block nav_leads %}active{% endblock %}
+{% block content %}
+<div class="crumb"><a href="/leads">Leads</a> / Quality</div>
+<div class="page-head">
+  <div><h1>DATA QUALITY</h1><p class="muted">Live counts straight from the lead database — no cached or invented numbers.</p></div>
+  <div class="head-actions">
+    {% if can_manage %}
+    <form method="post" action="/leads/quality/recompute" class="inline-form"><button class="btn btn-ghost btn-sm" type="submit">Recompute quality scores</button></form>
+    <form method="post" action="/leads/quality/scan" class="inline-form"><button class="btn btn-primary btn-sm" type="submit">Run duplicate scan</button></form>
+    {% endif %}
+  </div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+<div class="qa-grid">
+  <div class="qa-tile"><span class="stat-label">TOTAL LEADS</span><span class="stat-value">{{ stats.total }}</span></div>
+  <div class="qa-tile"><span class="stat-label">COMPLETE LEADS</span><span class="stat-value" style="color:var(--ok)">{{ stats.complete }}</span></div>
+  <div class="qa-tile"><span class="stat-label">MISSING PHONE</span><span class="stat-value" style="color:var(--warn)">{{ stats.missing_phone }}</span><a class="small" href="/leads?has_phone=0">review →</a></div>
+  <div class="qa-tile"><span class="stat-label">MISSING EMAIL</span><span class="stat-value" style="color:var(--warn)">{{ stats.missing_email }}</span><a class="small" href="/leads?has_email=0">review →</a></div>
+  <div class="qa-tile"><span class="stat-label">MISSING WEBSITE</span><span class="stat-value" style="color:var(--warn)">{{ stats.missing_website }}</span><a class="small" href="/leads?has_website=0">review →</a></div>
+  <div class="qa-tile"><span class="stat-label">MISSING ADDRESS</span><span class="stat-value" style="color:var(--warn)">{{ stats.missing_address }}</span></div>
+  <div class="qa-tile"><span class="stat-label">LOW QUALITY (&lt;40)</span><span class="stat-value" style="color:var(--bad)">{{ stats.low_quality }}</span></div>
+  <div class="qa-tile"><span class="stat-label">DUPLICATE CANDIDATES</span><span class="stat-value" style="color:var(--bad)">{{ stats.duplicates_pending }}</span><a class="small" href="/leads/duplicates">review →</a></div>
+  <div class="qa-tile"><span class="stat-label">RECENTLY IMPORTED</span><span class="stat-value">{{ stats.recently_imported }}</span></div>
+  <div class="qa-tile"><span class="stat-label">RECENTLY SCRAPED</span><span class="stat-value">{{ stats.recently_scraped }}</span></div>
+</div>
+
+<div class="card">
+  <h2>How the quality score works</h2>
+  <p class="muted">Every lead gets a deterministic 0–100 completeness score: business name +20, phone +20, email +20, website +15, address +10, city +5, state +5, source provenance +5. It measures data completeness only — it is not an AI prediction, and the scoring engine can be replaced later without touching any other layer.</p>
+</div>
+{% endblock %}

@@ -123,6 +123,14 @@ class Settings(BaseSettings):
     QBIT_WORKER_POLL_SECONDS: float = Field(default=2.0, ge=0.5)
     QBIT_WORKER_MAX_CONCURRENT_JOBS: int = Field(default=2, ge=1)
 
+    # --- Leads workspace (Phase 4) ---------------------------------------------
+    #: rows above which an import batch is processed by the background worker
+    QBIT_LEADS_INLINE_IMPORT_MAX_ROWS: int = Field(default=5000, ge=1)
+    #: rows above which an export is queued for the background worker
+    QBIT_LEADS_INLINE_EXPORT_MAX_ROWS: int = Field(default=20000, ge=1)
+    #: max ids accepted by one bulk action call (hard delete is capped lower)
+    QBIT_LEADS_MAX_BULK_IDS: int = Field(default=5000, ge=1)
+
     # --- Maps provider (Phase 3, google-maps actor) ----------------------------
     #: none | http | mock — `mock` is for tests/dev ONLY, never production.
     QBIT_MAPS_PROVIDER: str = "none"

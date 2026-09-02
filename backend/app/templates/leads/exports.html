@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Exports — QBIT Connect{% endblock %}
+{% block nav_exports %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>EXPORTS</h1><p class="muted">Every export is recorded. Files are stored via the local storage service and downloaded by file id only.</p></div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+{% if can_export %}
+<details class="adv-panel" open>
+  <summary>New export</summary>
+  <form method="post" action="/leads/export">
+    <div class="section-grid">
+      <label>Scope
+        <select name="scope">
+          <option value="filtered">Current filtered results</option>
+          <option value="all">All matching leads (non-archived)</option>
+          <option value="selected">Selected ids (comma-separated below)</option>
+        </select>
+      </label>
+      <label>Format
+        <select name="format">
+          <option value="csv">CSV</option>
+          <option value="xlsx">XLSX</option>
+          <option value="json">JSON</option>
+          <option value="jsonl">JSONL</option>
+        </select>
+      </label>
+      <label>Fields
+        <select name="fields_mode">
+          <option value="all">All fields</option>
+          <option value="custom">Custom (comma-separated below)</option>
+        </select>
+      </label>
+      <label>Custom fields / ids
+        <input type="text" name="fields" placeholder="business_name,phone,email" maxlength="1000">
+      </label>
+    </div>
+    <div class="section-grid">
+      <label>Selected lead ids (scope=selected only)
+        <input type="text" name="ids" placeholder="uuid,uuid,…" maxlength="200000">
+      </label>
+      <label>Search
+        <input type="text" name="search" placeholder="text search" maxlength="200">
+      </label>
+      <label>Status
+        <input type="text" name="status" placeholder="e.g. NEW" maxlength="30">
+      </label>
+      <label>City
+        <input type="text" name="city" maxlength="100">
+      </label>
+      <label>State
+        <input type="text" name="state" maxlength="100">
+      </label>
+      <label>Tag
+        <select name="tag">
+          <option value="">any</option>
+          {% for t in tags %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <label class="checkbox"><input type="checkbox" name="has_email" value="1"> has email</label>
+    <label class="checkbox"><input type="checkbox" name="has_phone" value="1"> has phone</label>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Generate export</button></div>
+  </form>
+</details>
+{% endif %}
+
+<div class="card table-card">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>File</th><th>Format</th><th>Scope</th><th>Rows</th><th>Status</th><th>Created</th><th></th></tr></thead>
+      <tbody>
+        {% for e in exports %}
+        <tr>
+          <td class="mono small">leads-export-{{ e.id[:8] }}</td>
+          <td class="mono">{{ e.format | upper }}</td>
+          <td>{{ e.scope }}</td>
+          <td>{{ e.row_count }}</td>
+          <td>
+            <span class="badge badge-{{ e.status | lower }}">{{ e.status }}</span>
+            {% if e.status == 'FAILED' %}<div class="small muted">{{ (e.error or '')[:120] }}</div>{% endif %}
+          </td>
+          <td class="mono small muted">{{ (e.created_at or '')[:16].replace('T',' ') }}</td>
+          <td>
+            {% if e.file_id and can_export %}
+              <a class="btn btn-sm btn-ghost" href="/leads/exports/{{ e.id }}/download">Download</a>
+            {% elif e.status in ('QUEUED','PROCESSING') %}
+              <span class="muted small">processing…</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="center muted">No exports yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="pager">
+  {% for p in range(1, pages + 1) %}
+    {% if p <= 3 or p > pages - 2 or (p >= page - 1 and p <= page + 1) %}
+      <a class="pager-item {% if p == page %}active{% endif %}" href="/leads/exports?page={{ p }}">{{ p }}</a>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endblock %}

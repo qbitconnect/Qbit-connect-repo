@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qbit-connect-backend"
-version = "0.2.0"
+version = "0.4.0"
 description = "QBIT Connect — self-hosted data & marketing operations platform (backend)"
 requires-python = ">=3.12"
 dependencies = [

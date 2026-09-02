@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.scrapers.core.exceptions import ScraperCancelledError, ScraperPausedError
 from app.scrapers.core.netguard import canonical_url
-from app.services.leads import LeadService
+from app.services.leads import LeadIngestionService
 from app.services.scraping.dedup import Deduplicator, MatchConfidence
 from app.services.scraping.normalizer import normalize_item
 from app.services.scraping.result_files import JobResultFiles
@@ -53,7 +53,13 @@ class ResultPipeline:
         self.batch_size = batch_size
         self.created_by = created_by
         self.ctx = ctx
-        self.leads = LeadService()
+        self.ingestion = LeadIngestionService(
+            actor_id=actor_id,
+            actor_version=actor_version,
+            job_id=job_id,
+            source=self.source,
+            created_by=created_by,
+        )
         self._batch: list[dict] = []
         self.saved_ids: list[uuid.UUID] = []
 
@@ -106,17 +112,13 @@ class ResultPipeline:
                     await self.ctx.check_stopped()  # cooperative stop between items
                 match = await self.dedup.find_match(self.session, item)
                 merge = self.dedup.should_merge(match)
-                lead, created = await self.leads.create_or_update(
-                    self.session,
-                    item,
-                    actor_id=self.actor_id,
-                    actor_version=self.actor_version,
-                    job_id=self.job_id,
-                    match=match,
-                    merge=merge,
-                    created_by=self.created_by,
-                    commit=False,
+                # Phase 4: the per-item path is centralized in LeadIngestionService
+                # (provenance + quality + tags + activity) — pipeline keeps batching,
+                # file streaming and the single transaction per batch.
+                result = await self.ingestion.ingest(
+                    self.session, item, match=match, merge=merge, commit=False
                 )
+                lead, created = result.lead, result.created
                 if created:
                     saved += 1
                     if self.ctx is not None:
@@ -128,7 +130,9 @@ class ResultPipeline:
                     duplicate += 1
                     if self.ctx is not None:
                         self.ctx.progress.add_duplicate()
-                        await self.ctx.report("ITEM_DUPLICATE", str(lead.id), {"matched_on": match.matched_on})
+                        # Phase 4 §26: this item UPDATED an existing lead
+                        self.ctx.progress.add_updated()
+                        await self.ctx.report("ITEM_UPDATED", str(lead.id), {"matched_on": match.matched_on})
                 else:
                     # new lead inserted but carries a possible-duplicate flag
                     flagged += 1

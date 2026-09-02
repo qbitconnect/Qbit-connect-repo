@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Import history — QBIT Connect{% endblock %}
+{% block nav_imports %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>IMPORTS</h1><p class="muted">Every import batch with full counters and rejected-row reports.</p></div>
+  {% if can_import %}
+  <div class="head-actions"><a class="btn btn-primary" href="/leads/import">New import</a></div>
+  {% endif %}
+</div>
+
+<div class="card table-card">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>File</th><th>Format</th><th>Status</th><th>Rows</th><th>Imported</th><th>Updated</th><th>Duplicates</th><th>Rejected</th><th>Created</th><th></th></tr></thead>
+      <tbody>
+        {% for b in batches %}
+        <tr>
+          <td><a href="/leads/import/{{ b.id }}">{{ b.filename }}</a></td>
+          <td class="mono">{{ b.format | upper }}</td>
+          <td><span class="badge badge-{{ b.status | lower }}">{{ b.status }}</span></td>
+          <td>{{ b.total_rows }}</td>
+          <td>{{ b.imported_rows }}</td>
+          <td>{{ b.updated_rows }}</td>
+          <td>{{ b.duplicate_rows }}</td>
+          <td>{{ b.invalid_rows }}</td>
+          <td class="mono small muted">{{ (b.created_at or '')[:16].replace('T',' ') }}</td>
+          <td>{% if b.error_file_id %}<a class="small" href="/leads/imports/{{ b.id }}/rejected">rejected.csv</a>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="center muted">No imports yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="pager">
+  {% for p in range(1, pages + 1) %}
+    {% if p <= 3 or p > pages - 2 or (p >= page - 1 and p <= page + 1) %}
+      <a class="pager-item {% if p == page %}active{% endif %}" href="/leads/imports?page={{ p }}">{{ p }}</a>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endblock %}

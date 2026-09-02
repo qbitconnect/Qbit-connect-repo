@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Duplicate review — QBIT Connect{% endblock %}
+{% block nav_leads %}active{% endblock %}
+{% block content %}
+<div class="crumb"><a href="/leads">Leads</a> / Duplicates</div>
+<div class="page-head">
+  <div><h1>DUPLICATE REVIEW</h1><p class="muted">Compare side by side. Weak (LOW-confidence) matches are listed for review only — nothing merges automatically.</p></div>
+  <div class="head-actions tabs">
+    {% for s in statuses %}
+      <a class="tab {% if status == s %}active{% endif %}" href="/leads/duplicates?status={{ s }}">{{ s }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+{% for item in items %}
+{% set a = item.a %}{% set b = item.b %}{% set c = item.candidate %}
+<div class="card">
+  <div class="card-top">
+    <div>
+      <h2 style="margin-bottom:2px">
+        <a href="/leads/{{ a.id }}">{{ a.business_name or '(no name)' }}</a>
+        <span class="muted">vs</span>
+        <a href="/leads/{{ b.id }}">{{ b.business_name or '(no name)' }}</a>
+      </h2>
+      <span class="chip">confidence: <strong>&nbsp;{{ c.confidence }}</strong></span>
+      <span class="chip">matched on: {{ c.matched_on or '—' }}</span>
+      <span class="chip">origin: {{ c.origin or 'scan' }}</span>
+      {% if c.status != 'PENDING' %}<span class="chip">{{ c.status }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="compare-grid">
+    <div class="head">Field</div><div class="head">Lead A</div><div class="head">Lead B</div>
+    {% for field, label in [("business_name","Business"),("contact_name","Contact"),("phone","Phone"),("email","Email"),("website","Website"),("address","Address"),("city","City"),("state","State"),("source","Source"),("status","Status")] %}
+      <div>{{ label }}</div>
+      <div class="{{ 'diff' if (a[field] or '') != (b[field] or '') else '' }}">{{ a[field] or '—' }}</div>
+      <div class="{{ 'diff' if (a[field] or '') != (b[field] or '') else '' }}">{{ b[field] or '—' }}</div>
+    {% endfor %}
+    <div>Tags</div><div>{% for t in a.tags %}<span class="tag-pill">{{ t }}</span>{% endfor %}</div><div>{% for t in b.tags %}<span class="tag-pill">{{ t }}</span>{% endfor %}</div>
+  </div>
+  {% if can_merge and c.status == 'PENDING' %}
+  <div class="export-row">
+    <form method="post" action="/leads/duplicates/{{ c.id }}/merge" class="inline-form">
+      <input type="hidden" name="primary" value="{{ a.id }}">
+      <button class="btn btn-sm btn-primary" type="submit">Merge B → A (keep A)</button>
+    </form>
+    <form method="post" action="/leads/duplicates/{{ c.id }}/merge" class="inline-form">
+      <input type="hidden" name="primary" value="{{ b.id }}">
+      <button class="btn btn-sm btn-primary" type="submit">Merge A → B (keep B)</button>
+    </form>
+    <form method="post" action="/leads/duplicates/{{ c.id }}/resolve" class="inline-form">
+      <input type="hidden" name="action" value="keep_both">
+      <button class="btn btn-sm btn-ghost" type="submit">Keep both</button>
+    </form>
+    <form method="post" action="/leads/duplicates/{{ c.id }}/resolve" class="inline-form">
+      <input type="hidden" name="action" value="ignore">
+      <button class="btn btn-sm btn-ghost" type="submit">Ignore</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="card"><p class="muted">No {{ status | lower }} duplicate candidates. Run a scan from the <a href="/leads/quality">quality dashboard</a> to look for more.</p></div>
+{% endfor %}
+
+<div class="pager">
+  {% for p in range(1, pages + 1) %}
+    {% if p <= 3 or p > pages - 2 or (p >= page - 1 and p <= page + 1) %}
+      <a class="pager-item {% if p == page %}active{% endif %}" href="/leads/duplicates?status={{ status }}&page={{ p }}">{{ p }}</a>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endblock %}

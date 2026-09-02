@@ -96,6 +96,27 @@ def require_ui_permission(code: str):
     return dep
 
 
+def ui_user_for(required_permission: str | None = None):
+    """Parameterized UI auth dependency (Phase 4: leads.* pages)."""
+
+    async def dep(
+        request: Request,
+        session: Annotated[AsyncSession, Depends(get_db)],
+    ) -> User:
+        user = await _resolve_user(request, session)
+        if user is None:
+            raise UiRedirect("/login?next=" + request.url.path)
+        from app.services import rbac as rbac_service
+
+        perms = await rbac_service.load_user_permissions(session, user.id)
+        request.state.ui_permissions = perms
+        if required_permission and required_permission not in perms:
+            raise UiRedirect("/403")
+        return user
+
+    return dep
+
+
 def _ctx(request: Request, user: User | None, **extra) -> dict:
     return {
         "request": request,

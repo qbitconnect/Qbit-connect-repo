@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}{{ (lead_data.business_name or 'Lead') }} — QBIT Connect{% endblock %}
+{% block nav_leads %}active{% endblock %}
+{% block content %}
+<div class="crumb"><a href="/leads">Leads</a> / {{ lead_data.business_name or '(no name)' }}</div>
+<div class="page-head">
+  <div>
+    <h1>{{ lead_data.business_name or '(no name)' }}</h1>
+    <p class="muted">
+      <span class="badge badge-{{ lead_data.status | lower }}">{{ lead_data.status }}</span>
+      &nbsp; Quality: <strong>{{ lead_data.quality_score if lead_data.quality_score is not none else '—' }}/100</strong>
+      &nbsp; Seen {{ lead_data.seen_count }}×
+    </p>
+  </div>
+  <div class="head-actions">
+    {% if can_edit %}
+    <form method="post" action="/leads/{{ lead.id }}/status" class="inline-form">
+      <select name="status">
+        {% for s in statuses %}<option value="{{ s }}" {% if s == lead_data.status %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-sm btn-primary" type="submit">Set status</button>
+    </form>
+    {% endif %}
+    {% if can_archive %}
+      {% if lead_data.status == 'ARCHIVED' %}
+      <form method="post" action="/leads/{{ lead.id }}/restore" class="inline-form"><button class="btn btn-sm btn-ghost" type="submit">Restore</button></form>
+      {% else %}
+      <form method="post" action="/leads/{{ lead.id }}/archive" class="inline-form"><button class="btn btn-sm btn-ghost" type="submit">Archive</button></form>
+      {% endif %}
+    {% endif %}
+    {% if can_export %}
+    <form method="post" action="/leads/export" class="inline-form">
+      <input type="hidden" name="format" value="csv">
+      <input type="hidden" name="scope" value="lead">
+      <input type="hidden" name="lead_id" value="{{ lead.id }}">
+      <button class="btn btn-sm btn-ghost" type="submit">Export lead</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+{% if lead_data.merged_into_id %}<div class="alert alert-warn">This lead was merged into <a href="/leads/{{ lead_data.merged_into_id }}">{{ lead_data.merged_into_id[:8] }}</a> — it is read-only.</div>{% endif %}
+
+<div class="section-grid">
+  <div class="card">
+    <h2>Contact</h2>
+    <div class="kv"><span class="k">Contact name</span><span class="v">{{ lead_data.contact_name or '—' }}</span></div>
+    <div class="kv"><span class="k">First name</span><span class="v">{{ lead_data.first_name or '—' }}</span></div>
+    <div class="kv"><span class="k">Last name</span><span class="v">{{ lead_data.last_name or '—' }}</span></div>
+    <div class="kv"><span class="k">Phone</span><span class="v">{{ lead_data.phone or '—' }}</span></div>
+    <div class="kv"><span class="k">Email</span><span class="v">{{ lead_data.email or '—' }}</span></div>
+    <div class="kv"><span class="k">Website</span><span class="v">
+      {% if lead_data.website %}<a href="{{ lead_data.website }}" rel="noopener noreferrer nofollow">{{ lead_data.website }}</a>{% else %}—{% endif %}
+    </span></div>
+  </div>
+  <div class="card">
+    <h2>Business</h2>
+    <div class="kv"><span class="k">Category</span><span class="v">{{ lead_data.category or '—' }}</span></div>
+    <div class="kv"><span class="k">Industry</span><span class="v">{{ lead_data.industry or '—' }}</span></div>
+    <div class="kv"><span class="k">Rating</span><span class="v">{{ lead_data.rating if lead_data.rating is not none else '—' }}</span></div>
+    <div class="kv"><span class="k">Reviews</span><span class="v">{{ lead_data.review_count if lead_data.review_count is not none else '—' }}</span></div>
+  </div>
+  <div class="card">
+    <h2>Location</h2>
+    <div class="kv"><span class="k">Address</span><span class="v">{{ lead_data.address or '—' }}</span></div>
+    <div class="kv"><span class="k">City</span><span class="v">{{ lead_data.city or '—' }}</span></div>
+    <div class="kv"><span class="k">State</span><span class="v">{{ lead_data.state or '—' }}</span></div>
+    <div class="kv"><span class="k">Postal code</span><span class="v">{{ lead_data.postal_code or '—' }}</span></div>
+    <div class="kv"><span class="k">Country</span><span class="v">{{ lead_data.country or '—' }}</span></div>
+  </div>
+  <div class="card">
+    <h2>Source &amp; Quality</h2>
+    <div class="kv"><span class="k">Source</span><span class="v">{{ lead_data.source or '—' }}</span></div>
+    <div class="kv"><span class="k">Source type</span><span class="v">{{ lead_data.source_type or '—' }}</span></div>
+    <div class="kv"><span class="k">Source URL</span><span class="v">{% if lead_data.source_url %}<a href="{{ lead_data.source_url }}" rel="noopener noreferrer nofollow" class="mono small">{{ lead_data.source_url[:60] }}</a>{% else %}—{% endif %}</span></div>
+    <div class="kv"><span class="k">Scraper</span><span class="v">{{ lead_data.source_actor_id or '—' }} {{ ('v' + lead_data.source_actor_version) if lead_data.source_actor_version else '' }}</span></div>
+    <div class="kv"><span class="k">Scrape job</span><span class="v">{% if lead_data.source_job_id %}<a href="/scraping/jobs/{{ lead_data.source_job_id }}" class="mono small">{{ lead_data.source_job_id[:8] }}</a>{% else %}—{% endif %}</span></div>
+    <div class="kv"><span class="k">Import batch</span><span class="v mono small">{{ (lead_data.import_batch_id or '—')[:8] }}</span></div>
+    <div class="kv"><span class="k">Scraped at</span><span class="v">{{ (lead_data.scraped_at or '—')[:19].replace('T',' ') }}</span></div>
+    <div class="kv"><span class="k">Last verified</span><span class="v">{{ (lead_data.last_verified_at or '—')[:19].replace('T',' ') }}</span></div>
+    <div class="kv"><span class="k">Created</span><span class="v">{{ (lead_data.created_at or '—')[:19].replace('T',' ') }}</span></div>
+    <div class="kv"><span class="k">Updated</span><span class="v">{{ (lead_data.updated_at or '—')[:19].replace('T',' ') }}</span></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Quality</h2>
+  <span class="score-bar" style="width:220px;height:10px"><span style="width: {{ lead_data.quality_score or 0 }}%"></span></span>
+  <span class="stat-value" style="margin-left:10px">{{ lead_data.quality_score if lead_data.quality_score is not none else '—' }}/100</span>
+  <p class="muted small">Deterministic data-completeness score (name 20 · phone 20 · email 20 · website 15 · address 10 · city 5 · state 5 · provenance 5). Not an AI prediction.</p>
+</div>
+
+<div class="card">
+  <h2>Tags</h2>
+  <div>
+    {% for t in tags %}
+      <span class="tag-pill">{{ t.name }}{% if can_edit and not lead_data.merged_into_id %}
+        <form method="post" action="/leads/{{ lead.id }}/tags/{{ t.id }}/remove" class="inline-form"><button type="submit" title="Remove tag">×</button></form>{% endif %}
+      </span>
+    {% else %}
+      <span class="muted">No tags.</span>
+    {% endfor %}
+  </div>
+  {% if can_edit and not lead_data.merged_into_id %}
+  <form method="post" action="/leads/{{ lead.id }}/tags" class="form-actions">
+    <input type="text" name="tag" placeholder="Add tag (creates if missing)" maxlength="100" required>
+    <button class="btn btn-sm btn-primary" type="submit">Add tag</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if can_edit and not lead_data.merged_into_id %}
+<details class="adv-panel">
+  <summary>Edit lead</summary>
+  <form method="post" action="/leads/{{ lead.id }}/edit">
+    <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <label>Business name<input type="text" name="business_name" value="{{ lead_data.business_name or '' }}" maxlength="300"></label>
+      <label>Contact name<input type="text" name="contact_name" value="{{ lead_data.contact_name or '' }}" maxlength="300"></label>
+      <label>Email<input type="text" name="email" value="{{ lead_data.email or '' }}" maxlength="320"></label>
+      <label>Phone<input type="text" name="phone" value="{{ lead_data.phone or '' }}" maxlength="40"></label>
+      <label>Website<input type="text" name="website" value="{{ lead_data.website or '' }}" maxlength="500"></label>
+      <label>Category<input type="text" name="category" value="{{ lead_data.category or '' }}" maxlength="150"></label>
+      <label>Industry<input type="text" name="industry" value="{{ lead_data.industry or '' }}" maxlength="150"></label>
+      <label>Address<input type="text" name="address" value="{{ lead_data.address or '' }}" maxlength="500"></label>
+      <label>City<input type="text" name="city" value="{{ lead_data.city or '' }}" maxlength="150"></label>
+      <label>State<input type="text" name="state" value="{{ lead_data.state or '' }}" maxlength="150"></label>
+      <label>Postal code<input type="text" name="postal_code" value="{{ lead_data.postal_code or '' }}" maxlength="20"></label>
+      <label>Country<input type="text" name="country" value="{{ lead_data.country or '' }}" maxlength="150"></label>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Save changes</button></div>
+  </form>
+</details>
+{% endif %}
+
+<div class="card">
+  <h2>Notes</h2>
+  {% for note in notes %}
+    <div class="activity-line">
+      <span class="activity-time">{{ (note.created_at or '')[:16].replace('T',' ') }}</span>
+      <span>{{ note.content }}</span>
+    </div>
+  {% else %}
+    <p class="muted">No notes yet.</p>
+  {% endfor %}
+  {% if can_edit and not lead_data.merged_into_id %}
+  <form method="post" action="/leads/{{ lead.id }}/notes" class="form-actions">
+    <textarea name="content" rows="2" placeholder="Add a note…" maxlength="20000" required style="width:100%"></textarea>
+    <button class="btn btn-sm btn-primary" type="submit">Add note</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="card log-card">
+  <h2>Activity</h2>
+  <div class="log">
+    {% for a in activity %}
+      <div class="log-line">
+        <span class="log-time">{{ (a.created_at or '')[:19].replace('T',' ') }}</span>
+        <span class="log-type">{{ a.event_type }}</span>
+        <span>{{ a.message or '' }}</span>
+      </div>
+    {% else %}
+      <div class="log-line"><span class="muted">No activity recorded.</span></div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card log-card">
+  <h2>Metadata</h2>
+  <pre class="mono small muted" style="overflow-x:auto">{{ metadata_json }}</pre>
+</div>
+{% endblock %}

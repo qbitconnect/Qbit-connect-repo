@@ -84,6 +84,8 @@ class ScrapeJob(Base):
     stage: Mapped[str | None] = mapped_column(String(100), nullable=True)
     records_found: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     records_saved: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: Phase 4 §26 — existing leads updated (merged into) by this job
+    records_updated: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     records_duplicate: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     records_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -126,6 +128,7 @@ class ScrapeJob(Base):
             "stage": self.stage,
             "records_found": self.records_found,
             "records_saved": self.records_saved,
+            "records_updated": self.records_updated,
             "records_duplicate": self.records_duplicate,
             "records_failed": self.records_failed,
             "attempt": self.attempt,
@@ -172,10 +175,16 @@ class ScrapeJobCheckpoint(Base):
 
 
 class Lead(Base):
-    """Canonical lead record (brief §9, §21, §22, §23).
+    """Canonical lead record (brief §9, §21, §22, §23; extended in Phase 4).
 
     Normalized match keys (email_norm / phone_norm / website_norm) are indexed
     so dedup does single batched lookups instead of per-item scans.
+
+    Phase 4 additions: contact name split, postal_code/industry, full provenance
+    (source_id/source_type/import_file/batch), workflow status, deterministic
+    quality_score, soft-merge pointer. The `tags` JSON column is a denormalized
+    MIRROR of LeadTagAssignment names (kept in sync by the services); the
+    relational tables in models/lead.py are the source of truth.
     """
 
     __tablename__ = "leads"
@@ -187,19 +196,35 @@ class Lead(Base):
         Index("ix_leads_source_job", "source_job_id"),
         Index("ix_leads_source_actor", "source_actor_id"),
         Index("ix_leads_business_name", "business_name"),
+        # --- Phase 4 workspace indexes ---------------------------------------
+        Index("ix_leads_status_created", "status", "created_at"),
+        Index("ix_leads_source", "source"),
+        Index("ix_leads_source_type", "source_type"),
+        Index("ix_leads_city", "city"),
+        Index("ix_leads_state", "state"),
+        Index("ix_leads_country", "country"),
+        Index("ix_leads_quality_score", "quality_score"),
+        Index("ix_leads_created_at", "created_at"),
+        Index("ix_leads_updated_at", "updated_at"),
+        Index("ix_leads_import_batch", "import_batch_id"),
+        Index("ix_leads_merged_into", "merged_into_id"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     business_name: Mapped[str | None] = mapped_column(String(300), nullable=True)
     contact_name: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    first_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
     email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     website: Mapped[str | None] = mapped_column(String(500), nullable=True)
     address: Mapped[str | None] = mapped_column(String(500), nullable=True)
     city: Mapped[str | None] = mapped_column(String(150), nullable=True)
     state: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
     country: Mapped[str | None] = mapped_column(String(150), nullable=True)
     category: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    industry: Mapped[str | None] = mapped_column(String(150), nullable=True)
     rating: Mapped[float | None] = mapped_column(Float, nullable=True)
     review_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     social_links: Mapped[dict] = mapped_column(PortableJSON, nullable=False, default=dict)
@@ -216,16 +241,29 @@ class Lead(Base):
     # --- source tracking (brief §23) --------------------------------------------
     source: Mapped[str | None] = mapped_column(String(100), nullable=True)
     source_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    #: scraper | import | manual | api — how the lead entered the system
+    source_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    #: record id at the ORIGINAL source (e.g. provider place id)
+    source_id: Mapped[str | None] = mapped_column(String(300), nullable=True)
     source_actor_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     source_actor_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
     source_job_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    imported_file_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    import_batch_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     scraped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # --- lifecycle counters -------------------------------------------------------
     first_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     seen_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    #: workflow status (LeadStatus); legacy values are mapped by migration 0003
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="NEW")
+    #: deterministic 0-100 completeness score (Phase 4 §15) — not an AI prediction
+    quality_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: soft-merge pointer — the surviving lead after a merge (never hard-delete history)
+    merged_into_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = timestamp_columns()[0]
     updated_at: Mapped[datetime] = timestamp_columns()[1]
@@ -235,14 +273,18 @@ class Lead(Base):
             "id": str(self.id),
             "business_name": self.business_name,
             "contact_name": self.contact_name,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
             "email": self.email,
             "phone": self.phone,
             "website": self.website,
             "address": self.address,
             "city": self.city,
             "state": self.state,
+            "postal_code": self.postal_code,
             "country": self.country,
             "category": self.category,
+            "industry": self.industry,
             "rating": self.rating,
             "review_count": self.review_count,
             "social_links": self.social_links or {},
@@ -250,11 +292,24 @@ class Lead(Base):
             "tags": self.tags or [],
             "source": self.source,
             "source_url": self.source_url,
+            "source_type": self.source_type,
+            "source_id": self.source_id,
             "source_actor_id": self.source_actor_id,
             "source_actor_version": self.source_actor_version,
             "source_job_id": str(self.source_job_id) if self.source_job_id else None,
+            "import_batch_id": str(self.import_batch_id) if self.import_batch_id else None,
             "scraped_at": self.scraped_at.isoformat() if self.scraped_at else None,
+            # --- normalized dedup keys (exposed for provenance/debug) ---------
+            "email_norm": self.email_norm,
+            "phone_norm": self.phone_norm,
+            "website_norm": self.website_norm,
             "seen_count": self.seen_count,
+            "status": self.status,
+            "quality_score": self.quality_score,
+            "last_verified_at": self.last_verified_at.isoformat() if self.last_verified_at else None,
+            "merged_into_id": str(self.merged_into_id) if self.merged_into_id else None,
+            "archived_at": self.archived_at.isoformat() if self.archived_at else None,
             "last_seen_at": self.last_seen_at.isoformat() if self.last_seen_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
