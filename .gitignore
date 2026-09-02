@@ -1,0 +1,44 @@
+# --- QBIT: architecture docs repo (Python baseline for later phases) ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Environment & secrets — NEVER commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Databases
+*.sqlite3
+*.db
+
+# Data directories (never commit platform data)
+/qbit-data/
+exports/
+scraper-results/
+backups/
+
+# Logs
+logs/
+*.log
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Tooling
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Node (not part of the stack; guard anyway)
+node_modules/
