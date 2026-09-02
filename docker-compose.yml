@@ -1,6 +1,6 @@
 # QBIT Connect — self-hosted stack (Brief §29)
-# Services: qbit-api, qbit-db, qbit-redis. Worker services arrive in later phases.
-# Data safety: both DB and file storage use persistent volumes — never ephemeral.
+# Services: qbit-db, qbit-redis, qbit-api, qbit-worker (Phase 3 scrape engine).
+# Data safety: DB + file storage use persistent volumes — never ephemeral.
 
 services:
   qbit-db:
@@ -59,6 +59,11 @@ services:
       QBIT_DATA_DIR: /qbit-data
       QBIT_CORS_ORIGINS: ${QBIT_CORS_ORIGINS:-}
       QBIT_LOG_LEVEL: ${QBIT_LOG_LEVEL:-INFO}
+      QBIT_SCRAPER_DISABLED_ACTORS: ${QBIT_SCRAPER_DISABLED_ACTORS:-}
+      QBIT_MAPS_PROVIDER: ${QBIT_MAPS_PROVIDER:-none}
+      QBIT_MAPS_PROVIDER_URL: ${QBIT_MAPS_PROVIDER_URL:-}
+      # QBIT_MAPS_PROVIDER_API_KEY is intentionally NOT plumbed from compose
+      # env: set it with `docker compose run -e` or a secrets manager.
     volumes:
       # Persistent QBIT data on the host (bind mount) — survives container replacement.
       - ${QBIT_DATA_HOST_PATH:-./qbit-data}:/qbit-data
@@ -67,8 +72,41 @@ services:
     networks:
       - qbit-internal
 
-  # Worker services (scraping/marketing/export) will be added in later phases,
-  # reusing this same image with different commands.
+  qbit-worker:
+    build:
+      context: ./backend
+    image: qbit-connect-api:0.2.0
+    container_name: qbit-worker
+    restart: unless-stopped
+    # Same image, different entrypoint (brief §15: API and worker are isolated
+    # processes — a crashing scraper never takes the API down).
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      qbit-db:
+        condition: service_healthy
+      qbit-redis:
+        condition: service_healthy
+    environment:
+      QBIT_ENV: ${QBIT_ENV:-production}
+      QBIT_SECRET_KEY: ${QBIT_SECRET_KEY:?set QBIT_SECRET_KEY in .env}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-qbit}:${POSTGRES_PASSWORD}@qbit-db:5432/${POSTGRES_DB:-qbit}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@qbit-redis:6379/0
+      QBIT_DATA_DIR: /qbit-data
+      QBIT_LOG_LEVEL: ${QBIT_LOG_LEVEL:-INFO}
+      QBIT_SCRAPER_DISABLED_ACTORS: ${QBIT_SCRAPER_DISABLED_ACTORS:-}
+      QBIT_SCRAPER_ALLOW_PRIVATE_TARGETS: "false"  # SSRF guard always on in compose
+      QBIT_MAPS_PROVIDER: ${QBIT_MAPS_PROVIDER:-none}
+      QBIT_MAPS_PROVIDER_URL: ${QBIT_MAPS_PROVIDER_URL:-}
+    volumes:
+      # Shares the same data root: raw/normalized JSONL job results land here.
+      - ${QBIT_DATA_HOST_PATH:-./qbit-data}:/qbit-data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import app.worker' || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    networks:
+      - qbit-internal
 
 networks:
   qbit-internal:

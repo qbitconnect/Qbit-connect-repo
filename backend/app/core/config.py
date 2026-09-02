@@ -96,6 +96,39 @@ class Settings(BaseSettings):
     QBIT_ADMIN_PASSWORD: str | None = None
     QBIT_ADMIN_NAME: str | None = None
 
+    # --- Scraping engine (Phase 3) -------------------------------------------
+    QBIT_SCRAPER_ENABLED: bool = True
+    #: Comma-separated actor ids to DISABLE (e.g. "google-maps,public-data").
+    QBIT_SCRAPER_DISABLED_ACTORS: str = ""
+    QBIT_SCRAPER_JOB_TIMEOUT_SECONDS: int = Field(default=3600, ge=10)
+    QBIT_SCRAPER_REQUEST_TIMEOUT_SECONDS: int = Field(default=20, ge=1)
+    QBIT_SCRAPER_MAX_RESPONSE_MB: int = Field(default=5, ge=1)
+    QBIT_SCRAPER_RPS_PER_HOST: float = Field(default=1.0, gt=0)
+    QBIT_SCRAPER_CONCURRENCY: int = Field(default=4, ge=1)
+    QBIT_SCRAPER_MAX_RETRIES: int = Field(default=3, ge=0)
+    QBIT_SCRAPER_RETRY_BASE_SECONDS: float = Field(default=2.0, ge=0.1)
+    QBIT_SCRAPER_RETRY_MAX_SECONDS: float = Field(default=60.0, ge=1)
+    QBIT_SCRAPER_BATCH_SIZE: int = Field(default=100, ge=1)
+    QBIT_SCRAPER_CHECKPOINT_INTERVAL_SECONDS: float = Field(default=5.0, ge=1)
+    QBIT_SCRAPER_PAGE_EVENT_EVERY: int = Field(default=50, ge=1)
+    QBIT_SCRAPER_MAX_PAGES_DEFAULT: int = Field(default=100, ge=1)
+    QBIT_SCRAPER_MAX_RECORDS_DEFAULT: int = Field(default=10000, ge=1)
+    #: NEVER enable in production — only for isolated test environments.
+    QBIT_SCRAPER_ALLOW_PRIVATE_TARGETS: bool = False
+    QBIT_SCRAPER_ALLOWED_PORTS: str = "80,443"
+    QBIT_SCRAPER_USER_AGENT: str = "QBITConnect/0.3 (+self-hosted; respectful crawler)"
+
+    # --- Worker (Phase 3) ------------------------------------------------------
+    QBIT_WORKER_LEASE_SECONDS: int = Field(default=120, ge=30)
+    QBIT_WORKER_POLL_SECONDS: float = Field(default=2.0, ge=0.5)
+    QBIT_WORKER_MAX_CONCURRENT_JOBS: int = Field(default=2, ge=1)
+
+    # --- Maps provider (Phase 3, google-maps actor) ----------------------------
+    #: none | http | mock — `mock` is for tests/dev ONLY, never production.
+    QBIT_MAPS_PROVIDER: str = "none"
+    QBIT_MAPS_PROVIDER_URL: str | None = None
+    QBIT_MAPS_PROVIDER_API_KEY: str | None = None  # env only; never committed
+
     # --- Derived helpers ----------------------------------------------------
     @property
     def is_production(self) -> bool:
@@ -137,6 +170,21 @@ class Settings(BaseSettings):
             return []
         return [o.strip().rstrip("/") for o in raw.split(",") if o.strip()]
 
+    def scraper_allowed_ports(self) -> set[int]:
+        ports: set[int] = set()
+        for chunk in (self.QBIT_SCRAPER_ALLOWED_PORTS or "").split(","):
+            chunk = chunk.strip()
+            if chunk.isdigit():
+                ports.add(int(chunk))
+        return ports or {80, 443}
+
+    def scraper_disabled_actors(self) -> set[str]:
+        return {
+            chunk.strip().lower()
+            for chunk in (self.QBIT_SCRAPER_DISABLED_ACTORS or "").split(",")
+            if chunk.strip()
+        }
+
     def validate_runtime(self) -> list[str]:
         """Fail-fast checks. Returns list of problems (empty == OK)."""
         problems: list[str] = []
@@ -154,6 +202,14 @@ class Settings(BaseSettings):
             )
         if self.is_production and "*" in self.cors_origins():
             problems.append("Wildcard CORS origins are forbidden in production.")
+        if self.is_production and self.QBIT_SCRAPER_ALLOW_PRIVATE_TARGETS:
+            problems.append(
+                "QBIT_SCRAPER_ALLOW_PRIVATE_TARGETS must never be enabled in production (SSRF)."
+            )
+        if self.is_production and self.QBIT_MAPS_PROVIDER == "mock":
+            problems.append(
+                "QBIT_MAPS_PROVIDER=mock is forbidden in production (fake data)."
+            )
         return problems
 
 

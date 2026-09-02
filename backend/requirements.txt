@@ -18,6 +18,8 @@ PyJWT>=2.8
 
 python-multipart>=0.0.9  # multipart uploads
 openpyxl>=3.1            # XLSX export renderer
+beautifulsoup4>=4.12     # HTML parsing for scraper actors (pure-python)
+jinja2>=3.1              # operator UI templates (scraping pages)
 
 # --- test/tooling ---
 pytest>=8.2

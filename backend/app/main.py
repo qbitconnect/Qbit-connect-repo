@@ -101,6 +101,11 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         ensure_storage_dirs(settings)
+        # Initial actor health snapshot (non-fatal; /scrapers/health refreshes)
+        try:
+            await app.state.scraper_registry.health_check()
+        except Exception:  # noqa: BLE001 — registry problems must not block boot
+            logger.exception("Scraper registry health check failed")
         log_with(
             logger, 20, "QBIT API started",
             env=settings.QBIT_ENV, data_dir=str(settings.data_dir),
@@ -133,6 +138,14 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     )
     app.state.maintenance_mode = False
 
+    # --- scraping engine (Phase 3) --------------------------------------------
+    from app.scrapers.bootstrap import register_builtin_actors
+    from app.services.scraping.queue import build_queue_backend
+    from app.services.scraping.registry import ActorRegistry
+
+    app.state.scraper_registry = register_builtin_actors(ActorRegistry(), settings)
+    app.state.queue = build_queue_backend(settings, app.state.redis)
+
     # --- middleware (order matters: outermost first) ---------------------------
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(MaintenanceMiddleware)
@@ -154,6 +167,8 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     # --- routers ----------------------------------------------------------------
     from app.api.v1 import auth, files, roles, users
     from app.api.v1 import health as health_routes
+    from app.api.v1 import scrape_jobs as scrape_jobs_routes
+    from app.api.v1 import scrapers as scrapers_routes
     from app.api.v1 import settings as settings_routes
 
     api_v1_prefix = "/api/v1"
@@ -163,6 +178,22 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     app.include_router(roles.router, prefix=api_v1_prefix)
     app.include_router(settings_routes.router, prefix=api_v1_prefix)
     app.include_router(files.router, prefix=api_v1_prefix)
+    app.include_router(scrapers_routes.router, prefix=api_v1_prefix)
+    app.include_router(scrape_jobs_routes.router, prefix=api_v1_prefix)
+
+    # --- operator UI (cookie-authenticated server-rendered pages) ---------------
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import RedirectResponse
+
+    from app.ui import UiRedirect, router as ui_router
+
+    app.include_router(ui_router)
+
+    async def _ui_redirect_handler(request: Request, exc: UiRedirect):
+        return RedirectResponse(url=exc.url, status_code=303)
+
+    app.add_exception_handler(UiRedirect, _ui_redirect_handler)
+    app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
     @app.get("/api/v1", include_in_schema=False)
     async def api_root(request: Request):

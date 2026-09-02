@@ -1,0 +1,1 @@
+"""Actor contract internals."""

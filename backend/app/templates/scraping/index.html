@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Scrapers — QBIT Connect{% endblock %}
+{% block nav_scrapers %}active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>SEARCH SCRAPERS</h1>
+    <p class="muted">{{ scrapers|length }} scraper{{ scrapers|length != 1 and 's' or '' }} registered</p>
+  </div>
+  <form method="get" action="/scraping" class="search">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search scrapers...">
+    <button class="btn btn-ghost">Search</button>
+  </form>
+</header>
+
+<section class="cards">
+  {% for s in scrapers %}
+  <article class="card scraper-card">
+    <div class="card-top">
+      <span class="actor-ico">{{ s.name[:1] }}</span>
+      <span class="badge badge-{{ s.status.lower() }}">{{ s.status }}</span>
+    </div>
+    <h2>{{ s.name }}</h2>
+    <p class="actor-tag">{{ s.category.replace('_',' ')|title }} &middot; v{{ s.version }}</p>
+    <p class="muted">{{ s.description }}</p>
+    {% if s.status_detail and s.status != 'READY' %}
+      <p class="status-detail">{{ s.status_detail }}</p>
+    {% endif %}
+    <div class="card-actions">
+      {% if s.status == 'DISABLED' %}
+        <button class="btn btn-ghost" disabled>Disabled</button>
+      {% elif s.status == 'DEGRADED' %}
+        <a class="btn btn-ghost" href="/scraping/{{ s.id }}">Details</a>
+        <span class="muted small">needs configuration</span>
+      {% else %}
+        <a class="btn btn-primary" href="/scraping/{{ s.id }}">Run</a>
+      {% endif %}
+    </div>
+  </article>
+  {% else %}
+  <p class="muted">No scrapers match your search.</p>
+  {% endfor %}
+</section>
+{% endblock %}

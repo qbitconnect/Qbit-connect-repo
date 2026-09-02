@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}403 — QBIT Connect{% endblock %}
+{% block content %}
+<div class="login-wrap">
+  <div class="card login-card center">
+    <h1>403</h1>
+    <p class="muted">You do not have permission to access this area.</p>
+    {% if detail %}<p class="muted">{{ detail }}</p>{% endif %}
+    <a class="btn btn-ghost" href="/scraping">Back to Scrapers</a>
+  </div>
+</div>
+{% endblock %}

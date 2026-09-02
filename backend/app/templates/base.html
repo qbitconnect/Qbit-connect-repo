@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}QBIT Connect{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/qbit.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">Q</span>
+      <span class="brand-name">QBIT <em>CONNECT</em></span>
+    </div>
+    <nav>
+      <a href="/scraping" class="nav-item {% block nav_scrapers %}{% endblock %}">
+        <span class="nav-ico">&#9881;</span> Scrapers
+      </a>
+      <a href="/scraping/jobs" class="nav-item {% block nav_jobs %}{% endblock %}">
+        <span class="nav-ico">&#9203;</span> Jobs
+      </a>
+      <a href="/scraping/jobs?status=COMPLETED" class="nav-item {% block nav_results %}{% endblock %}">
+        <span class="nav-ico">&#9636;</span> Results
+      </a>
+    </nav>
+    <div class="sidebar-foot">
+      {% if user %}
+        <div class="user-chip">{{ user.full_name or user.email }}</div>
+        <form method="post" action="/logout"><button class="btn btn-ghost btn-sm">Sign out</button></form>
+      {% endif %}
+    </div>
+  </aside>
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

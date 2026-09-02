@@ -26,6 +26,11 @@ CORE_TABLES = {
     "files", "audit_logs", "system_settings", "connections",
 }
 
+#: Phase 3 scraping engine tables (migration 0002) — additive only.
+SCRAPING_TABLES = {
+    "scrape_jobs", "scrape_job_events", "scrape_job_checkpoints", "leads",
+}
+
 
 def _alembic_config(db_path: Path) -> Config:
     cfg = Config(str(ALEMBIC_INI))
@@ -111,7 +116,8 @@ def test_downgrade_base_removes_schema_cleanly(migration_db: Path):
 def test_greenfield_repo_had_no_preexisting_schema(tmp_path: Path):
     """Documents the §32 baseline: this repository started with no database —
     nothing existed to preserve, so the initial migration is non-destructive."""
+    import app.models  # noqa: F401 — deterministic model registration
     from app.db.base import Base
 
-    # No "legacy" tables are part of the metadata beyond the approved core set.
-    assert set(Base.metadata.tables) == CORE_TABLES
+    # No "legacy" tables are part of the metadata beyond the approved sets.
+    assert set(Base.metadata.tables) == CORE_TABLES | SCRAPING_TABLES

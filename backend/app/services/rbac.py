@@ -33,6 +33,10 @@ PERMISSIONS: list[tuple[str, str]] = [
     ("dashboard.view", "View admin dashboard"),
     ("scraping.view", "View scraping module and jobs"),
     ("scraping.run", "Create and control scrape jobs"),
+    ("scraping.pause", "Pause running scrape jobs"),
+    ("scraping.cancel", "Cancel scrape jobs"),
+    ("scraping.export", "Export scrape job results"),
+    ("scraping.manage", "Enable/disable scrapers and manage scraper settings"),
     ("leads.view", "View lead database"),
     ("leads.edit", "Create/modify leads, import, merge"),
     ("marketing.view", "View marketing module"),
@@ -57,6 +61,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
     ROLE_SUPER_ADMIN: [code for code, _ in PERMISSIONS],
     ROLE_ADMIN: [
         "dashboard.view", "scraping.view", "scraping.run",
+        "scraping.pause", "scraping.cancel", "scraping.export", "scraping.manage",
         "leads.view", "leads.edit",
         "marketing.view", "campaign.view", "campaign.create",
         "connections.view", "connections.manage",
@@ -74,6 +79,7 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
     ],
     ROLE_OPERATOR: [
         "dashboard.view", "scraping.view", "scraping.run",
+        "scraping.pause", "scraping.cancel", "scraping.export",
         "leads.view", "leads.edit",
         "marketing.view",
         "exports.view", "exports.download",

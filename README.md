@@ -1,7 +1,7 @@
 # QBIT — Self-Hosted Enterprise Data & Marketing Operations Platform
 
-> **Status: PHASE 2 COMPLETE — Core Database, Local Storage & Core Infrastructure
-> implemented, tested (109 tests) and verified end-to-end.**
+> **Status: PHASE 3 COMPLETE — Scraper / Actor Engine implemented on the Phase 2
+> foundation. 196 tests passing. Registry + job engine + worker + 6 actors + UI.**
 
 QBIT is a self-hosted **admin/operations portal** — not a marketing website — for
 managing: Data Scraping · Lead/Data Management · Multi-channel Marketing ·
@@ -19,10 +19,10 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 |---|---|
 | Repo | `qbitconnect/Qbit-connect-repo` (private) |
 | Audit result | Empty repository — greenfield build (see `docs/01-repository-audit.md`) |
-| Phase | Phase 0 (architecture) + Phase 2 (core foundation) complete — see `docs/25-phase2-completion-report.md` |
-| Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC — `backend/` |
-| Tests | 109 passing (`backend/tests`, isolated per-test database) |
-| Next step | Phase 3 — job queue / worker foundation & scraping module |
+| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) complete — see `docs/25-phase2-completion-report.md`, `docs/26-phase3-completion-report.md` |
+| Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine — `backend/` |
+| Tests | 196 passing (`backend/tests`, isolated per-test database) |
+| Next step | Phase 4 — Lead management UI/services depth + Connections (see docs/26 §20) |
 
 ## Documentation Index
 

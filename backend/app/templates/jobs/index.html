@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Jobs — QBIT Connect{% endblock %}
+{% block nav_jobs %}active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div><h1>SCRAPE JOBS</h1><p class="muted">{{ total }} job{{ total != 1 and 's' or '' }}</p></div>
+  <form method="get" action="/scraping/jobs" class="search">
+    <input type="hidden" name="status" value="{{ status }}">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search id / scraper / error...">
+    <button class="btn btn-ghost">Search</button>
+  </form>
+</header>
+
+<nav class="tabs">
+  <a class="tab {{ 'active' if not status }}" href="/scraping/jobs?q={{ q }}">All</a>
+  {% for s in statuses %}
+  <a class="tab {{ 'active' if status == s }}" href="/scraping/jobs?status={{ s }}&q={{ q }}">{{ s }}</a>
+  {% endfor %}
+</nav>
+
+<section class="card table-card">
+  <table>
+    <thead>
+      <tr><th>Job ID</th><th>Scraper</th><th>Status</th><th>Progress</th>
+          <th>Records</th><th>Created</th><th>Started</th><th>Duration</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for row in jobs %}
+      {% set j = row.job %}
+      <tr>
+        <td class="mono"><a href="/scraping/jobs/{{ j.id }}">{{ str(j.id)[:8] }}</a></td>
+        <td>{{ row.actor_name }}</td>
+        <td><span class="badge badge-{{ j.status.lower() }}">{{ j.status }}</span></td>
+        <td class="mono">{% if j.progress %}{{ j.progress }}%{% else %}&mdash;{% endif %}</td>
+        <td class="mono">{{ j.records_found }} / {{ j.records_saved }}</td>
+        <td>{{ j.created_at.strftime('%Y-%m-%d %H:%M') if j.created_at }}</td>
+        <td>{{ j.started_at.strftime('%H:%M:%S') if j.started_at else '&mdash;' }}</td>
+        <td class="mono">
+          {% if j.started_at and j.completed_at %}
+            {{ ((j.completed_at - j.started_at).total_seconds() / 60)|round(1) }}m
+          {% else %}&mdash;{% endif %}
+        </td>
+        <td><a class="btn btn-sm btn-ghost" href="/scraping/jobs/{{ j.id }}">Open</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="muted center">No jobs found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% if pages > 1 %}
+<nav class="pager">
+  {% for p in range(1, pages + 1) %}
+    <a class="pager-item {{ 'active' if p == page }}" href="/scraping/jobs?status={{ status }}&q={{ q }}&page={{ p }}">{{ p }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+{% endblock %}
