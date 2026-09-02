@@ -1,7 +1,7 @@
 # QBIT — Self-Hosted Enterprise Data & Marketing Operations Platform
 
 > **Status: PHASE 4 COMPLETE — Lead Management + Import/Export + Data Workspace on the
-> Phase 2/3 foundation. 248 tests passing. Lead database + dedup/merge + import wizard
+> Phase 2/3 foundation. 247 tests passing. Lead database + dedup/merge + import wizard
 > + streaming exports + quality dashboard + workspace UI.**
 
 QBIT is a self-hosted **admin/operations portal** — not a marketing website — for
@@ -23,7 +23,7 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 | Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) complete — see `docs/25`–`28` completion reports |
 | Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine + lead data workspace — `backend/` |
 | Version | `0.4.0` (backend/app/__init__.py) |
-| Tests | 248 passing (`backend/tests`, isolated per-test database) |
+| Tests | 247 passing (`backend/tests`, isolated per-test database) |
 | Next step | Phase 5 — Marketing engine foundation (campaigns/templates/suppression; no sending) |
 
 ## Documentation Index

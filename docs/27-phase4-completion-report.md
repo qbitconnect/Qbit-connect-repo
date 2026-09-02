@@ -2,7 +2,7 @@
 
 ## Status
 
-**PASS** — implemented, live-verified (54/54 e2e smoke checks), 248/248 tests.
+**PASS** — implemented, live-verified (54/54 e2e smoke checks), 247/247 tests.
 
 ## Implemented
 
@@ -136,8 +136,8 @@ merges always human-approved; conflicts preserved; evidence rows permanent.
 
 ## Tests
 
-- **Total: 248 · Passed: 248 · Failed: 0** (`backend/tests`)
-- New Phase 4: 49 tests — workspace CRUD/normalization/quality/search/filters/
+- **Total: 247 · Passed: 247 · Failed: 0** (`backend/tests`)
+- New Phase 4: 48 tests — workspace CRUD/normalization/quality/search/filters/
   tags/notes/views/bulk, dedup ladder + scan + merge, import CSV/XLSX/JSON/
   JSONL (incl. malformed inputs, sheet selection, duplicate strategies,
   rejected report), export all formats + chunked streaming + field/format

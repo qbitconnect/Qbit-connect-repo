@@ -95,7 +95,7 @@ features, no cloud storage, no Node.js, no license servers, no DB resets, no fak
 The pre-existing WIP described above was validated line-by-line and verified
 against a live running application before commit:
 
-- 248/248 backend tests pass (47 lead-workspace tests added by the WIP, plus
+- 247/247 backend tests pass (47 lead-workspace tests added by the WIP, plus
   new regressions for migration-seeded RBAC rows, UI static pages, status
   validation and §26 records_updated).
 - Live e2e smoke (isolated SQLite + temp storage, real uvicorn): 54/54 checks
