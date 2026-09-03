@@ -1,7 +1,7 @@
 # QBIT — Self-Hosted Enterprise Data & Marketing Operations Platform
 
 > **Status: PHASE 7 COMPLETE — Email Marketing Provider Integration on the
-> Phase 2/3/4/5/6 foundation. 531 tests passing. Real SMTP (TLS/STARTTLS) + generic
+> Phase 2/3/4/5/6 foundation. 536 tests passing. Real SMTP (TLS/STARTTLS) + generic
 > transactional Email API adapters + multi-sender accounts + encrypted credential vault +
 > email templates (sanitized HTML + plain text + real unsubscribe) + signed idempotent
 > email webhooks + bounce/complaint suppression + opt-in open/click tracking +
@@ -26,7 +26,7 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 | Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) + Phase 5 (marketing engine foundation) + Phase 6 (WhatsApp Business provider integration) + Phase 7 (email marketing provider integration) complete — see `docs/25`–`29` completion/architecture reports + `docs/whatsapp-*.md` + `docs/email-*.md` |
 | Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine + lead data workspace + marketing engine — `backend/` |
 | Version | `0.7.0` (backend/app/__init__.py) |
-| Tests | 531 passing (`backend/tests`, isolated per-test database) |
+| Tests | 536 passing (`backend/tests`, isolated per-test database) |
 | Next step | Later phases — SMS provider, full inbound-mailbox inbox UI, analytics dashboards |
 
 ## Documentation Index
