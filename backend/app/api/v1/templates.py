@@ -54,7 +54,8 @@ async def create_template(
         session, name=payload.name, channel=payload.channel,
         subject=payload.subject, body=payload.body,
         language=payload.language, status=payload.status,
-        variables=payload.variables, created_by=user.id,
+        variables=payload.variables, text_body=payload.text_body,
+        created_by=user.id,
     )
     await audit.log(session, action="template.created", resource_type="campaign_template",
                     resource_id=str(template.id), actor_user_id=user.id,
@@ -83,7 +84,7 @@ async def update_template(
     template = await templates_service.update(
         session, template_id, name=payload.name, subject=payload.subject,
         body=payload.body, status=payload.status, language=payload.language,
-        variables=payload.variables,
+        variables=payload.variables, text_body=payload.text_body,
     )
     await audit.log(session, action="template.updated", resource_type="campaign_template",
                     resource_id=str(template.id), actor_user_id=user.id)
@@ -117,6 +118,8 @@ async def preview_template(
     """Render a preview with a real sample lead or supplied sample values.
 
     Substitution is strictly allowlisted {{variable}} — never code execution.
+    EMAIL previews return html + text + §37 warnings (missing variables,
+    unsubscribe/subject problems, unsafe HTML already stripped).
     """
     template = await templates_service.get(session, template_id)
     if payload.lead_id:
@@ -137,4 +140,32 @@ async def preview_template(
             "subject": render(template.subject, values) if template.subject else None,
             "body": render(template.body, values),
         }
+    if (template.channel or "").upper() == "EMAIL":
+        from app.services.marketing.email_compose import html_to_text
+
+        preview["html"] = preview.get("body")
+        preview["text"] = (
+            (template.components or {}).get("text")
+            or html_to_text(template.body)
+        )
+        used = set(template.variables or [])
+        sample_values = payload.sample or {}
+        missing = sorted(
+            name for name in used
+            if name not in ("unsubscribe_url", "company_name", "company_address")
+            and not str(sample_values.get(name) or "").strip()
+        )
+        preview["warnings"] = []
+        if missing:
+            preview["warnings"].append(
+                f"Sample values missing for: {', '.join(missing)} "
+                "(recipients without these fields render them as empty)"
+            )
+        if "unsubscribe_url" not in used:
+            preview["warnings"].append(
+                "Template does not include {{unsubscribe_url}} — an unsubscribe "
+                "footer will be appended automatically"
+            )
+        if not (template.subject or "").strip():
+            preview["warnings"].append("Empty subject — campaigns will fail validation")
     return {"success": True, "data": preview}

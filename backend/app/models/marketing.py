@@ -159,13 +159,20 @@ class EventType:
     MESSAGE_READ = "MESSAGE_READ"
     MESSAGE_REPLIED = "MESSAGE_REPLIED"
     MESSAGE_FAILED = "MESSAGE_FAILED"
+    # --- Phase 7: email delivery-event vocabulary (§24–§26, §29, §30) -------
+    MESSAGE_BOUNCED = "MESSAGE_BOUNCED"          # hard/soft bounce (metadata)
+    MESSAGE_COMPLAINED = "MESSAGE_COMPLAINED"    # spam complaint
+    MESSAGE_OPENED = "MESSAGE_OPENED"            # tracking pixel (opt-in)
+    MESSAGE_CLICKED = "MESSAGE_CLICKED"          # link click (opt-in)
+    MESSAGE_UNSUBSCRIBED = "MESSAGE_UNSUBSCRIBED"  # real unsubscribe link used
 
     ALL = (
         CAMPAIGN_CREATED, CAMPAIGN_VALIDATED, CAMPAIGN_QUEUED, CAMPAIGN_STARTED,
         CAMPAIGN_PAUSED, CAMPAIGN_RESUMED, CAMPAIGN_CANCELLED, CAMPAIGN_COMPLETED,
         CAMPAIGN_FAILED, RECIPIENT_ADDED, RECIPIENT_SKIPPED, MESSAGE_QUEUED,
         MESSAGE_SENT, MESSAGE_DELIVERED, MESSAGE_READ, MESSAGE_REPLIED,
-        MESSAGE_FAILED,
+        MESSAGE_FAILED, MESSAGE_BOUNCED, MESSAGE_COMPLAINED, MESSAGE_OPENED,
+        MESSAGE_CLICKED, MESSAGE_UNSUBSCRIBED,
     )
 
 
@@ -313,6 +320,9 @@ class Campaign(Base):
     timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     #: last validation report cache (read-only for the UI)
     validation_report: Mapped[dict] = mapped_column(PortableJSON, nullable=False, default=dict)
+    # --- Phase 7: campaign-level settings (§31, §37) -------------------------
+    #: track_opens / track_clicks / append_unsubscribe_footer / company fields
+    campaign_metadata: Mapped[dict] = mapped_column(PortableJSON, nullable=False, default=dict)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -370,6 +380,14 @@ class CampaignRecipient(Base):
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     replied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # --- Phase 7: email-specific timestamps + tracking key (§18, §29, §30) ---
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    clicked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    bounced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    complained_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: unguessable per-recipient tracking key (tracking URLs carry this key,
+    #: never a raw database id — §29)
+    tracking_key: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
     created_at: Mapped[datetime] = timestamp_columns()[0]
     updated_at: Mapped[datetime] = timestamp_columns()[1]
 
@@ -390,6 +408,10 @@ class CampaignRecipient(Base):
             "read_at": self.read_at.isoformat() if self.read_at else None,
             "replied_at": self.replied_at.isoformat() if self.replied_at else None,
             "failed_at": self.failed_at.isoformat() if self.failed_at else None,
+            "opened_at": self.opened_at.isoformat() if self.opened_at else None,
+            "clicked_at": self.clicked_at.isoformat() if self.clicked_at else None,
+            "bounced_at": self.bounced_at.isoformat() if self.bounced_at else None,
+            "complained_at": self.complained_at.isoformat() if self.complained_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

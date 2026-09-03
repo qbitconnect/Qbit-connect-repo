@@ -16,7 +16,14 @@ from tests.marketing.conftest import seed_account, seed_leads, seed_template
 
 
 def _settings() -> Settings:
-    return Settings(QBIT_ENV="test", _env_file=None)
+    # Phase 7: the EMAIL send path requires a REAL unsubscribe base URL
+    # (compliance guard) — the test environment provides one so legacy
+    # Phase 5 send-loop scenarios exercise the full pipeline unchanged.
+    return Settings(
+        QBIT_ENV="test",
+        QBIT_EMAIL_UNSUBSCRIBE_BASE_URL="https://qbit.test",
+        _env_file=None,
+    )
 
 
 def _registry() -> object:

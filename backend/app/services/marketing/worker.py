@@ -38,7 +38,9 @@ from app.models.marketing import (
 )
 from app.services.marketing.campaign import CampaignService
 from app.services.marketing.connections import resolve_account_credentials
+from app.services.marketing.connections_email import resolve_email_credentials
 from app.services.marketing.eligibility import EligibilityService
+from app.services.marketing.email_send import prepare_email_message
 from app.services.marketing.events import EventService
 from app.services.marketing.providers import MarketingProviderRegistry
 from app.services.marketing.providers.base import ErrorClass, ProviderError
@@ -254,13 +256,41 @@ class CampaignWorker:
                                   "Template missing", ErrorClass.CONFIGURATION,
                                   campaign, account, provider)
             return
-        subject = render_from_lead(template.subject, lead) if (template.subject and lead) else template.subject
-        body = render_from_lead(template.body, lead) if lead else template.body
+
+        # Phase 7 §10/§12/§29: the EMAIL branch composes the final message
+        # (subject + sanitized HTML + plain text + REAL unsubscribe link +
+        # opt-in tracking). Providers receive an honest, ready-to-send payload.
+        template_payload = None
+        subject = None
+        body = None
+        if campaign.channel == "EMAIL":
+            prepared = await prepare_email_message(
+                session, campaign=campaign, recipient=recipient, lead=lead,
+                template=template, account=account, settings=self.settings,
+            )
+            if not prepared.get("ok"):
+                recipient.status = RecipientStatus.SKIPPED
+                recipient.skip_reason = prepared.get("skip_reason") or "PREPARE_FAILED"
+                item.status = QueueStatus.CANCELLED
+                item.completed_at = datetime.now(timezone.utc)
+                await session.commit()
+                await self.events.record(
+                    session, campaign_id=campaign.id, recipient_id=recipient.id,
+                    event_type=EventType.RECIPIENT_SKIPPED,
+                    metadata={"reason": recipient.skip_reason,
+                              "missing": prepared.get("missing_variables")},
+                )
+                return
+            subject = prepared["subject"]
+            body = prepared["body"]
+            template_payload = prepared["template"]
+        else:
+            subject = render_from_lead(template.subject, lead) if (template.subject and lead) else template.subject
+            body = render_from_lead(template.body, lead) if lead else template.body
 
         # Phase 6 §14/§28: WhatsApp adapter sends provider-template payloads.
         # A recipient whose lead lacks a required variable value is skipped
         # honestly instead of sending an incomplete template.
-        template_payload = None
         if (
             campaign.channel == "WHATSAPP"
             and isinstance(provider, WhatsAppProvider)
@@ -294,12 +324,20 @@ class CampaignWorker:
         await session.commit()
 
         idempotency_key = f"{item.campaign_id}:{item.recipient_id}:{item.message_version}"
-        # Phase 6 §4: resolve credentials for THIS call only (vault → env);
-        # the payload is consumed by the provider client, never logged/stored
-        credentials = await resolve_account_credentials(session, account, self.settings)
+        # Phase 6 §4 + Phase 7 §6: resolve credentials for THIS call only
+        # (vault → env); the payload is consumed by the provider client,
+        # never logged or stored
+        if account.channel == "EMAIL":
+            from app.services.marketing.connections_email import email_account_config_for
+
+            credentials = await resolve_email_credentials(session, account, self.settings)
+            account_config = email_account_config_for(account, self.settings)
+        else:
+            credentials = await resolve_account_credentials(session, account, self.settings)
+            account_config = account.config_metadata or {}
         try:
             result = await provider.send(
-                account_config=account.config_metadata or {},
+                account_config=account_config,
                 recipient_address=recipient.recipient_address,
                 subject=subject, body=body,
                 idempotency_key=idempotency_key,

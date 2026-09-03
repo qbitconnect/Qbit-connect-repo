@@ -1,11 +1,14 @@
-"""Provider registry (Phase 5 §3 + Phase 6 §1).
+"""Provider registry (Phase 5 §3 + Phase 6 §1 + Phase 7 §1/§3).
 
     MarketingProvider registry
-        +-- WhatsAppProvider (REAL — WhatsApp Business Cloud API, whatsapp_cloud)
-        +-- WhatsAppMockProvider (MOCK / TEST ONLY — gated)
-        +-- EmailProvider     (interface — Phase 7)
-        +-- SMSProvider       (interface — later phase)
-        +-- MockProvider      (MOCK / TEST ONLY — gated)
+        +-- WhatsAppProvider        (REAL — WhatsApp Business Cloud API, whatsapp_cloud)
+        +-- WhatsAppMockProvider    (MOCK / TEST ONLY — gated)
+        +-- SMTPProvider            (REAL — email over SMTP TLS/STARTTLS, smtp)
+        +-- GenericEmailAPIProvider (REAL — generic transactional email API, email_api)
+        +-- EmailMockProvider       (MOCK / TEST ONLY — gated)
+        +-- EmailProvider           (interface — generic EMAIL reporting id)
+        +-- SMSProvider             (interface — later phase)
+        +-- MockProvider            (MOCK / TEST ONLY — gated)
 
 The registry NEVER auto-registers mock providers outside isolated test
 environments, and never raises for unknown ids — callers get None and decide
@@ -16,6 +19,11 @@ from __future__ import annotations
 
 from app.core.config import Settings
 from app.services.marketing.providers.base import BaseMarketingProvider
+from app.services.marketing.providers.email import (
+    EmailMockProvider,
+    GenericEmailAPIProvider,
+    SMTPProvider,
+)
 from app.services.marketing.providers.interfaces import EmailProvider, SMSProvider
 from app.services.marketing.providers.mock import MockProvider
 from app.services.marketing.providers.whatsapp import (
@@ -49,11 +57,13 @@ class MarketingProviderRegistry:
 
 
 def build_provider_registry(settings: Settings) -> MarketingProviderRegistry:
-    """Registry factory: real WhatsApp adapter always available; mock
+    """Registry factory: real WhatsApp + email adapters always available; mock
     providers only when (and only when) the environment allows it."""
     registry = MarketingProviderRegistry()
     registry.register(WhatsAppProvider())
-    registry.register(EmailProvider())
+    registry.register(SMTPProvider())
+    registry.register(GenericEmailAPIProvider())
+    registry.register(EmailProvider())   # generic EMAIL interface (reporting id)
     registry.register(SMSProvider())
     if settings.QBIT_ENV == "test" or (
         settings.QBIT_MARKETING_ALLOW_MOCK_PROVIDER
@@ -61,4 +71,5 @@ def build_provider_registry(settings: Settings) -> MarketingProviderRegistry:
     ):
         registry.register(MockProvider())
         registry.register(WhatsAppMockProvider())
+        registry.register(EmailMockProvider())
     return registry

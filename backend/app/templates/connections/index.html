@@ -9,6 +9,7 @@
   </div>
   <div class="head-actions">
     {% if can_manage %}<a class="btn btn-primary" href="/connections/whatsapp/new">Add WhatsApp account</a>{% endif %}
+    {% if can_manage %}<a class="btn btn-ghost" href="/connections/email/new">Add email account</a>{% endif %}
   </div>
 </div>
 
@@ -52,7 +53,30 @@
 {% endif %}
 
 <h2 style="margin:18px 0 8px">EMAIL</h2>
-<div class="alert">Email connections arrive with the email provider phase (Phase 7). Campaigns on the EMAIL channel stay disabled until then.</div>
+{% if email %}
+<div class="card-grid">
+  {% for a in email %}
+  <div class="card conn-card">
+    <div class="conn-head">
+      <strong>{{ a.sender_name or a.name }}</strong>
+      <span class="badge badge-{{ a.status | lower }}">{{ a.status }}</span>
+    </div>
+    <dl class="kv">
+      <dt>Sender email</dt><dd class="mono">{{ a.sender_email or a.identifier }}</dd>
+      <dt>Provider</dt><dd class="mono">{{ a.provider }}{% if a.provider_test_only %} <span class="badge badge-failed">MOCK / TEST ONLY</span>{% endif %}</dd>
+      <dt>Health</dt><dd><span class="badge badge-{{ a.health_status | lower }}">{{ a.health_status }}</span></dd>
+      <dt>Last checked</dt><dd>{% if a.last_health_check %}{{ a.last_health_check[:19] | replace('T',' ') }} UTC{% else %}<span class="muted">never</span>{% endif %}</dd>
+      <dt>Credentials</dt><dd>{% if a.has_credentials %}stored (encrypted){% else %}<span class="muted">none</span>{% endif %}</dd>
+    </dl>
+    <div class="form-actions">
+      <a class="btn btn-ghost" href="/connections/email/{{ a.id }}">View</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert">No email sender accounts yet.{% if can_manage %} <a href="/connections/email">Open the email sender dashboard</a> to add one — SMTP and Email API providers are supported.{% else %} <a href="/connections/email">Open the email sender dashboard</a>.{% endif %}</div>
+{% endif %}
 
 <h2 style="margin:18px 0 8px">SMS</h2>
 <div class="alert">SMS connections are planned for a later phase.</div>

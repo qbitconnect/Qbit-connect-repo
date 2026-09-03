@@ -170,6 +170,39 @@ class Settings(BaseSettings):
     WHATSAPP_ACCESS_TOKEN: str | None = None
     WHATSAPP_BUSINESS_ACCOUNT_ID: str | None = None
     WHATSAPP_PHONE_NUMBER_ID: str | None = None
+
+    # --- Email marketing provider (Phase 7 §4, §5) --------------------------------
+    #: provider registry id used when creating email connections by default
+    EMAIL_PROVIDER: str = "smtp"
+    # SMTP (per-account vault credentials take precedence; env is a bootstrap
+    # fallback for single-account deployments — never committed, never logged)
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int | None = None
+    SMTP_USERNAME: str | None = None
+    SMTP_PASSWORD: str | None = None
+    #: TLS | STARTTLS | NONE
+    SMTP_SECURITY: str = "STARTTLS"
+    # Generic transactional Email API (vendor-neutral contract, §5)
+    EMAIL_API_BASE_URL: str | None = None
+    EMAIL_API_KEY: str | None = None
+    EMAIL_API_ACCOUNT_ID: str | None = None
+    EMAIL_API_REGION: str | None = None
+    #: shared secret for email provider webhook signature validation (§28)
+    EMAIL_WEBHOOK_SECRET: str | None = None
+    #: public base URL used to build REAL unsubscribe links (§12, §13) —
+    #: no fake links are ever generated; unset means launch-time validation
+    #: reports the missing configuration honestly
+    QBIT_EMAIL_UNSUBSCRIBE_BASE_URL: str | None = None
+    #: campaign-level tracking defaults (§31) — campaigns may override; open/
+    #: click tracking is never mandatory and never claimed to be exact
+    QBIT_EMAIL_DEFAULT_TRACK_OPENS: bool = False
+    QBIT_EMAIL_DEFAULT_TRACK_CLICKS: bool = False
+    #: append an honest unsubscribe footer when the template lacks one (§12)
+    QBIT_EMAIL_APPEND_UNSUBSCRIBE_FOOTER: bool = True
+    #: sender-reputation warning thresholds (§43, monitoring foundation only)
+    QBIT_EMAIL_BOUNCE_WARN_RATE: float = Field(default=0.05, ge=0, le=1)
+    QBIT_EMAIL_COMPLAINT_WARN_RATE: float = Field(default=0.005, ge=0, le=1)
+
     #: webhook replay protection: reject events older than this (seconds)
     QBIT_WEBHOOK_MAX_AGE_SECONDS: int = Field(default=600, ge=30)
     #: max inbound payload size accepted by webhook endpoints (bytes)

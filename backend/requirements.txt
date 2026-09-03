@@ -21,6 +21,8 @@ python-multipart>=0.0.9  # multipart uploads
 openpyxl>=3.1            # XLSX export renderer
 beautifulsoup4>=4.12     # HTML parsing for scraper actors (pure-python)
 jinja2>=3.1              # operator UI templates (scraping pages)
+nh3>=0.2                 # HTML sanitization for email templates (Phase 7 §38)
+aiosmtplib>=3.0          # async SMTP client (Phase 7 §4)
 
 # --- test/tooling ---
 pytest>=8.2

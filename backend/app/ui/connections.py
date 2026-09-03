@@ -70,7 +70,13 @@ async def _account_or_404(session: AsyncSession, account_id: str) -> SendingAcco
 
 def _view(account: SendingAccount) -> dict:
     data = account.to_public_dict()
-    data["last_health_error"] = (account.config_metadata or {}).get("last_health_error")
+    config = account.config_metadata or {}
+    data["last_health_error"] = config.get("last_health_error")
+    # Phase 7: email sender fields (display-safe, non-secret by definition)
+    if (account.channel or "").upper() == "EMAIL":
+        data["sender_name"] = config.get("sender_name")
+        data["sender_email"] = account.identifier
+        data["reply_to"] = config.get("reply_to")
     return data
 
 

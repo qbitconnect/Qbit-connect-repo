@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Add email account — QBIT Connect{% endblock %}
+{% block nav_connections %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>ADD EMAIL SENDER ACCOUNT</h1>
+    <p class="muted">SMTP or transactional Email API. The account becomes ACTIVE only after the provider validates the configuration, sender and credentials.</p>
+  </div>
+  <div class="head-actions"><a class="btn btn-ghost" href="/connections/email">Back</a></div>
+</div>
+
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<form method="post" action="/connections/email/new" class="card wizard" autocomplete="off">
+  <div class="wizard-step"><span class="step-num">1</span>
+    <label>Account name
+      <input type="text" name="name" required maxlength="150" placeholder="e.g. QBIT Marketing" value="{{ form.get('name', '') }}">
+    </label>
+  </div>
+
+  <div class="wizard-step"><span class="step-num">2</span>
+    <label>Provider type
+      <select name="provider">
+        <option value="smtp" {% if form.get('provider') == 'smtp' %}selected{% endif %}>SMTP (TLS / STARTTLS)</option>
+        <option value="email_api" {% if form.get('provider') == 'email_api' %}selected{% endif %}>Email API (transactional)</option>
+        {% if mock_allowed %}<option value="email_mock">email_mock — MOCK / TEST ONLY</option>{% endif %}
+      </select>
+    </label>
+  </div>
+
+  <div class="wizard-step"><span class="step-num">3</span>
+    <label>Sender name
+      <input type="text" name="sender_name" maxlength="200" placeholder="e.g. QBIT Marketing" value="{{ form.get('sender_name', '') }}">
+    </label>
+    <label>Sender email
+      <input type="email" name="sender_email" required maxlength="320" placeholder="marketing@company.com" value="{{ form.get('sender_email', '') }}">
+    </label>
+    <label>Reply-To (optional)
+      <input type="email" name="reply_to" maxlength="320" placeholder="replies@company.com" value="{{ form.get('reply_to', '') }}">
+    </label>
+  </div>
+
+  <div class="wizard-step"><span class="step-num">4</span>
+    <div id="smtp-config">
+      <label>SMTP host
+        <input type="text" name="smtp_host" maxlength="255" placeholder="smtp.company.com" value="{{ form.get('smtp_host', '') }}">
+      </label>
+      <label>SMTP port
+        <input type="text" name="smtp_port" inputmode="numeric" maxlength="5" placeholder="587" value="{{ form.get('smtp_port', '') }}">
+      </label>
+      <label>Security
+        <select name="smtp_security">
+          <option value="STARTTLS">STARTTLS (recommended)</option>
+          <option value="TLS">TLS (implicit, port 465)</option>
+          <option value="NONE">None (not recommended)</option>
+        </select>
+      </label>
+      <label class="small muted">SMTP username
+        <input type="text" name="smtp_username" maxlength="320" placeholder="usually the sender email" autocomplete="off">
+      </label>
+      <label class="small muted">SMTP password
+        <input type="password" name="smtp_password" maxlength="1024" placeholder="stored encrypted, never shown again" autocomplete="new-password">
+      </label>
+    </div>
+    <div id="api-config">
+      <label>API base URL
+        <input type="url" name="api_base_url" maxlength="500" placeholder="https://email-api.company.com/v1" value="{{ form.get('api_base_url', '') }}">
+      </label>
+      <label class="small muted">Region (optional)
+        <input type="text" name="region" maxlength="64" placeholder="e.g. eu-west-1" value="{{ form.get('region', '') }}">
+      </label>
+      <label class="small muted">API key
+        <input type="password" name="api_key" maxlength="1024" placeholder="stored encrypted, never shown again" autocomplete="new-password">
+      </label>
+    </div>
+    <p class="muted small">Credentials are encrypted at rest (Fernet/AES + HMAC), never returned by the API, never shown again, never logged. Never committed to git.</p>
+  </div>
+
+  <div class="wizard-step"><span class="step-num">5</span>
+    <p class="muted">Validation runs on submit: configuration → sender address → connectivity → authentication. Real provider errors are shown when a step fails.</p>
+  </div>
+
+  <div class="wizard-step"><span class="step-num">6</span>
+    <p class="muted">A health probe connects (and authenticates) without sending any email.</p>
+  </div>
+
+  <div class="wizard-step"><span class="step-num">7</span>
+    <p class="muted">Complete: the account becomes ACTIVE only when every step passes — it is never falsely activated.</p>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">Create &amp; validate</button>
+  </div>
+</form>
+
+<script>
+  function syncProviderFields() {
+    var provider = document.querySelector('select[name=provider]').value;
+    var smtp = document.getElementById('smtp-config');
+    var api = document.getElementById('api-config');
+    smtp.style.display = provider === 'smtp' ? '' : 'none';
+    api.style.display = provider === 'email_api' ? '' : 'none';
+  }
+  document.querySelector('select[name=provider]').addEventListener('change', syncProviderFields);
+  syncProviderFields();
+</script>
+{% endblock %}

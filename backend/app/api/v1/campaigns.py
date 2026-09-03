@@ -88,6 +88,7 @@ async def create_campaign(
         schedule_type=payload.schedule_type,
         scheduled_at=payload.scheduled_at,
         timezone_name=payload.timezone,
+        campaign_metadata=payload.campaign_metadata,
         created_by=user.id,
     )
     await audit.log(session, action="campaign.created", resource_type="campaign",
@@ -133,6 +134,7 @@ async def update_campaign(
         schedule_type=payload.schedule_type,
         scheduled_at=payload.scheduled_at,
         timezone_name=payload.timezone,
+        campaign_metadata=payload.campaign_metadata,
         actor_id=user.id,
     )
     await audit.log(session, action="campaign.updated", resource_type="campaign",
@@ -150,6 +152,7 @@ async def validate_campaign(
 ):
     report = await campaigns_service.validate(
         session, campaign_id, actor_id=user.id, provider_registry=_registry(request),
+        settings=request.app.state.settings,
     )
     await audit.log(session, action="campaign.validated", resource_type="campaign",
                     resource_id=str(campaign_id), actor_user_id=user.id,
@@ -168,11 +171,17 @@ async def launch_campaign(
     # Phase 6 §37: WhatsApp launches additionally require the channel-scoped
     # permission, enforced server-side (never frontend-only)
     campaign = await campaigns_service.get(session, campaign_id)
-    if (campaign.channel or "").upper() == "WHATSAPP":
+    channel = (campaign.channel or "").upper()
+    if channel == "WHATSAPP":
         from app.api.deps import require_permission as _rp
         await _rp("campaigns.whatsapp.launch")(request, session, user)
+    # Phase 7 §48: EMAIL launches require campaigns.email.launch the same way
+    if channel == "EMAIL":
+        from app.api.deps import require_permission as _rp
+        await _rp("campaigns.email.launch")(request, session, user)
     campaign = await campaigns_service.request_launch(
         session, campaign_id, actor_id=user.id, provider_registry=_registry(request),
+        settings=request.app.state.settings,
     )
     await audit.log(session, action="campaign.launch_requested", resource_type="campaign",
                     resource_id=str(campaign_id), actor_user_id=user.id,
@@ -348,6 +357,35 @@ async def campaign_analytics(
 
         raise NotFoundError("Campaign not found")
     data["event_counts"] = await analytics_service.event_counts(session, campaign_id)
+    return {"success": True, "data": data}
+
+
+# ------------------------------------------------------- email analytics (§45)
+@router.get("/{campaign_id}/email/analytics")
+async def email_campaign_analytics(
+    campaign_id: uuid.UUID,
+    session: DbSession,
+    request: Request,
+    _user=Depends(require_permission("campaigns.analytics")),
+):
+    """EMAIL-channel analytics (Phase 7 §34, §45): recipients, sent,
+    delivered, bounced (hard/soft), complaints, opens, clicks, replies,
+    unsubscribes + rates. All values come from actual events."""
+    from app.api.deps import require_permission as _rp
+
+    await _rp("campaigns.email.analytics")(request, session, _user)
+    data = await analytics_service.email_campaign_analytics(session, campaign_id)
+    if not data:
+        from app.core.errors import NotFoundError
+
+        raise NotFoundError("Campaign not found")
+    if (data.get("email") or {}).get("channel") != "EMAIL":
+        campaign = await campaigns_service.get(session, campaign_id)
+        from app.core.errors import ValidationError as _VE
+
+        raise _VE(
+            f"Campaign channel is {campaign.channel} — email analytics apply to EMAIL campaigns"
+        )
     return {"success": True, "data": data}
 
 

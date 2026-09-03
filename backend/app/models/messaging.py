@@ -185,6 +185,9 @@ class Conversation(Base):
     external_contact_id: Mapped[str | None] = mapped_column(String(300), nullable=True)
     #: normalized E.164 phone used for lead matching (stable key)
     contact_phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # --- Phase 7: inbound-email conversations (§32) --------------------------
+    #: normalized email address used for lead matching on the EMAIL channel
+    contact_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=ConversationStatus.PENDING)
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = timestamp_columns()[0]
@@ -198,6 +201,7 @@ class Conversation(Base):
             "lead_id": str(self.lead_id) if self.lead_id else None,
             "external_contact_id": self.external_contact_id,
             "contact_phone": self.contact_phone,
+            "contact_email": self.contact_email,
             "status": self.status,
             "last_message_at": self.last_message_at.isoformat() if self.last_message_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,

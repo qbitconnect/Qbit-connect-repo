@@ -177,23 +177,47 @@ class SuppressionService:
         channel: str, email: str | None = None, phone: str | None = None,
         lead_id: uuid.UUID | None = None,
     ) -> tuple[bool, str | None]:
-        """Single-recipient check (batched underneath). Returns (suppressed, reason)."""
+        """Single-recipient check (batched underneath). Returns (suppressed, reason).
+
+        Phase 7 fix: a lead id does NOT limit the check to LEAD-type entries —
+        an address (email/phone) suppression must also stop the send even when
+        the recipient is a known lead. Any hit suppresses; address keys are
+        checked first (channel-specific), then the lead key.
+        """
         results = await self.check_batch(
             session, channel=channel,
             emails=[email] if email else [], phones=[phone] if phone else [],
             lead_ids=[lead_id] if lead_id else [],
         )
         suppressed_map = results["suppressed"]
+        keys: list[str] = []
+        if email:
+            keys.append(f"email:{email}")
+        if phone:
+            keys.append(f"phone:{phone}")
         if lead_id is not None:
-            return suppressed_map.get(f"lead:{lead_id}", (False, None))
-        key_kind = "email" if email else "phone"
-        raw = email if email else phone
-        try:
-            entry_type = SuppressionType.EMAIL if email else SuppressionType.PHONE
-            key = f"{key_kind}:{normalize_address(entry_type, raw)}"
-        except ValidationError:
-            key = f"{key_kind}:{raw or ''}"
-        return suppressed_map.get(key, (False, None))
+            keys.append(f"lead:{lead_id}")
+        fallback: tuple[bool, str | None] = (False, None)
+        for key in keys:
+            try:
+                entry_type = (SuppressionType.EMAIL if key.startswith("email:")
+                              else SuppressionType.PHONE if key.startswith("phone:")
+                              else None)
+                if entry_type is not None:
+                    raw = key.split(":", 1)[1]
+                    normalized = f"{key.split(':', 1)[0]}:{normalize_address(entry_type, raw)}"
+                else:
+                    normalized = key
+            except ValidationError:
+                normalized = key
+            hit = suppressed_map.get(normalized)
+            if hit is None and normalized != key:
+                hit = suppressed_map.get(key)
+            if hit is not None and hit[0]:
+                return hit
+            if hit is not None:
+                fallback = hit
+        return fallback
 
     async def check_batch(
         self, session: AsyncSession, *, channel: str,

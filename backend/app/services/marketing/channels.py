@@ -40,14 +40,18 @@ CHANNELS: dict[str, ChannelSpec] = {
     "EMAIL": ChannelSpec(
         channel_id="EMAIL",
         name="Email",
-        capabilities=("subject", "html_body", "delivery_events", "bounce_events",
-                      "unsubscribe_links"),
+        capabilities=("subject", "html_body", "plain_text_body", "delivery_events",
+                      "bounce_events", "complaint_events", "unsubscribe_links",
+                      "open_tracking", "click_tracking"),
         template={
             "requires_subject": True,
             "max_body_chars": 200_000,
-            "variables": ["first_name", "last_name", "business_name", "city", "company_name"],
+            "variables": ["first_name", "last_name", "business_name", "city",
+                          "company_name", "email", "unsubscribe_url"],
         },
-        providers=("email", "mock"),
+        # Phase 7: real SMTP + generic Email-API adapters serve this channel;
+        # the mock ids only exist inside isolated test environments
+        providers=("smtp", "email_api", "email_mock", "email", "mock"),
         address_kind="email",
     ),
     "SMS": ChannelSpec(

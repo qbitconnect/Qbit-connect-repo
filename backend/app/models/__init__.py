@@ -1,7 +1,8 @@
-"""SQLAlchemy models — Phase 2 core + Phase 3 scraping + Phase 4 leads + Phase 5 marketing + Phase 6 messaging."""
+"""SQLAlchemy models — Phase 2 core + Phase 3 scraping + Phase 4 leads + Phase 5 marketing + Phase 6 messaging + Phase 7 email."""
 
 from app.models.audit import AuditLog
 from app.models.connection import Connection
+from app.models.email import EmailTrackingEvent, EmailUnsubscribeToken
 from app.models.file import FileRecord
 from app.models.lead import (
     ImportBatch,
@@ -44,6 +45,8 @@ __all__ = [
     "CampaignTemplate",
     "Connection",
     "Conversation",
+    "EmailTrackingEvent",
+    "EmailUnsubscribeToken",
     "FileRecord",
     "ImportBatch",
     "Lead",

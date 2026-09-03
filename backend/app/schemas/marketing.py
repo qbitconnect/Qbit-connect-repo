@@ -32,6 +32,8 @@ class CampaignCreate(BaseModel):
     schedule_type: str = "SEND_NOW"
     scheduled_at: datetime | None = None
     timezone: str | None = Field(default=None, max_length=64)
+    # Phase 7 §31: campaign-level settings accepted at creation too
+    campaign_metadata: dict[str, Any] | None = None
 
 
 class CampaignUpdate(BaseModel):
@@ -43,6 +45,20 @@ class CampaignUpdate(BaseModel):
     schedule_type: str | None = None
     scheduled_at: datetime | None = None
     timezone: str | None = Field(default=None, max_length=64)
+    # Phase 7 §31: campaign-level settings (tracking is opt-in per campaign)
+    campaign_metadata: dict[str, Any] | None = None
+
+
+class CampaignMetadataUpdate(BaseModel):
+    """Phase 7 campaign settings (§31, §12, §37). Secret-like keys rejected."""
+
+    model_config = {"extra": "forbid"}
+
+    track_opens: bool | None = None
+    track_clicks: bool | None = None
+    append_unsubscribe_footer: bool | None = None
+    company_name: str | None = Field(default=None, max_length=200)
+    company_address: str | None = Field(default=None, max_length=500)
 
 
 class TemplateCreate(BaseModel):
@@ -53,6 +69,9 @@ class TemplateCreate(BaseModel):
     language: str = "en"
     status: str = "DRAFT"
     variables: list[str] | None = None
+    # Phase 7 §10: plain-text fallback for EMAIL templates (optional —
+    # derived from the HTML body when omitted)
+    text_body: str | None = Field(default=None, max_length=200_000)
 
 
 class TemplateUpdate(BaseModel):
@@ -62,6 +81,7 @@ class TemplateUpdate(BaseModel):
     language: str | None = None
     status: str | None = None
     variables: list[str] | None = None
+    text_body: str | None = Field(default=None, max_length=200_000)
 
 
 class TemplatePreviewRequest(BaseModel):

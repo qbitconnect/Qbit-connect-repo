@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ConflictError, NotFoundError, PermissionDeniedError, ValidationError
 from app.core.logging import get_logger
+from app.core.config import Settings
 from app.models.marketing import (
     Campaign,
     CampaignQueueItem,
@@ -74,6 +75,7 @@ class CampaignService:
         schedule_type: str = "SEND_NOW",
         scheduled_at: datetime | None = None,
         timezone_name: str | None = None,
+        campaign_metadata: dict | None = None,
         created_by: uuid.UUID | None = None,
     ) -> Campaign:
         clean_name = " ".join(str(name or "").split())[:200]
@@ -104,6 +106,20 @@ class CampaignService:
             schedule_type=schedule_type, scheduled_at=scheduled_at,
             timezone=timezone_name, created_by=created_by,
         )
+        if campaign_metadata:
+            # Phase 7 §31: same allowlist + secret rejection as update()
+            from app.core.logging import SECRET_KEYS
+
+            for key in campaign_metadata:
+                if str(key).lower() in SECRET_KEYS:
+                    raise ValidationError(f"Refusing to store secret-like field '{key}'")
+            known = {
+                "track_opens", "track_clicks", "append_unsubscribe_footer",
+                "company_name", "company_address",
+            }
+            campaign.campaign_metadata = {
+                k: v for k, v in campaign_metadata.items() if k in known and v is not None
+            }
         session.add(campaign)
         await session.commit()
         await session.refresh(campaign)
@@ -151,6 +167,7 @@ class CampaignService:
         schedule_type: str | None = None,
         scheduled_at: datetime | None = None,
         timezone_name: str | None = None,
+        campaign_metadata: dict | None = None,
         actor_id: uuid.UUID | None = None,
     ) -> Campaign:
         campaign = await self.get(session, campaign_id)
@@ -190,6 +207,23 @@ class CampaignService:
             campaign.scheduled_at = scheduled_at
         if timezone_name is not None:
             campaign.timezone = timezone_name
+        if campaign_metadata is not None:
+            # Phase 7 §31: campaign settings merge (track_opens etc.) —
+            # secret-like keys are rejected outright (never stored)
+            from app.core.logging import SECRET_KEYS
+
+            for key in campaign_metadata:
+                if str(key).lower() in SECRET_KEYS:
+                    raise ValidationError(f"Refusing to store secret-like field '{key}'")
+            known = {
+                "track_opens", "track_clicks", "append_unsubscribe_footer",
+                "company_name", "company_address",
+            }
+            clean = {
+                k: v for k, v in campaign_metadata.items()
+                if k in known and v is not None
+            }
+            campaign.campaign_metadata = {**(campaign.campaign_metadata or {}), **clean}
         await session.commit()
         await session.refresh(campaign)
         return campaign
@@ -199,6 +233,7 @@ class CampaignService:
         self, session: AsyncSession, campaign_id: uuid.UUID, *,
         actor_id: uuid.UUID | None = None,
         provider_registry: MarketingProviderRegistry | None = None,
+        settings: Settings | None = None,
     ) -> dict:
         """Pre-launch validation report (§16) — read-only, no state change."""
         campaign = await self.get(session, campaign_id)
@@ -237,22 +272,37 @@ class CampaignService:
         )
         _check("sending_account", account is not None and account.status == "ACTIVE",
                None if account else "No sending account selected")
-        # Phase 6 §29: an unhealthy account must never receive queued messages
+        # Phase 6 §29 + Phase 7 §41: an unhealthy account must never receive
+        # queued messages — the reported reason is channel-honest
         if account is not None and account.status == "ACTIVE":
             healthy = (account.health_status or "UNKNOWN") != "UNHEALTHY"
+            unhealthy_reason = (
+                "EMAIL_SENDER_UNHEALTHY" if campaign.channel == "EMAIL"
+                else "SENDING_ACCOUNT_UNHEALTHY"
+            )
             _check("sending_account_health", healthy,
-                   None if healthy else "SENDING_ACCOUNT_UNHEALTHY")
+                   None if healthy else unhealthy_reason)
             # Phase 6 §27: campaign validation checks account capabilities
             caps = account.capabilities or {}
             caps_ok = caps.get("supports_templates", True) is not False
             _check("sending_account_capabilities", caps_ok,
                    None if caps_ok else "Account does not support template messaging")
+            # Phase 7 §2/§7: an EMAIL campaign may only use an EMAIL account
+            if account.channel != campaign.channel:
+                _check("sending_account_channel", False,
+                       f"Sending account channel {account.channel} does not match "
+                       f"campaign channel {campaign.channel}")
 
         provider_ok = False
         if account is not None and provider_registry is not None:
             provider = provider_registry.get(account.provider)
             if provider is not None and not provider.interface_only:
-                problems = await provider.validate_configuration(account.config_metadata or {})
+                # Phase 7: validate against the SAME config the worker sends
+                # with (email accounts enrich sender_email from identifier)
+                effective_config = dict(account.config_metadata or {})
+                if account.channel == "EMAIL" and account.identifier:
+                    effective_config.setdefault("sender_email", account.identifier)
+                problems = await provider.validate_configuration(effective_config)
                 provider_ok = not problems
                 if problems:
                     _check("provider", False, problems[0])
@@ -260,7 +310,7 @@ class CampaignService:
                 # (WhatsApp: provider-APPROVED template, variable count, ...)
                 if template is not None and provider_ok:
                     template_problems = await provider.validate_send_requirements(
-                        template=template, account_config=account.config_metadata or {},
+                        template=template, account_config=effective_config,
                     )
                     _check("template_requirements", not template_problems,
                            template_problems[0] if template_problems else None)
@@ -313,6 +363,21 @@ class CampaignService:
             "suppressed": suppressed, "missing_address": missing,
             "no_opt_in": no_opt_in,
         }
+
+        # Phase 7 §12/§37: an EMAIL campaign may only launch when a REAL
+        # unsubscribe link can be generated — fake links are never used
+        if campaign.channel == "EMAIL" and settings is not None:
+            unsubscribe_ready = bool(
+                (settings.QBIT_EMAIL_UNSUBSCRIBE_BASE_URL or "").strip()
+            )
+            _check(
+                "unsubscribe_configuration", unsubscribe_ready,
+                None if unsubscribe_ready else (
+                    "QBIT_EMAIL_UNSUBSCRIBE_BASE_URL is not configured — a real "
+                    "unsubscribe link cannot be generated for recipients"
+                ),
+            )
+
         _check("schedule", campaign.schedule_type != "SCHEDULED" or campaign.scheduled_at is not None,
                None if campaign.schedule_type != "SCHEDULED" else "scheduled_at missing")
 
@@ -334,6 +399,7 @@ class CampaignService:
         self, session: AsyncSession, campaign_id: uuid.UUID, *,
         actor_id: uuid.UUID | None = None,
         provider_registry: MarketingProviderRegistry | None = None,
+        settings: Settings | None = None,
     ) -> Campaign:
         """HTTP entry point (§26): validate, then flip DRAFT/SCHEDULED → QUEUED.
 
@@ -344,7 +410,8 @@ class CampaignService:
         if campaign.status not in (CampaignStatus.DRAFT, CampaignStatus.SCHEDULED):
             raise ConflictError(f"Campaign cannot launch from status {campaign.status}")
         report = await self.validate(
-            session, campaign_id, actor_id=actor_id, provider_registry=provider_registry,
+            session, campaign_id, actor_id=actor_id,
+            provider_registry=provider_registry, settings=settings,
         )
         if not report["ok"]:
             raise ValidationError(

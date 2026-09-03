@@ -1,4 +1,4 @@
-"""Template system (Phase 5 §9, §10).
+"""Template system (Phase 5 §9, §10; Phase 7 §10–§12, §38, §39).
 
 Safe-by-construction variable substitution:
 - only {{variable_name}} placeholders are recognized — there is NO expression
@@ -8,6 +8,14 @@ Safe-by-construction variable substitution:
   into attributes by the engine itself
 - validation reports required-but-unknown, unknown, missing variables and
   channel rule violations (length, subject requirement)
+
+Phase 7 (EMAIL):
+- `body` holds the HTML body; it is SANITIZED (email-safe allowlist) before
+  storage and again at render time (defense in depth, §38)
+- `components.text` holds the optional plain-text fallback (§10)
+- the variable allowlist extends with email/phone/website/unsubscribe_url/
+  company fields (§11, §12) — still an allowlist, never arbitrary code
+- subjects are CRLF-guarded (§39)
 """
 
 from __future__ import annotations
@@ -21,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.models.marketing import CampaignTemplate, TemplateStatus
 from app.services.marketing.channels import get_channel
+from app.services.marketing.email_compose import header_safe, sanitize_html
 
 VARIABLE_RE = re.compile(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}")
 #: anything wrapped in {{ }} that is NOT a clean identifier — potential
@@ -40,6 +49,22 @@ RENDER_VARIABLES: dict[str, str] = {
     "country": "country",
     "category": "category",
     "industry": "industry",
+}
+
+# --- Phase 7 §11/§12: email-specific render variables ------------------------
+#: rendered from the lead row when present (never invented)
+EMAIL_LEAD_VARIABLES: dict[str, str] = {
+    "email": "email",
+    "phone": "phone",
+    "website": "website",
+}
+#: rendered from campaign/recipient context (per-send values)
+EMAIL_CONTEXT_VARIABLES = {"unsubscribe_url", "company_address"}
+#: the full EMAIL variable allowlist (§11 + §12)
+EMAIL_RENDER_VARIABLES = {
+    **RENDER_VARIABLES,
+    **EMAIL_LEAD_VARIABLES,
+    **{name: name for name in EMAIL_CONTEXT_VARIABLES},
 }
 
 
@@ -83,10 +108,12 @@ class TemplateService:
         self, *, channel: str, subject: str | None, body: str,
         declared_variables: list[str] | None = None,
     ) -> dict:
-        """Static validation (§10). Returns {valid, problems[], variables[]}."""
+        """Static validation (§10 + Phase 7 §11/§12/§39).
+        Returns {valid, problems[], variables[], undeclared_variables[]}."""
         spec = get_channel(channel)
         if spec is None:
             return {"valid": False, "problems": [f"Unknown channel: {channel}"], "variables": []}
+        channel = channel.upper()
         problems: list[str] = []
         if not (body or "").strip():
             problems.append("Template body must not be empty")
@@ -98,6 +125,11 @@ class TemplateService:
         if max_len and len(body or "") > max_len:
             problems.append(f"Body exceeds {spec.name} maximum of {max_len} characters")
 
+        # §39: subjects must be free of header-injection control characters
+        if subject and not header_safe(subject):
+            problems.append("Subject contains forbidden control characters (CR/LF)")
+
+        allowlist = EMAIL_RENDER_VARIABLES if channel == "EMAIL" else RENDER_VARIABLES
         used = extract_variables(body)
         if subject:
             used |= extract_variables(subject)
@@ -105,13 +137,13 @@ class TemplateService:
             malformed_blocks(subject) if subject else []
         ):
             problems.append(f"Invalid template syntax: {{{{{block}}}}}")
-        unknown = used - set(RENDER_VARIABLES)
+        unknown = used - set(allowlist)
         for name in sorted(unknown):
             problems.append(f"Unknown variable: {{{{{name}}}}}")
 
         declared = set(declared_variables or [])
         # declared variables must be renderable too
-        for name in sorted(declared - set(RENDER_VARIABLES)):
+        for name in sorted(declared - set(allowlist)):
             problems.append(f"Declared variable is not available: {name}")
         # every used variable should be declared (documentation aid, not fatal)
         undeclared = sorted(used - declared)
@@ -136,6 +168,7 @@ class TemplateService:
         name: str, channel: str, body: str, subject: str | None = None,
         language: str = "en", status: str = TemplateStatus.DRAFT,
         variables: list[str] | None = None,
+        text_body: str | None = None,
         created_by: uuid.UUID | None = None,
     ) -> CampaignTemplate:
         clean_name = " ".join(str(name or "").split())[:150]
@@ -149,10 +182,18 @@ class TemplateService:
         status = (status or TemplateStatus.DRAFT).upper()
         if status not in (TemplateStatus.DRAFT, TemplateStatus.ACTIVE, TemplateStatus.ARCHIVED):
             raise ValidationError("status must be DRAFT, ACTIVE or ARCHIVED")
+        components: dict = {}
+        if channel.upper() == "EMAIL":
+            # §38: template HTML is sanitized BEFORE storage and again at
+            # render time; §10: optional explicit plain-text fallback
+            body = sanitize_html(body)
+            if text_body:
+                components["text"] = text_body[:200_000]
         template = CampaignTemplate(
             name=clean_name, channel=channel.upper(), subject=(subject or None),
             body=body, status=status, language=language or "en",
-            variables=report["variables"], created_by=created_by,
+            variables=report["variables"], components=components,
+            created_by=created_by,
         )
         session.add(template)
         await session.commit()
@@ -186,6 +227,7 @@ class TemplateService:
         name: str | None = None, subject: str | None = None, body: str | None = None,
         status: str | None = None, language: str | None = None,
         variables: list[str] | None = None,
+        text_body: str | None = None,
     ) -> CampaignTemplate:
         template = await self.get(session, template_id)
         if name is not None:
@@ -194,13 +236,20 @@ class TemplateService:
                 raise ValidationError("Template name must not be empty")
             template.name = clean
         if body is not None:
-            template.body = body
+            template.body = (
+                sanitize_html(body) if template.channel == "EMAIL" else body
+            )
         if subject is not None:
             template.subject = subject or None
         if language is not None:
             template.language = language or template.language
         if variables is not None:
             template.variables = list(variables)
+        if text_body is not None and template.channel == "EMAIL":
+            template.components = {
+                **(template.components or {}),
+                "text": text_body[:200_000],
+            }
         if status is not None:
             status = status.upper()
             if status not in (TemplateStatus.DRAFT, TemplateStatus.ACTIVE, TemplateStatus.ARCHIVED):

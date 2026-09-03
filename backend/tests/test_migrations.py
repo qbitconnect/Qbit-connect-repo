@@ -50,6 +50,11 @@ MESSAGING_TABLES = {
     "provider_credentials", "provider_events", "conversations", "messages",
 }
 
+#: Phase 7 email provider tables (migration 0006) — additive only.
+EMAIL_TABLES = {
+    "email_tracking_events", "email_unsubscribe_tokens",
+}
+
 
 def _alembic_config(db_path: Path) -> Config:
     cfg = Config(str(ALEMBIC_INI))
@@ -141,7 +146,7 @@ def test_greenfield_repo_had_no_preexisting_schema(tmp_path: Path):
     # No "legacy" tables are part of the metadata beyond the approved sets.
     assert set(Base.metadata.tables) == (
         CORE_TABLES | SCRAPING_TABLES | LEAD_WORKSPACE_TABLES | MARKETING_TABLES
-        | MESSAGING_TABLES
+        | MESSAGING_TABLES | EMAIL_TABLES
     )
 
 

@@ -190,8 +190,22 @@ class QueueService:
         if account is None:
             return True, None
         policy = (account.config_metadata or {}).get("rate_policy") or {}
-        per_minute = int(policy.get("messages_per_minute", settings.QBIT_MARKETING_RATE_PER_MINUTE))
-        per_hour = int(policy.get("messages_per_hour", settings.QBIT_MARKETING_RATE_PER_HOUR))
+        # Phase 7 §42 vocabulary (emails_per_minute/hour) is accepted as an
+        # alias of the Phase 5 keys — one operational throttle, two names.
+        def _policy_value(primary: str, alias: str, fallback: int) -> int:
+            raw = policy.get(primary, policy.get(alias, fallback))
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                return fallback
+        per_minute = _policy_value(
+            "messages_per_minute", "emails_per_minute",
+            settings.QBIT_MARKETING_RATE_PER_MINUTE,
+        )
+        per_hour = _policy_value(
+            "messages_per_hour", "emails_per_hour",
+            settings.QBIT_MARKETING_RATE_PER_HOUR,
+        )
         now = datetime.now(timezone.utc)
 
         minute_count = (await session.scalar(

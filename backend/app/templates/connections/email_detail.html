@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{{ account.name }} — QBIT Connect{% endblock %}
+{% block nav_connections %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ account.name | upper }}</h1>
+    <p class="muted">
+      <span class="badge badge-{{ account.status | lower }}">{{ account.status }}</span>
+      <span class="badge badge-{{ account.health_status | lower }}">health: {{ account.health_status }}</span>
+      {% if account.provider_test_only %}<span class="badge badge-failed">MOCK / TEST ONLY</span>{% endif %}
+    </p>
+  </div>
+  <div class="head-actions"><a class="btn btn-ghost" href="/connections/email">Back</a></div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if validation_failed %}
+<div class="alert alert-error">
+  Validation failed — the account stays <strong>ERROR</strong> until the provider accepts every step.
+  Check the last health error below, fix the configuration or credentials, then run <em>Validate</em> again.
+</div>
+{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+<div class="card" style="max-width:900px">
+  <h3 style="margin:0 0 10px">CONNECTION</h3>
+  <dl class="kv">
+    <dt>Sender name</dt><dd>{{ account.sender_name or '—' }}</dd>
+    <dt>Sender email</dt><dd class="mono">{{ account.sender_email }}</dd>
+    <dt>Reply-To</dt><dd class="mono">{{ account.reply_to or '—' }}</dd>
+    <dt>Provider</dt><dd class="mono">{{ account.provider }}</dd>
+    {% if account.provider == 'smtp' %}
+    <dt>SMTP server</dt><dd class="mono">{{ account.smtp_host or '—' }}{% if account.smtp_port %}:{{ account.smtp_port }}{% endif %} ({{ account.smtp_security or 'STARTTLS' }})</dd>
+    {% endif %}
+    {% if account.provider == 'email_api' %}
+    <dt>API base URL</dt><dd class="mono">{{ account.api_base_url or '—' }}</dd>
+    {% endif %}
+    <dt>Health</dt><dd><span class="badge badge-{{ account.health_status | lower }}">{{ account.health_status }}</span></dd>
+    <dt>Last check</dt><dd>{% if account.last_health_check %}{{ account.last_health_check[:19] | replace('T',' ') }} UTC{% else %}<span class="muted">never</span>{% endif %}</dd>
+    <dt>Credentials</dt><dd>{% if account.has_credentials %}stored (encrypted; never displayed){% else %}<span class="muted">none — add via credential rotation below</span>{% endif %}</dd>
+    {% if account.last_health_error %}<dt>Last health error</dt><dd class="mono small">{{ account.last_health_error }}</dd>{% endif %}
+  </dl>
+
+  <div class="form-actions">
+    {% if can_validate %}<form method="post" action="/connections/email/{{ account.id }}/validate"><button class="btn btn-primary" type="submit">Validate</button></form>{% endif %}
+    {% if can_health %}<form method="post" action="/connections/email/{{ account.id }}/health"><button class="btn btn-ghost" type="submit">Run health check</button></form>{% endif %}
+    {% if can_edit %}
+    <form method="post" action="/connections/email/{{ account.id }}/status">
+      <input type="hidden" name="status" value="{{ 'INACTIVE' if account.status == 'ACTIVE' else 'ACTIVE' }}">
+      <button class="btn btn-ghost" type="submit">{{ 'Disable' if account.status == 'ACTIVE' else 'Enable' }}</button>
+    </form>
+    {% endif %}
+    {% if can_delete %}
+    <form method="post" action="/connections/email/{{ account.id }}/delete"
+          onsubmit="return confirm('Remove this email account and its stored credentials?');">
+      <button class="btn btn-danger" type="submit">Remove</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="max-width:900px;margin-top:14px">
+  <h3 style="margin:0 0 10px">DELIVERY METRICS (actual events only)</h3>
+  <div class="stat-grid">
+    <div class="stat"><span class="stat-label">SENT</span><span class="stat-value">{{ metrics.sent }}</span></div>
+    <div class="stat"><span class="stat-label">DELIVERED</span><span class="stat-value">{{ metrics.delivered }}</span></div>
+    <div class="stat"><span class="stat-label">BOUNCED</span><span class="stat-value">{{ metrics.bounced }}</span></div>
+    <div class="stat"><span class="stat-label">COMPLAINTS</span><span class="stat-value">{{ metrics.complained }}</span></div>
+    <div class="stat"><span class="stat-label">OPENS</span><span class="stat-value">{{ metrics.opened }}</span></div>
+    <div class="stat"><span class="stat-label">UNSUBSCRIBES</span><span class="stat-value">{{ metrics.unsubscribed }}</span></div>
+  </div>
+  <dl class="kv">
+    <dt>Delivery rate</dt><dd class="mono">{{ '%.1f'|format(metrics.rates.delivery_rate * 100) }}%</dd>
+    <dt>Bounce rate</dt><dd class="mono">{{ '%.1f'|format(metrics.rates.bounce_rate * 100) }}%</dd>
+    <dt>Complaint rate</dt><dd class="mono">{{ '%.1f'|format(metrics.rates.complaint_rate * 100) }}%</dd>
+  </dl>
+  {% for w in metrics.warnings %}
+  <div class="alert alert-error">{{ w }}</div>
+  {% endfor %}
+  <p class="muted small">Sender-reputation monitoring foundation — these metrics never guarantee inbox placement.</p>
+</div>
+
+{% if can_edit %}
+<div class="card" style="max-width:900px;margin-top:14px">
+  <h3 style="margin:0 0 10px">ROTATE CREDENTIALS</h3>
+  <form method="post" action="/connections/email/{{ account.id }}/credentials" autocomplete="off" class="stack">
+    {% if account.provider == 'smtp' %}
+    <label>SMTP username
+      <input type="text" name="smtp_username" maxlength="320" placeholder="{{ account.sender_email }}" autocomplete="off">
+    </label>
+    <label>New SMTP password
+      <input type="password" name="smtp_password" maxlength="1024" placeholder="Leave empty to keep current" autocomplete="new-password">
+    </label>
+    {% endif %}
+    {% if account.provider == 'email_api' %}
+    <label>New API key
+      <input type="password" name="api_key" maxlength="1024" placeholder="Leave empty to keep current" autocomplete="new-password">
+    </label>
+    {% endif %}
+    <p class="muted small">Rotating resets provider-validated state — run Validate afterwards. Secrets are write-only and never displayed.</p>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Update credentials</button></div>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

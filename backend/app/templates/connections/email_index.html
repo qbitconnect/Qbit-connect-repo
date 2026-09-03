@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Email connections — QBIT Connect{% endblock %}
+{% block nav_connections %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>EMAIL SENDER ACCOUNTS</h1>
+    <p class="muted">Sender identities for EMAIL campaigns — SMTP (TLS/STARTTLS) or a transactional Email API. Multiple sender accounts are supported; credentials are encrypted at rest and never displayed.</p>
+  </div>
+  <div class="head-actions">
+    <a class="btn btn-ghost" href="/connections">All connections</a>
+    {% if can_manage %}<a class="btn btn-primary" href="/connections/email/new">Add email account</a>{% endif %}
+  </div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+{% if accounts %}
+<div class="card-grid">
+  {% for a in accounts %}
+  <div class="card conn-card">
+    <div class="conn-head">
+      <strong>{{ a.sender_name or a.name }}</strong>
+      <span class="badge badge-{{ a.status | lower }}">{{ a.status }}</span>
+    </div>
+    <dl class="kv">
+      <dt>Sender email</dt><dd class="mono">{{ a.sender_email }}</dd>
+      <dt>Reply-To</dt><dd class="mono">{{ a.reply_to or '—' }}</dd>
+      <dt>Provider</dt><dd class="mono">{{ a.provider }}{% if a.provider_test_only %} <span class="badge badge-failed">MOCK / TEST ONLY</span>{% endif %}</dd>
+      {% if a.provider == 'smtp' %}<dt>Server</dt><dd class="mono">{{ a.smtp_host or '—' }}{% if a.smtp_port %}:{{ a.smtp_port }}{% endif %} ({{ a.smtp_security or 'STARTTLS' }})</dd>{% endif %}
+      {% if a.provider == 'email_api' %}<dt>API base</dt><dd class="mono">{{ a.api_base_url or '—' }}</dd>{% endif %}
+      <dt>Health</dt><dd><span class="badge badge-{{ a.health_status | lower }}">{{ a.health_status }}</span></dd>
+      {% set m = metrics[a.id] %}
+      <dt>Delivery</dt><dd class="mono">{{ '%.1f'|format(m.rates.delivery_rate * 100) }}%</dd>
+      <dt>Bounce</dt><dd class="mono">{{ '%.1f'|format(m.rates.bounce_rate * 100) }}%</dd>
+      <dt>Complaint</dt><dd class="mono">{{ '%.1f'|format(m.rates.complaint_rate * 100) }}%</dd>
+      <dt>Last checked</dt><dd>{% if a.last_health_check %}{{ a.last_health_check[:19] | replace('T',' ') }} UTC{% else %}<span class="muted">never</span>{% endif %}</dd>
+      <dt>Credentials</dt><dd>{% if a.has_credentials %}stored (encrypted){% else %}<span class="muted">none</span>{% endif %}</dd>
+    </dl>
+    <div class="form-actions">
+      <a class="btn btn-ghost" href="/connections/email/{{ a.id }}">View</a>
+      {% if can_health %}
+      <form method="post" action="/connections/email/{{ a.id }}/health"><button class="btn btn-ghost" type="submit">Health check</button></form>
+      {% endif %}
+      {% if can_edit %}
+      <form method="post" action="/connections/email/{{ a.id }}/status">
+        <input type="hidden" name="status" value="{{ 'INACTIVE' if a.status == 'ACTIVE' else 'ACTIVE' }}">
+        <button class="btn btn-ghost" type="submit">{{ 'Disable' if a.status == 'ACTIVE' else 'Enable' }}</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert">No email sender accounts yet.{% if can_manage %} Use "Add email account" to connect one — the account becomes ACTIVE only after the provider validates it.{% endif %}</div>
+{% endif %}
+{% endblock %}

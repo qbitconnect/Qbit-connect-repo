@@ -136,6 +136,12 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     app.state.login_limiter = SlidingWindowRateLimiter(
         max_events=settings.QBIT_RATE_LIMIT_LOGIN_PER_MIN, per_seconds=60.0
     )
+    # Phase 7: abuse protection for the public unsubscribe page (§48)
+    from app.api.v1.email_public import _UNSUB_RATE_LIMIT_PER_MIN
+
+    app.state.unsubscribe_limiter = SlidingWindowRateLimiter(
+        max_events=_UNSUB_RATE_LIMIT_PER_MIN, per_seconds=60.0
+    )
     app.state.maintenance_mode = False
 
     # --- scraping engine (Phase 3) --------------------------------------------
@@ -172,6 +178,8 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     from app.api.v1 import health as health_routes
     from app.api.v1 import campaigns as campaigns_routes
     from app.api.v1 import connections as connections_routes
+    from app.api.v1 import connections_email as connections_email_routes
+    from app.api.v1 import email_public as email_public_routes
     from app.api.v1 import scrape_jobs as scrape_jobs_routes
     from app.api.v1 import scrapers as scrapers_routes
     from app.api.v1 import sending_accounts as sending_accounts_routes
@@ -179,6 +187,7 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     from app.api.v1 import suppression as suppression_routes
     from app.api.v1 import templates as templates_routes
     from app.api.v1 import webhooks as webhooks_routes
+    from app.api.v1 import webhooks_email as webhooks_email_routes
 
     api_v1_prefix = "/api/v1"
     app.include_router(health_routes.router)  # /health, /health/database, ...
@@ -195,7 +204,12 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     app.include_router(sending_accounts_routes.router, prefix=api_v1_prefix)
     app.include_router(suppression_routes.router, prefix=api_v1_prefix)
     app.include_router(connections_routes.router, prefix=api_v1_prefix)
+    app.include_router(connections_email_routes.router, prefix=api_v1_prefix)
     app.include_router(webhooks_routes.router, prefix=api_v1_prefix)
+    app.include_router(webhooks_email_routes.router, prefix=api_v1_prefix)
+    # Phase 7: public unsubscribe page (site root) + tracking endpoints
+    app.include_router(email_public_routes.router)
+    app.include_router(email_public_routes.tracking_router)
 
     # --- operator UI (cookie-authenticated server-rendered pages) ---------------
     from fastapi.staticfiles import StaticFiles
@@ -204,12 +218,14 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     from app.ui import UiRedirect, router as ui_router
     from app.ui.campaigns import router as campaigns_ui_router
     from app.ui.connections import router as connections_ui_router
+    from app.ui.connections_email import router as connections_email_ui_router
     from app.ui.leads import router as leads_ui_router
 
     app.include_router(ui_router)
     app.include_router(leads_ui_router)
     app.include_router(campaigns_ui_router)
     app.include_router(connections_ui_router)
+    app.include_router(connections_email_ui_router)
 
     async def _ui_redirect_handler(request: Request, exc: UiRedirect):
         return RedirectResponse(url=exc.url, status_code=303)

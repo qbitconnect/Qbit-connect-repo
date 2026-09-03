@@ -56,6 +56,31 @@
   <div class="stat"><span class="stat-label">FAILURE RATE</span><span class="stat-value mono">{{ '%.1f'|format(analytics.rates.failure_rate * 100) }}%</span></div>
 </div>
 
+{% if campaign.channel == 'EMAIL' and analytics.email %}
+<div class="card" style="padding:16px;max-width:900px">
+  <h3 style="margin:0 0 8px">EMAIL DELIVERY (from actual events)</h3>
+  <div class="stat-grid">
+    <div class="stat"><span class="stat-label">BOUNCED</span><span class="stat-value">{{ analytics.email.events.bounced }}</span><span class="muted small">hard {{ analytics.email.events.hard_bounces }} / soft {{ analytics.email.events.soft_bounces }}</span></div>
+    <div class="stat"><span class="stat-label">COMPLAINTS</span><span class="stat-value">{{ analytics.email.events.complained }}</span></div>
+    <div class="stat"><span class="stat-label">OPENS</span><span class="stat-value">{{ analytics.email.events.opened }}</span></div>
+    <div class="stat"><span class="stat-label">CLICKS</span><span class="stat-value">{{ analytics.email.events.clicked }}</span></div>
+    <div class="stat"><span class="stat-label">REPLIES</span><span class="stat-value">{{ analytics.email.events.replied }}</span></div>
+    <div class="stat"><span class="stat-label">UNSUBSCRIBES</span><span class="stat-value">{{ analytics.email.events.unsubscribed }}</span></div>
+  </div>
+  <dl class="kv">
+    <dt>Delivery rate</dt><dd class="mono">{{ '%.1f'|format(analytics.email.rates.delivery_rate * 100) }}%</dd>
+    <dt>Bounce rate</dt><dd class="mono">{{ '%.1f'|format(analytics.email.rates.bounce_rate * 100) }}%</dd>
+    <dt>Complaint rate</dt><dd class="mono">{{ '%.1f'|format(analytics.email.rates.complaint_rate * 100) }}%</dd>
+    <dt>Open rate</dt><dd class="mono">{{ '%.1f'|format(analytics.email.rates.open_rate * 100) }}%</dd>
+    <dt>Click rate</dt><dd class="mono">{{ '%.1f'|format(analytics.email.rates.click_rate * 100) }}%</dd>
+    <dt>Unsubscribe rate</dt><dd class="mono">{{ '%.1f'|format(analytics.email.rates.unsubscribe_rate * 100) }}%</dd>
+    {% if account and account.config_metadata.get('sender_email') %}<dt>Sender</dt><dd class="mono">{{ account.config_metadata.get('sender_name') or '' }} &lt;{{ account.config_metadata.get('sender_email') }}&gt;</dd>{% endif %}
+    {% if account and account.config_metadata.get('reply_to') %}<dt>Reply-To</dt><dd class="mono">{{ account.config_metadata.get('reply_to') }}</dd>{% endif %}
+  </dl>
+  <p class="muted small">{{ analytics.email.tracking_note }}</p>
+</div>
+{% endif %}
+
 <div class="card" style="padding:16px;max-width:900px">
   <h3 style="margin:0 0 8px">OVERVIEW</h3>
   <table>

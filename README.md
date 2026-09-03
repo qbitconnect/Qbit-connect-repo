@@ -1,10 +1,11 @@
 # QBIT — Self-Hosted Enterprise Data & Marketing Operations Platform
 
-> **Status: PHASE 6 COMPLETE — WhatsApp Business Provider Integration on the
-> Phase 2/3/4/5 foundation. 430 tests passing. Official WhatsApp Business Cloud API
-> adapter + multi-account connections + encrypted credential vault + provider
-> template sync/approval gating + signed idempotent webhooks + conversations foundation
-> + Connections UI. Email/SMS providers arrive in later phases.**
+> **Status: PHASE 7 COMPLETE — Email Marketing Provider Integration on the
+> Phase 2/3/4/5/6 foundation. 531 tests passing. Real SMTP (TLS/STARTTLS) + generic
+> transactional Email API adapters + multi-sender accounts + encrypted credential vault +
+> email templates (sanitized HTML + plain text + real unsubscribe) + signed idempotent
+> email webhooks + bounce/complaint suppression + opt-in open/click tracking +
+> reply-tracking foundation + email analytics + /connections/email UI.**
 
 QBIT is a self-hosted **admin/operations portal** — not a marketing website — for
 managing: Data Scraping · Lead/Data Management · Multi-channel Marketing ·
@@ -22,11 +23,11 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 |---|---|
 | Repo | `qbitconnect/Qbit-connect-repo` (private) |
 | Audit result | Empty repository — greenfield build (see `docs/01-repository-audit.md`) |
-| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) + Phase 5 (marketing engine foundation) + Phase 6 (WhatsApp Business provider integration) complete — see `docs/25`–`29` completion/architecture reports + `docs/whatsapp-*.md` |
+| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) + Phase 5 (marketing engine foundation) + Phase 6 (WhatsApp Business provider integration) + Phase 7 (email marketing provider integration) complete — see `docs/25`–`29` completion/architecture reports + `docs/whatsapp-*.md` + `docs/email-*.md` |
 | Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine + lead data workspace + marketing engine — `backend/` |
-| Version | `0.6.0` (backend/app/__init__.py) |
-| Tests | 430 passing (`backend/tests`, isolated per-test database) |
-| Next step | Phase 7 — Email marketing provider integration |
+| Version | `0.7.0` (backend/app/__init__.py) |
+| Tests | 531 passing (`backend/tests`, isolated per-test database) |
+| Next step | Later phases — SMS provider, full inbound-mailbox inbox UI, analytics dashboards |
 
 ## Documentation Index
 
@@ -70,6 +71,13 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 | 36 | [WhatsApp Connections](docs/whatsapp-connections.md) | multi-account architecture, connection flow, secret management, permissions, API |
 | 37 | [WhatsApp Templates](docs/whatsapp-templates.md) | provider template sync, approval gating, variable mapping, campaign usage |
 | 38 | [WhatsApp Webhooks](docs/whatsapp-webhooks.md) | verification + signature security, idempotency, state machine, conversations foundation |
+| 39 | [Email Provider](docs/email-provider.md) | Phase 7 SMTP + generic Email API adapters, error normalization, uncertain-delivery rule, compliance boundary |
+| 40 | [Email Connections](docs/email-connections.md) | multi-sender accounts, validation/health flow, secret handling, reputation foundation, API |
+| 41 | [Email Templates](docs/email-templates.md) | subject + sanitized HTML + plain text, variable allowlist, real unsubscribe, header-injection guards |
+| 42 | [Email Delivery](docs/email-delivery.md) | pipeline, eligibility, launch gates, idempotency, retry, bounce/complaint handling, analytics |
+| 43 | [Email Webhooks](docs/email-webhooks.md) | signed webhook contract, replay protection, event normalization, idempotency |
+| 44 | [Email Unsubscribe](docs/email-unsubscribe.md) | token security (hash-at-rest), public opt-out flow, suppression enforcement |
+| 45 | [Email Tracking](docs/email-tracking.md) | opt-in open/click tracking, signed redirects, privacy posture, reply-tracking foundation |
 
 ## Final Architecture Output (Brief §43, items A–T)
 

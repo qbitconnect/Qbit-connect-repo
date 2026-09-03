@@ -569,7 +569,11 @@ async def campaign_detail(
         campaign = await campaigns_service.get(session, campaign_id)
     except QBITError:
         return _redirect("/campaigns", err="Campaign not found")
-    analytics = await analytics_service.campaign_analytics(session, campaign_id)
+    # Phase 7: EMAIL campaigns get the channel-specific analytics block
+    if (campaign.channel or "").upper() == "EMAIL":
+        analytics = await analytics_service.email_campaign_analytics(session, campaign_id)
+    else:
+        analytics = await analytics_service.campaign_analytics(session, campaign_id)
     recipients, rec_total = await _recipients_page(session, campaign_id, recipients_page)
     events, _ev_total = await _events_page(session, campaign_id)
     template = (
