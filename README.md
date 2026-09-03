@@ -1,8 +1,9 @@
 # QBIT — Self-Hosted Enterprise Data & Marketing Operations Platform
 
-> **Status: PHASE 4 COMPLETE — Lead Management + Import/Export + Data Workspace on the
-> Phase 2/3 foundation. 247 tests passing. Lead database + dedup/merge + import wizard
-> + streaming exports + quality dashboard + workspace UI.**
+> **Status: PHASE 5 COMPLETE — Marketing Engine Foundation on the Phase 2/3/4
+> foundation. 329 tests passing. Campaign engine + audience snapshots + templates +
+> eligibility/suppression + idempotent queue + provider architecture + campaign UI.
+> No real provider sending (Phase 6+ per non-goals).**
 
 QBIT is a self-hosted **admin/operations portal** — not a marketing website — for
 managing: Data Scraping · Lead/Data Management · Multi-channel Marketing ·
@@ -20,11 +21,11 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 |---|---|
 | Repo | `qbitconnect/Qbit-connect-repo` (private) |
 | Audit result | Empty repository — greenfield build (see `docs/01-repository-audit.md`) |
-| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) complete — see `docs/25`–`28` completion reports |
+| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) + Phase 5 (marketing engine foundation) complete — see `docs/25`–`29` completion/architecture reports |
 | Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine + lead data workspace — `backend/` |
-| Version | `0.4.0` (backend/app/__init__.py) |
-| Tests | 247 passing (`backend/tests`, isolated per-test database) |
-| Next step | Phase 5 — Marketing engine foundation (campaigns/templates/suppression; no sending) |
+| Version | `0.5.0` (backend/app/__init__.py) |
+| Tests | 329 passing (`backend/tests`, isolated per-test database) |
+| Next step | Phase 6 — WhatsApp Business provider integration (approved APIs only) |
 
 ## Documentation Index
 
@@ -59,6 +60,11 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 | 27 | [Leads](docs/leads.md) | lead schema, provenance, search/filter/sort, tags/notes/activity, RBAC, API |
 | 28 | [Import / Export](docs/import-export.md) | formats, column mapping, duplicate strategies, batches, rejected reports, streaming exports |
 | 29 | [Data Workspace](docs/data-workspace.md) | architecture, dedup ladder, performance, observability |
+| 30 | [Marketing Engine](docs/marketing-engine.md) | Phase 5 architecture, database, campaign lifecycle, queue/retry/idempotency, providers, security |
+| 31 | [Campaigns](docs/campaigns.md) | campaign model, audiences, validation report, API, UI wizard |
+| 32 | [Templates](docs/templates.md) | safe variable engine, channel rules, preview, deletion semantics |
+| 33 | [Eligibility](docs/eligibility.md) | checks ladder, suppression list, opt-outs, consent rule |
+| 34 | [Providers](docs/providers.md) | provider contract, registry, mock provider, event interface, sending accounts |
 
 ## Final Architecture Output (Brief §43, items A–T)
 

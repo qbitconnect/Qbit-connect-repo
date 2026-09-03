@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}New campaign — QBIT Connect{% endblock %}
+{% block nav_campaigns %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>NEW CAMPAIGN</h1>
+    <p class="muted">9-step wizard — details, channel, audience, template, sender, eligibility, schedule, review, launch.</p>
+  </div>
+  <div class="head-actions"><a class="btn btn-ghost" href="/campaigns">Back</a></div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+{% if not provider_configured %}
+<div class="alert">No sending provider configured — launch will be blocked until one is configured (Sending accounts).</div>
+{% endif %}
+
+<form method="post" class="card" style="padding:20px;display:flex;flex-direction:column;gap:18px;max-width:900px">
+
+  <div>
+    <h3 style="margin:0 0 8px">STEP 1 — Campaign details</h3>
+    <div class="toolbar" style="flex-wrap:wrap">
+      <input type="text" name="name" required maxlength="200" placeholder="Campaign name (e.g. Ahmedabad Manufacturers — July outreach)" style="flex:2;min-width:260px" value="{{ form.name if form else '' }}">
+      <input type="text" name="description" maxlength="5000" placeholder="Description (optional)" style="flex:3;min-width:260px" value="{{ form.description if form else '' }}">
+    </div>
+  </div>
+
+  <div>
+    <h3 style="margin:0 0 8px">STEP 2 — Channel</h3>
+    <div class="toolbar">
+      <select name="channel" required>
+        {% for value, label in channels %}
+        <option value="{{ value }}" {% if form and form.channel == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <span class="muted small">Real provider integrations (WhatsApp Business API / email) arrive in the next phase.</span>
+    </div>
+  </div>
+
+  <div>
+    <h3 style="margin:0 0 8px">STEP 3 — Audience</h3>
+    <div class="toolbar" style="flex-wrap:wrap">
+      <select name="audience_type">
+        {% for value, label in audience_types %}
+        <option value="{{ value }}" {% if form and form.audience_type == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <select name="saved_view_id" title="Used when type = Saved view">
+        <option value="">— saved view —</option>
+        {% for v in saved_views %}
+        <option value="{{ v.id }}" {% if form and form.saved_view_id == v.id %}selected{% endif %}>{{ v.name }} ({{ v.visibility }})</option>
+        {% endfor %}
+      </select>
+      <input type="text" name="filters_raw" placeholder='Filters JSON for type = Filters, e.g. {"and":[{"field":"city","op":"eq","value":"Surat"}]}' maxlength="20000" style="flex:2;min-width:240px" value="{{ form.filters_raw if form else '' }}">
+      <input type="text" name="tags_raw" placeholder="Tags for type = Tags (comma separated)" maxlength="500" style="min-width:170px" value="{{ form.tags_raw if form else '' }}">
+      <input type="text" name="lead_ids_raw" placeholder="Lead ids for type = Selected (comma separated)" maxlength="100000" style="flex:2;min-width:240px" value="{{ form.lead_ids_raw if form else '' }}">
+      <input type="text" name="statuses" placeholder="Statuses (optional, comma separated)" maxlength="500" value="{{ form.statuses if form else '' }}">
+    </div>
+    <p class="muted small">The matching audience is snapshotted at launch — later changes to the saved view never alter a launched campaign.</p>
+  </div>
+
+  <div>
+    <h3 style="margin:0 0 8px">STEP 4 — Template</h3>
+    <div class="toolbar">
+      <select name="template_id">
+        <option value="">— select template —</option>
+        {% for t in templates %}
+        <option value="{{ t.id }}" {% if form and form.template_id == t.id %}selected{% endif %}>{{ t.name }} ({{ t.channel }}{% if t.status != 'ACTIVE' %}, {{ t.status }}{% endif %})</option>
+        {% endfor %}
+      </select>
+      <a class="btn btn-ghost" href="/campaigns/templates">Create template</a>
+    </div>
+  </div>
+
+  <div>
+    <h3 style="margin:0 0 8px">STEP 5 — Sending account</h3>
+    <div class="toolbar">
+      <select name="sending_account_id">
+        <option value="">— select sender —</option>
+        {% for a in accounts %}
+        <option value="{{ a.id }}" {% if form and form.sending_account_id == a.id %}selected{% endif %}>{{ a.name }} ({{ a.channel }} · {{ a.provider }}{% if a.config_metadata.get('configured') %} · configured{% else %} · not configured{% endif %})</option>
+        {% endfor %}
+      </select>
+      <a class="btn btn-ghost" href="/campaigns/accounts">Manage senders</a>
+    </div>
+  </div>
+
+  <div>
+    <h3 style="margin:0 0 8px">STEP 6 — Eligibility preview</h3>
+    {% if preview %}
+    <div class="stat-grid">
+      <div class="stat"><span class="stat-label">AUDIENCE</span><span class="stat-value">{{ preview.total }}</span></div>
+      <div class="stat"><span class="stat-label">ELIGIBLE</span><span class="stat-value" style="color:var(--ok)">{{ preview.eligible }}</span></div>
+      <div class="stat"><span class="stat-label">SKIPPED</span><span class="stat-value">{{ preview.skipped }}</span></div>
+      <div class="stat"><span class="stat-label">SUPPRESSED</span><span class="stat-value">{{ preview.suppressed }}</span></div>
+      <div class="stat"><span class="stat-label">MISSING ADDRESS</span><span class="stat-value">{{ preview.missing }}</span></div>
+      <div class="stat"><span class="stat-label">NO OPT-IN</span><span class="stat-value">{{ preview.no_opt_in }}</span></div>
+    </div>
+    {% elif preview_error %}
+    <div class="alert alert-error">{{ preview_error }}</div>
+    {% else %}
+    <p class="muted small">Run "Preview eligibility" before creating — it reports exactly who would be skipped and why.</p>
+    {% endif %}
+  </div>
+
+  <div>
+    <h3 style="margin:0 0 8px">STEP 7 — Schedule</h3>
+    <div class="toolbar" style="flex-wrap:wrap">
+      <select name="schedule_type">
+        <option value="SEND_NOW" {% if form and form.schedule_type == 'SCHEDULED' %}{% else %}selected{% endif %}>Send now</option>
+        <option value="SCHEDULED" {% if form and form.schedule_type == 'SCHEDULED' %}selected{% endif %}>Scheduled</option>
+      </select>
+      <input type="datetime-local" name="scheduled_at" placeholder="Schedule time (UTC)" value="{{ form.scheduled_at if form else '' }}">
+      <span class="muted small">Opt-in is enforced by the eligibility engine — scraped contacts are never treated as consent.</span>
+    </div>
+  </div>
+
+  <div>
+    <h3 style="margin:0 0 8px">STEP 8 — Review &amp; create</h3>
+    <p class="muted small">Creating saves the campaign as a DRAFT. Then validate and launch from the campaign page (STEP 9).</p>
+    <div class="form-actions">
+      <button class="btn btn-ghost" type="submit" formaction="/campaigns/preview">Preview eligibility</button>
+      <button class="btn btn-primary" type="submit" formaction="/campaigns">Create campaign</button>
+      <a class="btn btn-ghost" href="/campaigns">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

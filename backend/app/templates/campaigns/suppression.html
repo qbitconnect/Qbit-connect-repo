@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Suppression — QBIT Connect{% endblock %}
+{% block nav_campaigns %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>SUPPRESSION LIST</h1>
+    <p class="muted">Global do-not-contact. Suppressed contacts never enter the send queue — enforced at eligibility AND re-checked before every send.</p>
+  </div>
+  <div class="head-actions"><a class="btn btn-ghost" href="/campaigns">Back</a></div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+{% if can_manage %}
+<div style="display:flex;gap:14px;flex-wrap:wrap;max-width:1100px">
+  <form method="post" action="/campaigns/suppression" class="card" style="padding:16px;flex:1;min-width:380px">
+    <h3 style="margin:0 0 8px">ADD SUPPRESSION ENTRY</h3>
+    <div class="toolbar" style="flex-wrap:wrap">
+      <select name="type">
+        {% for t in types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+      </select>
+      <input type="text" name="address" required maxlength="320" placeholder="Email / phone / lead id / *" style="flex:2;min-width:200px">
+      <select name="reason">
+        {% for r in reasons %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+      </select>
+      <select name="channel">
+        <option value="">Any channel</option>
+        <option value="WHATSAPP">WhatsApp</option>
+        <option value="EMAIL">Email</option>
+        <option value="SMS">SMS</option>
+      </select>
+      <button class="btn btn-primary" type="submit">Add</button>
+    </div>
+  </form>
+  <form method="post" action="/campaigns/suppression/opt-out" class="card" style="padding:16px;flex:1;min-width:380px">
+    <h3 style="margin:0 0 8px">RECORD OPT-OUT</h3>
+    <div class="toolbar" style="flex-wrap:wrap">
+      <select name="channel">
+        <option value="WHATSAPP">WhatsApp</option>
+        <option value="EMAIL">Email</option>
+        <option value="SMS">SMS</option>
+      </select>
+      <input type="text" name="address" required maxlength="320" placeholder="Address that opted out" style="flex:2;min-width:200px">
+      <button class="btn btn-primary" type="submit">Record</button>
+    </div>
+    <p class="muted small">Opt-outs also create a suppression entry and can never be removed.</p>
+  </form>
+</div>
+{% endif %}
+
+<div class="card table-card" style="margin-top:14px">
+  <div class="page-head" style="padding:12px 12px 0"><div><h3 style="margin:0">ENTRIES ({{ total }})</h3></div></div>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Type</th><th>Address</th><th>Channel</th><th>Reason</th><th>Source</th><th>Added</th>{% if can_manage %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td>{{ e.type }}</td>
+          <td class="mono">{{ e.address }}</td>
+          <td>{{ e.channel or 'ANY' }}</td>
+          <td>{{ e.reason }}</td>
+          <td class="muted small">{{ e.source or '' }}</td>
+          <td class="muted small">{{ str(e.created_at)[:16].replace('T',' ') }}</td>
+          {% if can_manage %}
+          <td>
+            <form method="post" action="/campaigns/suppression/{{ e.id }}/delete" class="inline-form">
+              <button class="btn btn-sm btn-danger">Remove</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="center muted" style="padding:28px">Suppression list is empty.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card table-card" style="margin-top:14px">
+  <div class="page-head" style="padding:12px 12px 0"><div><h3 style="margin:0">RECENT OPT-OUTS ({{ opt_total }})</h3></div></div>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Channel</th><th>Address</th><th>Reason</th><th>Recorded</th></tr></thead>
+      <tbody>
+        {% for o in opt_outs %}
+        <tr>
+          <td>{{ o.channel }}</td>
+          <td class="mono">{{ o.address }}</td>
+          <td>{{ o.reason }}</td>
+          <td class="muted small">{{ str(o.created_at)[:16].replace('T',' ') }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="center muted" style="padding:20px">No opt-outs recorded.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

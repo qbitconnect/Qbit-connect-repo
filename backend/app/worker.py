@@ -89,6 +89,7 @@ class ScrapeWorker:
 
         sweep_task = asyncio.create_task(self._periodic_sweep())
         data_task = asyncio.create_task(self._data_jobs_loop())
+        campaign_task = asyncio.create_task(self._campaign_loop())
         try:
             while not self._shutdown.is_set():
                 if len(self._tasks) >= self.settings.QBIT_WORKER_MAX_CONCURRENT_JOBS:
@@ -105,6 +106,7 @@ class ScrapeWorker:
         finally:
             sweep_task.cancel()
             data_task.cancel()
+            campaign_task.cancel()
             await self._drain()
             await self.queue.aclose()
             await self.db.close()
@@ -145,6 +147,36 @@ class ScrapeWorker:
     def _handle_signal(self) -> None:
         log_with(logger, 20, "Shutdown signal received; pausing in-flight jobs")
         self._shutdown.set()
+
+    async def _campaign_loop(self) -> None:
+        """Phase 5: marketing engine loop — schedules, launches, sends.
+
+        Runs on its own cadence next to the scrape and data-job loops; a
+        failing campaign never touches the other loops (isolation rule).
+        """
+        from app.services.marketing import build_provider_registry
+        from app.services.marketing.worker import CampaignWorker
+
+        worker = CampaignWorker(
+            self.settings,
+            build_provider_registry(self.settings),
+            owner=f"campaign-{uuid.uuid4().hex[:8]}",
+        )
+        try:
+            while not self._shutdown.is_set():
+                try:
+                    async with self.db.session() as session:
+                        actions = await worker.process_cycle(session)
+                except Exception:  # noqa: BLE001 — keep the loop alive
+                    logger.exception("Campaign loop iteration failed")
+                    actions = 0
+                await asyncio.sleep(
+                    self.settings.QBIT_WORKER_POLL_SECONDS if actions else max(
+                        self.settings.QBIT_WORKER_POLL_SECONDS * 3, 3.0
+                    )
+                )
+        except asyncio.CancelledError:
+            return
 
     async def _drain(self) -> None:
         if not self._tasks:

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{{ campaign.name }} — QBIT Connect{% endblock %}
+{% block nav_campaigns %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ campaign.name | upper }}</h1>
+    <p class="muted">
+      {{ campaign.channel }} · <span class="badge badge-{{ campaign.status | lower }}">{{ campaign.status }}</span>
+      {% if campaign.schedule_type == 'SCHEDULED' and campaign.scheduled_at %} · scheduled {{ str(campaign.scheduled_at)[:16].replace('T',' ') }} UTC{% endif %}
+    </p>
+  </div>
+  <div class="head-actions">
+    {% if can_validate %}<form method="post" action="/campaigns/{{ campaign.id }}/validate" class="inline-form"><button class="btn btn-ghost">Validate</button></form>{% endif %}
+    {% if can_launch and campaign.status in ('DRAFT','SCHEDULED') %}
+      <form method="post" action="/campaigns/{{ campaign.id }}/launch" class="inline-form"><button class="btn btn-primary">Launch</button></form>
+    {% endif %}
+    {% if can_pause and campaign.status == 'RUNNING' %}
+      <form method="post" action="/campaigns/{{ campaign.id }}/pause" class="inline-form"><button class="btn btn-ghost">Pause</button></form>
+    {% endif %}
+    {% if can_resume and campaign.status == 'PAUSED' %}
+      <form method="post" action="/campaigns/{{ campaign.id }}/resume" class="inline-form"><button class="btn btn-primary">Resume</button></form>
+    {% endif %}
+    {% if can_cancel and campaign.status in ('SCHEDULED','QUEUED','RUNNING','PAUSED') %}
+      <form method="post" action="/campaigns/{{ campaign.id }}/cancel" class="inline-form"><button class="btn btn-sm btn-danger">Cancel</button></form>
+    {% endif %}
+    {% if can_edit and campaign.status in ('COMPLETED','CANCELLED','FAILED','DRAFT') %}
+      <form method="post" action="/campaigns/{{ campaign.id }}/archive" class="inline-form"><button class="btn btn-sm btn-ghost">Archive</button></form>
+    {% endif %}
+  </div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+{% if campaign.validation_report and not campaign.validation_report.ok %}
+<div class="alert alert-error">Last validation failed — resolve the checks below before launch.</div>
+{% endif %}
+{% if account and not account_configured %}
+<div class="alert">Provider not configured for this sending account — launch is blocked until it is configured.</div>
+{% endif %}
+
+<div class="stat-grid">
+  <div class="stat"><span class="stat-label">AUDIENCE</span><span class="stat-value">{{ analytics.recipients.total }}</span></div>
+  <div class="stat"><span class="stat-label">ELIGIBLE</span><span class="stat-value" style="color:var(--ok)">{{ analytics.recipients.eligible }}</span></div>
+  <div class="stat"><span class="stat-label">SENT</span><span class="stat-value">{{ analytics.messages.sent }}</span></div>
+  <div class="stat"><span class="stat-label">DELIVERED</span><span class="stat-value">{{ analytics.messages.delivered }}</span></div>
+  <div class="stat"><span class="stat-label">REPLIES</span><span class="stat-value">{{ analytics.messages.replied }}</span></div>
+  <div class="stat"><span class="stat-label">FAILED</span><span class="stat-value">{{ analytics.messages.failed }}</span></div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat"><span class="stat-label">DELIVERY RATE</span><span class="stat-value mono">{{ '%.1f'|format(analytics.rates.delivery_rate * 100) }}%</span></div>
+  <div class="stat"><span class="stat-label">READ RATE</span><span class="stat-value mono">{{ '%.1f'|format(analytics.rates.read_rate * 100) }}%</span></div>
+  <div class="stat"><span class="stat-label">REPLY RATE</span><span class="stat-value mono">{{ '%.1f'|format(analytics.rates.reply_rate * 100) }}%</span></div>
+  <div class="stat"><span class="stat-label">FAILURE RATE</span><span class="stat-value mono">{{ '%.1f'|format(analytics.rates.failure_rate * 100) }}%</span></div>
+</div>
+
+<div class="card" style="padding:16px;max-width:900px">
+  <h3 style="margin:0 0 8px">OVERVIEW</h3>
+  <table>
+    <tbody>
+      <tr><td class="muted">Description</td><td>{{ campaign.description or '—' }}</td></tr>
+      <tr><td class="muted">Audience</td><td><code class="mono small">{{ campaign.audience_definition | tojson }}</code></td></tr>
+      <tr><td class="muted">Template</td><td>{% if template %}<a href="/campaigns/templates">{{ template.name }}</a> ({{ template.channel }}){% else %}<span class="alert-error" style="padding:2px 6px">No template selected</span>{% endif %}</td></tr>
+      <tr><td class="muted">Sending account</td><td>{% if account %}{{ account.name }} — {{ provider_label }} {% if not account_configured %}<span class="muted">(not configured)</span>{% endif %}{% else %}<span class="alert-error" style="padding:2px 6px">No sending account</span>{% endif %}</td></tr>
+      <tr><td class="muted">Started</td><td>{{ str(campaign.started_at)[:19].replace('T',' ') if campaign.started_at else '—' }}</td></tr>
+      <tr><td class="muted">Completed</td><td>{{ str(campaign.completed_at)[:19].replace('T',' ') if campaign.completed_at else '—' }}</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card table-card" style="margin-top:14px">
+  <div class="page-head" style="padding:12px 12px 0">
+    <div><h3 style="margin:0">RECIPIENTS ({{ rec_total }})</h3></div>
+  </div>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Address</th><th>Name</th><th>Status</th><th>Skip reason</th><th>Provider msg id</th></tr></thead>
+      <tbody>
+        {% for r in recipients %}
+        <tr>
+          <td class="mono">{{ r.recipient_address or '—' }}</td>
+          <td>{{ r.recipient_name or '—' }}</td>
+          <td><span class="badge badge-{{ r.status | lower }}">{{ r.status }}</span></td>
+          <td class="muted">{{ r.skip_reason or '' }}</td>
+          <td class="mono small">{{ r.provider_message_id or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="center muted" style="padding:24px">No recipients yet — launch creates the immutable audience snapshot.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card" style="padding:16px;margin-top:14px;max-width:900px">
+  <h3 style="margin:0 0 8px">EVENT TIMELINE</h3>
+  <table>
+    <tbody>
+      {% for e in events %}
+      <tr>
+        <td class="muted small mono">{{ str(e.created_at)[:19].replace('T',' ') }}</td>
+        <td><strong>{{ e.event_type }}</strong></td>
+        <td class="muted small">{% if e.recipient_id %}recipient {{ str(e.recipient_id)[:8] }}{% endif %} {{ e.payload_metadata.get('reason') or '' }} {{ e.payload_metadata.get('error') or '' }}</td>
+      </tr>
+      {% else %}
+      <tr><td class="muted" style="padding:16px">No events yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

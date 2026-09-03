@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Campaigns — QBIT Connect{% endblock %}
+{% block nav_campaigns %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>CAMPAIGNS</h1>
+    <p class="muted">Marketing control center — leads, audiences, channels and delivery analytics.</p>
+  </div>
+  <div class="head-actions">
+    {% if can_create %}<a class="btn btn-primary" href="/campaigns/new">New campaign</a>{% endif %}
+    <a class="btn btn-ghost" href="/campaigns/templates">Templates</a>
+    <a class="btn btn-ghost" href="/campaigns/accounts">Sending accounts</a>
+    <a class="btn btn-ghost" href="/campaigns/suppression">Suppression</a>
+  </div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+{% if not provider_configured %}
+<div class="alert">No sending provider configured. Campaigns can be drafted and validated, but launch stays blocked until a provider is configured in Sending accounts.</div>
+{% endif %}
+
+<div class="stat-grid">
+  <div class="stat"><span class="stat-label">TOTAL CAMPAIGNS</span><span class="stat-value">{{ totals.total_campaigns }}</span></div>
+  <div class="stat"><span class="stat-label">DRAFTS</span><span class="stat-value">{{ totals.drafts }}</span></div>
+  <div class="stat"><span class="stat-label">SCHEDULED</span><span class="stat-value">{{ totals.scheduled }}</span></div>
+  <div class="stat"><span class="stat-label">RUNNING</span><span class="stat-value">{{ totals.running + totals.queued }}</span></div>
+  <div class="stat"><span class="stat-label">COMPLETED</span><span class="stat-value">{{ totals.completed }}</span></div>
+</div>
+
+<form method="get" action="/campaigns" class="toolbar">
+  <select name="status">
+    <option value="">Status: any</option>
+    {% for s in statuses %}{% if s %}<option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s }}</option>{% endif %}{% endfor %}
+  </select>
+  <button class="btn btn-primary" type="submit">Filter</button>
+  <a class="btn btn-ghost" href="/campaigns">Reset</a>
+</form>
+
+<div class="card table-card">
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>Channel</th><th>Status</th><th>Recipients</th>
+          <th>Sent</th><th>Delivered</th><th>Replies</th><th>Created</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in campaigns %}
+        {% set a = counts.get(str(c.id)) %}
+        <tr>
+          <td><a href="/campaigns/{{ c.id }}"><strong>{{ c.name }}</strong></a></td>
+          <td>{{ c.channel }}</td>
+          <td><span class="badge badge-{{ c.status | lower }}">{{ c.status }}</span></td>
+          <td class="mono">{{ a.recipients.total if a else 0 }}</td>
+          <td class="mono">{{ a.messages.sent if a else 0 }}</td>
+          <td class="mono">{{ a.messages.delivered if a else 0 }}</td>
+          <td class="mono">{{ a.messages.replied if a else 0 }}</td>
+          <td class="muted small">{{ str(c.created_at)[:16].replace('T',' ') }}</td>
+          <td><a class="btn btn-sm btn-ghost" href="/campaigns/{{ c.id }}">Open</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="center muted" style="padding:32px">
+          No campaigns yet. {% if can_create %}Create your first campaign from a lead audience.{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if total > page_size %}
+<div class="pager">
+  {% for p in range(1, ((total + page_size - 1) // page_size) + 1) %}
+    {% if p <= page + 2 and p >= page - 2 %}
+      <a class="pager-item {% if p == page %}active{% endif %}" href="/campaigns?status={{ status }}&page={{ p }}">{{ p }}</a>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

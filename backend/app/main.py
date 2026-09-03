@@ -140,11 +140,14 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
 
     # --- scraping engine (Phase 3) --------------------------------------------
     from app.scrapers.bootstrap import register_builtin_actors
+    from app.services.marketing.providers import build_provider_registry
     from app.services.scraping.queue import build_queue_backend
     from app.services.scraping.registry import ActorRegistry
 
     app.state.scraper_registry = register_builtin_actors(ActorRegistry(), settings)
     app.state.queue = build_queue_backend(settings, app.state.redis)
+    # Phase 5: marketing provider registry (mock provider gated to test envs)
+    app.state.marketing_providers = build_provider_registry(settings)
 
     # --- middleware (order matters: outermost first) ---------------------------
     app.add_middleware(SecurityHeadersMiddleware)
@@ -167,9 +170,13 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     # --- routers ----------------------------------------------------------------
     from app.api.v1 import auth, files, leads, roles, users
     from app.api.v1 import health as health_routes
+    from app.api.v1 import campaigns as campaigns_routes
     from app.api.v1 import scrape_jobs as scrape_jobs_routes
     from app.api.v1 import scrapers as scrapers_routes
+    from app.api.v1 import sending_accounts as sending_accounts_routes
     from app.api.v1 import settings as settings_routes
+    from app.api.v1 import suppression as suppression_routes
+    from app.api.v1 import templates as templates_routes
 
     api_v1_prefix = "/api/v1"
     app.include_router(health_routes.router)  # /health, /health/database, ...
@@ -181,16 +188,22 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     app.include_router(scrapers_routes.router, prefix=api_v1_prefix)
     app.include_router(scrape_jobs_routes.router, prefix=api_v1_prefix)
     app.include_router(leads.router, prefix=api_v1_prefix)
+    app.include_router(campaigns_routes.router, prefix=api_v1_prefix)
+    app.include_router(templates_routes.router, prefix=api_v1_prefix)
+    app.include_router(sending_accounts_routes.router, prefix=api_v1_prefix)
+    app.include_router(suppression_routes.router, prefix=api_v1_prefix)
 
     # --- operator UI (cookie-authenticated server-rendered pages) ---------------
     from fastapi.staticfiles import StaticFiles
     from fastapi.responses import RedirectResponse
 
     from app.ui import UiRedirect, router as ui_router
+    from app.ui.campaigns import router as campaigns_ui_router
     from app.ui.leads import router as leads_ui_router
 
     app.include_router(ui_router)
     app.include_router(leads_ui_router)
+    app.include_router(campaigns_ui_router)
 
     async def _ui_redirect_handler(request: Request, exc: UiRedirect):
         return RedirectResponse(url=exc.url, status_code=303)

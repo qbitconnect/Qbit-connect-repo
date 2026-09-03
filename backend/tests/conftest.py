@@ -46,6 +46,7 @@ async def app(tmp_path: Path):
     assert not settings.is_production
 
     db = DatabaseManager(settings)
+    import app.models  # noqa: F401 — register every model on Base.metadata
     async with db.engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

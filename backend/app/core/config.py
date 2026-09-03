@@ -131,6 +131,24 @@ class Settings(BaseSettings):
     #: max ids accepted by one bulk action call (hard delete is capped lower)
     QBIT_LEADS_MAX_BULK_IDS: int = Field(default=5000, ge=1)
 
+    # --- Marketing engine (Phase 5) --------------------------------------------
+    #: register the MOCK/TEST-ONLY marketing provider (isolated test envs only)
+    QBIT_MARKETING_ALLOW_MOCK_PROVIDER: bool = False
+    #: recipient snapshot / eligibility batches (never load whole audiences)
+    QBIT_MARKETING_SNAPSHOT_BATCH_SIZE: int = Field(default=1000, ge=100)
+    #: queue items claimed per worker cycle
+    QBIT_MARKETING_QUEUE_BATCH_SIZE: int = Field(default=25, ge=1)
+    #: conservative default rate policy per sending account (operational
+    #: throttling ONLY — never used to evade provider limits)
+    QBIT_MARKETING_RATE_PER_MINUTE: int = Field(default=10, ge=1)
+    QBIT_MARKETING_RATE_PER_HOUR: int = Field(default=100, ge=1)
+    #: retry policy (brief §19): transient failures back off exponentially
+    QBIT_MARKETING_MAX_ATTEMPTS: int = Field(default=3, ge=1)
+    QBIT_MARKETING_RETRY_BASE_SECONDS: float = Field(default=30.0, ge=1)
+    QBIT_MARKETING_RETRY_MAX_SECONDS: float = Field(default=7200.0, ge=60)
+    #: audience size cap per campaign launch (hard safety ceiling)
+    QBIT_MARKETING_MAX_AUDIENCE: int = Field(default=100000, ge=1)
+
     # --- Maps provider (Phase 3, google-maps actor) ----------------------------
     #: none | http | mock — `mock` is for tests/dev ONLY, never production.
     QBIT_MAPS_PROVIDER: str = "none"

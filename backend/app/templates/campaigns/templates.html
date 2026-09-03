@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Templates — QBIT Connect{% endblock %}
+{% block nav_campaigns %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>MARKETING TEMPLATES</h1>
+    <p class="muted">Safe {{ '{{variable}}' }} substitution only — no executable expressions, ever.</p>
+  </div>
+  <div class="head-actions"><a class="btn btn-ghost" href="/campaigns">Back</a></div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+{% if can_create %}
+<form method="post" action="/campaigns/templates" class="card" style="padding:16px;max-width:860px;display:flex;flex-direction:column;gap:10px">
+  <h3 style="margin:0">CREATE TEMPLATE</h3>
+  <div class="toolbar" style="flex-wrap:wrap">
+    <input type="text" name="name" required maxlength="150" placeholder="Template name" style="flex:2;min-width:220px">
+    <select name="channel" required>
+      {% for value, label in channels %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+    </select>
+    <input type="text" name="subject" maxlength="300" placeholder="Subject (email only)" style="flex:2;min-width:200px">
+  </div>
+  <textarea name="body" required rows="5" placeholder="Message body. Available variables: {{first_name}} {{last_name}} {{business_name}} {{company_name}} {{city}} {{state}} {{country}} {{category}} {{industry}}"></textarea>
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">Create template</button>
+    <span class="muted small">Variables render from each lead at send time; unknown variables render empty and are reported at validation.</span>
+  </div>
+</form>
+{% endif %}
+
+<div class="card table-card" style="margin-top:14px">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Name</th><th>Channel</th><th>Status</th><th>Variables</th><th>Preview</th><th>Updated</th>{% if can_delete %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+        {% for t in templates %}
+        <tr>
+          <td><strong>{{ t.name }}</strong></td>
+          <td>{{ t.channel }}</td>
+          <td><span class="badge badge-{{ t.status | lower }}">{{ t.status }}</span></td>
+          <td class="mono small">{% for v in t.variables %}{{ '{{' }}{{ v }}{{ '}}' }} {% endfor %}</td>
+          <td class="muted small">{{ (t.body or '')[:80] }}</td>
+          <td class="muted small">{{ str(t.updated_at)[:16].replace('T',' ') }}</td>
+          {% if can_delete %}
+          <td>
+            <form method="post" action="/campaigns/templates/{{ t.id }}/delete" class="inline-form">
+              <button class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="center muted" style="padding:28px">Create your first marketing template.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

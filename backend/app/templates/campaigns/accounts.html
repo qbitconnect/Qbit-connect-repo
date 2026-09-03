@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Sending accounts — QBIT Connect{% endblock %}
+{% block nav_campaigns %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>SENDING ACCOUNTS</h1>
+    <p class="muted">Multiple sender identities per channel. Provider credentials are never stored in this phase — the credential vault arrives later.</p>
+  </div>
+  <div class="head-actions"><a class="btn btn-ghost" href="/campaigns">Back</a></div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+{% if not accounts %}
+<div class="alert">No sending provider configured. Add a sending account, then configure its provider to enable launches.</div>
+{% endif %}
+
+{% if can_manage %}
+<form method="post" action="/campaigns/accounts" class="card" style="padding:16px;max-width:900px;display:flex;flex-direction:column;gap:10px">
+  <h3 style="margin:0">ADD SENDING ACCOUNT</h3>
+  <div class="toolbar" style="flex-wrap:wrap">
+    <input type="text" name="name" required maxlength="150" placeholder="Account name (e.g. WhatsApp Business 1)" style="flex:2;min-width:220px">
+    <select name="channel" required>
+      {% for value, label in channels %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+    </select>
+    <select name="provider" required>
+      <option value="whatsapp_cloud">whatsapp_cloud (interface)</option>
+      <option value="email">email (interface)</option>
+      <option value="sms">sms (interface)</option>
+      <option value="mock">mock — MOCK / TEST ONLY</option>
+    </select>
+    <input type="text" name="identifier" required maxlength="300" placeholder="Identifier (phone number / email address)" style="flex:2;min-width:220px">
+    <input type="text" name="display_identifier" maxlength="300" placeholder="Display identifier (optional)">
+    <input type="text" name="from_address" maxlength="300" placeholder="From address (email channel, optional)">
+    <input type="text" name="phone_number_id" maxlength="300" placeholder="Phone number id (WhatsApp, optional)">
+    <input type="text" name="rate_per_minute" maxlength="6" placeholder="Rate limit / min (default 10)" size="10">
+  </div>
+  <p class="muted small">No API keys or tokens can be entered here — they are rejected by design. Providers stay "not configured" until a later phase wires the credential vault.</p>
+  <div class="form-actions"><button class="btn btn-primary" type="submit">Add account</button></div>
+</form>
+{% endif %}
+
+<div class="card table-card" style="margin-top:14px">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Name</th><th>Channel</th><th>Provider</th><th>Status</th><th>Health</th><th>Identifier</th><th>Config</th></tr></thead>
+      <tbody>
+        {% for a in accounts %}
+        <tr>
+          <td><strong>{{ a.row.name }}</strong>
+            {% if a.test_only %}<span class="badge badge-failed">MOCK / TEST ONLY</span>{% endif %}
+          </td>
+          <td>{{ a.row.channel }}</td>
+          <td class="mono small">{{ a.row.provider }}{% if not a.available %} <span class="muted">(unregistered)</span>{% endif %}</td>
+          <td><span class="badge badge-{{ a.row.status | lower }}">{{ a.row.status }}</span></td>
+          <td>{{ a.row.health_status }}</td>
+          <td class="mono small">{{ a.row.display_identifier or a.row.identifier }}</td>
+          <td>{% if a.configured %}<span style="color:var(--ok)">configured</span>{% else %}<span class="muted">not configured</span>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="center muted" style="padding:28px">No sending accounts yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
