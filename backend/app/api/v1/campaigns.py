@@ -165,6 +165,12 @@ async def launch_campaign(
     audit: AuditDep,
     user=Depends(require_permission("campaigns.launch")),
 ):
+    # Phase 6 §37: WhatsApp launches additionally require the channel-scoped
+    # permission, enforced server-side (never frontend-only)
+    campaign = await campaigns_service.get(session, campaign_id)
+    if (campaign.channel or "").upper() == "WHATSAPP":
+        from app.api.deps import require_permission as _rp
+        await _rp("campaigns.whatsapp.launch")(request, session, user)
     campaign = await campaigns_service.request_launch(
         session, campaign_id, actor_id=user.id, provider_registry=_registry(request),
     )

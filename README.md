@@ -1,9 +1,10 @@
 # QBIT — Self-Hosted Enterprise Data & Marketing Operations Platform
 
-> **Status: PHASE 5 COMPLETE — Marketing Engine Foundation on the Phase 2/3/4
-> foundation. 329 tests passing. Campaign engine + audience snapshots + templates +
-> eligibility/suppression + idempotent queue + provider architecture + campaign UI.
-> No real provider sending (Phase 6+ per non-goals).**
+> **Status: PHASE 6 COMPLETE — WhatsApp Business Provider Integration on the
+> Phase 2/3/4/5 foundation. 430 tests passing. Official WhatsApp Business Cloud API
+> adapter + multi-account connections + encrypted credential vault + provider
+> template sync/approval gating + signed idempotent webhooks + conversations foundation
+> + Connections UI. Email/SMS providers arrive in later phases.**
 
 QBIT is a self-hosted **admin/operations portal** — not a marketing website — for
 managing: Data Scraping · Lead/Data Management · Multi-channel Marketing ·
@@ -21,11 +22,11 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 |---|---|
 | Repo | `qbitconnect/Qbit-connect-repo` (private) |
 | Audit result | Empty repository — greenfield build (see `docs/01-repository-audit.md`) |
-| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) + Phase 5 (marketing engine foundation) complete — see `docs/25`–`29` completion/architecture reports |
-| Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine + lead data workspace — `backend/` |
-| Version | `0.5.0` (backend/app/__init__.py) |
-| Tests | 329 passing (`backend/tests`, isolated per-test database) |
-| Next step | Phase 6 — WhatsApp Business provider integration (approved APIs only) |
+| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) + Phase 5 (marketing engine foundation) + Phase 6 (WhatsApp Business provider integration) complete — see `docs/25`–`29` completion/architecture reports + `docs/whatsapp-*.md` |
+| Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine + lead data workspace + marketing engine — `backend/` |
+| Version | `0.6.0` (backend/app/__init__.py) |
+| Tests | 430 passing (`backend/tests`, isolated per-test database) |
+| Next step | Phase 7 — Email marketing provider integration |
 
 ## Documentation Index
 
@@ -65,6 +66,10 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 | 32 | [Templates](docs/templates.md) | safe variable engine, channel rules, preview, deletion semantics |
 | 33 | [Eligibility](docs/eligibility.md) | checks ladder, suppression list, opt-outs, consent rule |
 | 34 | [Providers](docs/providers.md) | provider contract, registry, mock provider, event interface, sending accounts |
+| 35 | [WhatsApp Provider](docs/whatsapp-provider.md) | Phase 6 adapter, Cloud API client, error normalization, health probe, compliance boundary |
+| 36 | [WhatsApp Connections](docs/whatsapp-connections.md) | multi-account architecture, connection flow, secret management, permissions, API |
+| 37 | [WhatsApp Templates](docs/whatsapp-templates.md) | provider template sync, approval gating, variable mapping, campaign usage |
+| 38 | [WhatsApp Webhooks](docs/whatsapp-webhooks.md) | verification + signature security, idempotency, state machine, conversations foundation |
 
 ## Final Architecture Output (Brief §43, items A–T)
 

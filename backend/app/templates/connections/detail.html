@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ account.name }} — QBIT Connect{% endblock %}
+{% block nav_connections %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ account.name | upper }}</h1>
+    <p class="muted">
+      <span class="badge badge-{{ account.status | lower }}">{{ account.status }}</span>
+      <span class="badge badge-{{ account.health_status | lower }}">health: {{ account.health_status }}</span>
+      {% if account.provider_test_only %}<span class="badge badge-failed">MOCK / TEST ONLY</span>{% endif %}
+    </p>
+  </div>
+  <div class="head-actions"><a class="btn btn-ghost" href="/connections">Back</a></div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if validation_failed %}
+<div class="alert alert-error">
+  Validation failed — the account stays <strong>ERROR</strong> until the provider accepts every step.
+  Check the last health error below, fix the configuration or credentials, then run <em>Validate</em> again.
+</div>
+{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+<div class="card" style="max-width:900px">
+  <h3 style="margin:0 0 10px">CONNECTION</h3>
+  <dl class="kv">
+    <dt>Phone</dt><dd class="mono">{{ account.display_identifier or account.identifier }}</dd>
+    <dt>Phone number ID</dt><dd class="mono">{{ account.phone_number_id or '—' }}</dd>
+    <dt>Business account</dt><dd class="mono">{{ account.business_account_id or '—' }}</dd>
+    <dt>Provider</dt><dd class="mono">{{ account.provider }}</dd>
+    <dt>Health</dt><dd><span class="badge badge-{{ account.health_status | lower }}">{{ account.health_status }}</span></dd>
+    <dt>Last check</dt><dd>{% if account.last_health_check %}{{ account.last_health_check[:19] | replace('T',' ') }} UTC{% else %}<span class="muted">never</span>{% endif %}</dd>
+    <dt>Credentials</dt><dd>{% if account.has_credentials %}stored (encrypted; never displayed){% else %}<span class="muted">none — add via credential rotation below</span>{% endif %}</dd>
+    {% if account.last_health_error %}<dt>Last health error</dt><dd class="mono small">{{ account.last_health_error }}</dd>{% endif %}
+  </dl>
+
+  <div class="form-actions">
+    {% if can_validate %}<form method="post" action="/connections/whatsapp/{{ account.id }}/validate"><button class="btn btn-primary" type="submit">Validate</button></form>{% endif %}
+    {% if can_health %}<form method="post" action="/connections/whatsapp/{{ account.id }}/health"><button class="btn btn-ghost" type="submit">Run health check</button></form>{% endif %}
+    {% if can_sync %}<form method="post" action="/connections/whatsapp/{{ account.id }}/sync-templates"><button class="btn btn-ghost" type="submit">Sync templates</button></form>{% endif %}
+    {% if can_edit %}
+    <form method="post" action="/connections/whatsapp/{{ account.id }}/status">
+      <input type="hidden" name="status" value="{{ 'INACTIVE' if account.status == 'ACTIVE' else 'ACTIVE' }}">
+      <button class="btn btn-ghost" type="submit">{{ 'Disable' if account.status == 'ACTIVE' else 'Enable' }}</button>
+    </form>
+    {% endif %}
+    {% if can_delete %}
+    <form method="post" action="/connections/whatsapp/{{ account.id }}/delete"
+          onsubmit="return confirm('Remove this connection and its stored credentials?');">
+      <button class="btn btn-danger" type="submit">Remove</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if can_manage %}
+<div class="card" style="max-width:900px;margin-top:14px">
+  <h3 style="margin:0 0 10px">ROTATE CREDENTIALS</h3>
+  <form method="post" action="/connections/whatsapp/{{ account.id }}/credentials" autocomplete="off" class="stack">
+    <label>New access token
+      <input type="password" name="access_token" minlength="8" maxlength="1024" placeholder="Leave empty to keep current">
+    </label>
+    <label>New app secret (optional)
+      <input type="password" name="app_secret" maxlength="256" placeholder="Leave empty to keep current">
+    </label>
+    <p class="muted small">Rotating resets provider-validated state — run Validate afterwards. Secrets are write-only and never displayed.</p>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">Update credentials</button></div>
+  </form>
+
+  <h3 style="margin:14px 0 10px">BUSINESS / PHONE DETAILS</h3>
+  <form method="post" action="/connections/whatsapp/{{ account.id }}/details" class="stack">
+    <label>Phone number ID
+      <input type="text" name="phone_number_id" maxlength="100" value="{{ account.phone_number_id or '' }}">
+    </label>
+    <label>WhatsApp Business Account ID (WABA)
+      <input type="text" name="business_account_id" maxlength="100" value="{{ account.business_account_id or '' }}">
+    </label>
+    <div class="form-actions"><button class="btn btn-ghost" type="submit">Save details</button></div>
+  </form>
+</div>
+{% endif %}
+
+<div class="card table-card" style="margin-top:14px">
+  <h3 style="margin:0 0 10px">PROVIDER TEMPLATES <span class="muted small">(synced from WhatsApp)</span></h3>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Name</th><th>Language</th><th>Category</th><th>Provider status</th><th>Variables mapped</th><th>Last synced</th></tr></thead>
+      <tbody>
+        {% for t in templates %}
+        <tr>
+          <td class="mono small">{{ t.name }}</td>
+          <td>{{ t.language }}</td>
+          <td>{{ t.category or '—' }}</td>
+          <td><span class="badge badge-{{ 'active' if t.provider_status == 'APPROVED' else ('failed' if t.provider_status in ('REJECTED','DISABLED','PAUSED') else 'pending') }}">{{ t.provider_status or '—' }}</span>
+            {% if t.rejected_reason %}<span class="muted small">{{ t.rejected_reason }}</span>{% endif %}
+          </td>
+          <td>{{ t.variables | length }}{% if not t.variables %} <span class="muted small">(map lead fields to use)</span>{% endif %}</td>
+          <td>{% if t.last_synced_at %}{{ t.last_synced_at[:19] | replace('T',' ') }}{% else %}—{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="center muted" style="padding:24px">
+          No provider templates synced yet. Run "Sync templates" (requires a Business Account ID).
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

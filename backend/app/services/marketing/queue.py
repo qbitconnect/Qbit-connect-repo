@@ -234,13 +234,16 @@ class QueueService:
     async def fail(
         self, session: AsyncSession, item: CampaignQueueItem, *,
         error: str, error_class: str, settings: Settings,
+        provider_retry_after: float | None = None,
     ) -> str:
         """Honest failure handling with controlled retry (§19).
 
         TRANSIENT → RETRY with exponential backoff until max attempts, then
         FAILED. PERMANENT → FAILED immediately (never retried). CONFIGURATION
         → FAILED immediately (system issue, retrying will not fix config).
-        Returns the resulting status string.
+        provider_retry_after (§30): when the provider says "wait N seconds",
+        the backoff NEVER fires earlier than that — we respect the hint, we
+        never use it to time evasion. Returns the resulting status string.
         """
         now = datetime.now(timezone.utc)
         item.locked_at = None
@@ -255,6 +258,8 @@ class QueueService:
                 settings.QBIT_MARKETING_RETRY_BASE_SECONDS * (2 ** max(0, item.attempts - 1)),
                 settings.QBIT_MARKETING_RETRY_MAX_SECONDS,
             )
+            if provider_retry_after is not None and provider_retry_after > 0:
+                backoff = max(backoff, float(provider_retry_after))
             item.status = QueueStatus.RETRY
             item.available_at = now + timedelta(seconds=backoff)
             await session.commit()

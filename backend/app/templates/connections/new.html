@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Add WhatsApp account — QBIT Connect{% endblock %}
+{% block nav_connections %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>ADD WHATSAPP BUSINESS ACCOUNT</h1>
+    <p class="muted">Official WhatsApp Business Cloud API only. The account becomes ACTIVE only after the provider validates your credentials, phone number and business account.</p>
+  </div>
+  <div class="head-actions"><a class="btn btn-ghost" href="/connections">Back</a></div>
+</div>
+
+{% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+
+<form method="post" action="/connections/whatsapp/new" class="card wizard" autocomplete="off">
+  <div class="wizard-step"><span class="step-num">1</span>
+    <label>Account name
+      <input type="text" name="name" required maxlength="150" placeholder="e.g. QBIT WhatsApp 01" value="{{ form.get('name', '') }}">
+    </label>
+  </div>
+
+  <div class="wizard-step"><span class="step-num">2</span>
+    <label>Provider
+      <select name="provider">
+        <option value="whatsapp_cloud">WhatsApp Business Cloud API (official)</option>
+        {% if mock_allowed %}<option value="whatsapp_mock">whatsapp_mock — MOCK / TEST ONLY</option>{% endif %}
+      </select>
+    </label>
+  </div>
+
+  <div class="wizard-step"><span class="step-num">3</span>
+    <label>Access token
+      <input type="password" name="access_token" minlength="8" maxlength="1024" placeholder="System-user access token (stored encrypted)">
+    </label>
+    <label class="small muted">App secret (optional, per-account webhook signature)
+      <input type="password" name="app_secret" maxlength="256" placeholder="App secret (optional)">
+    </label>
+    <p class="muted small">Credentials are encrypted at rest (AES + HMAC via Fernet), never returned by the API, never shown again, never logged.</p>
+  </div>
+
+  <div class="wizard-step"><span class="step-num">4</span>
+    <p class="muted">Validation runs on submit: token → phone number → business account → permissions. Exact provider errors are shown when a step fails.</p>
+  </div>
+
+  <div class="wizard-step"><span class="step-num">5</span>
+    <label>Phone number ID
+      <input type="text" name="phone_number_id" maxlength="100" placeholder="e.g. 123456789012345" value="{{ form.get('phone_number_id', '') }}">
+    </label>
+    <label>WhatsApp Business Account ID (WABA)
+      <input type="text" name="business_account_id" maxlength="100" placeholder="e.g. 987654321098765 (needed for template sync)" value="{{ form.get('business_account_id', '') }}">
+    </label>
+  </div>
+
+  <div class="wizard-step"><span class="step-num">6</span>
+    <p class="muted">A health check runs after validation and sets the account health (HEALTHY / DEGRADED / UNHEALTHY).</p>
+  </div>
+
+  <div class="wizard-step"><span class="step-num">7</span>
+    <p class="muted">Complete — you land on the account page with the real connection state.</p>
+  </div>
+
+  <div class="form-actions"><button class="btn btn-primary" type="submit">Create and validate</button></div>
+</form>
+{% endblock %}

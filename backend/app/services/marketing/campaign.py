@@ -237,6 +237,16 @@ class CampaignService:
         )
         _check("sending_account", account is not None and account.status == "ACTIVE",
                None if account else "No sending account selected")
+        # Phase 6 §29: an unhealthy account must never receive queued messages
+        if account is not None and account.status == "ACTIVE":
+            healthy = (account.health_status or "UNKNOWN") != "UNHEALTHY"
+            _check("sending_account_health", healthy,
+                   None if healthy else "SENDING_ACCOUNT_UNHEALTHY")
+            # Phase 6 §27: campaign validation checks account capabilities
+            caps = account.capabilities or {}
+            caps_ok = caps.get("supports_templates", True) is not False
+            _check("sending_account_capabilities", caps_ok,
+                   None if caps_ok else "Account does not support template messaging")
 
         provider_ok = False
         if account is not None and provider_registry is not None:
@@ -246,6 +256,14 @@ class CampaignService:
                 provider_ok = not problems
                 if problems:
                     _check("provider", False, problems[0])
+                # Phase 6 §8/§10: provider-level template requirements
+                # (WhatsApp: provider-APPROVED template, variable count, ...)
+                if template is not None and provider_ok:
+                    template_problems = await provider.validate_send_requirements(
+                        template=template, account_config=account.config_metadata or {},
+                    )
+                    _check("template_requirements", not template_problems,
+                           template_problems[0] if template_problems else None)
             elif provider is not None:
                 _check("provider", False,
                        f"Provider '{account.provider}' is not configured")

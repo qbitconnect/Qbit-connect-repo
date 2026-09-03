@@ -105,7 +105,7 @@ def _redirect(url: str, ok: str | None = None, err: str | None = None) -> Redire
 async def campaigns_index(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=campaigns_view,
+    user: Annotated[object, Depends(campaigns_view)],
     status: str = Query(default="", max_length=20),
     page: int = Query(default=1, ge=1),
     ok: str | None = None,
@@ -154,7 +154,7 @@ async def _list_templates(session: AsyncSession) -> list[CampaignTemplate]:
 async def campaign_wizard(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_campaigns_create,
+    user: Annotated[object, Depends(require_campaigns_create)],
     ok: str | None = None,
     err: str | None = None,
 ):
@@ -209,7 +209,7 @@ def _audience_from_form(
 async def campaign_preview(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_campaigns_create,
+    user: Annotated[object, Depends(require_campaigns_create)],
     name: str = Form(default=""),
     description: str = Form(default=""),
     channel: str = Form(...),
@@ -309,7 +309,7 @@ async def campaign_preview(
 async def campaign_create(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_campaigns_create,
+    user: Annotated[object, Depends(require_campaigns_create)],
     name: str = Form(...),
     description: str = Form(default=""),
     channel: str = Form(...),
@@ -364,7 +364,7 @@ def _uuid(raw: str) -> uuid.UUID | None:
 async def templates_page(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_templates_view,
+    user: Annotated[object, Depends(require_templates_view)],
     ok: str | None = None,
     err: str | None = None,
 ):
@@ -381,7 +381,7 @@ async def templates_page(
 async def template_create(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_templates_create,
+    user: Annotated[object, Depends(require_templates_create)],
     name: str = Form(...),
     channel: str = Form(...),
     subject: str = Form(default=""),
@@ -402,7 +402,7 @@ async def template_create(
 async def template_delete(
     template_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_templates_delete,
+    user: Annotated[object, Depends(require_templates_delete)],
 ):
     try:
         await template_service.delete(session, template_id)
@@ -416,7 +416,7 @@ async def template_delete(
 async def accounts_page(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_accounts_view,
+    user: Annotated[object, Depends(require_accounts_view)],
     ok: str | None = None,
     err: str | None = None,
 ):
@@ -443,7 +443,7 @@ async def accounts_page(
 async def account_create(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_accounts_manage,
+    user: Annotated[object, Depends(require_accounts_manage)],
     name: str = Form(...),
     channel: str = Form(...),
     provider: str = Form(...),
@@ -488,7 +488,7 @@ async def account_create(
 async def suppression_page(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_suppression_view,
+    user: Annotated[object, Depends(require_suppression_view)],
     ok: str | None = None,
     err: str | None = None,
     page: int = Query(default=1, ge=1),
@@ -510,7 +510,7 @@ async def suppression_page(
 async def suppression_add(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_suppression_manage,
+    user: Annotated[object, Depends(require_suppression_manage)],
     type: str = Form(...),
     address: str = Form(...),
     reason: str = Form(...),
@@ -530,7 +530,7 @@ async def suppression_add(
 async def suppression_opt_out(
     request: Request,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_suppression_manage,
+    user: Annotated[object, Depends(require_suppression_manage)],
     channel: str = Form(...),
     address: str = Form(...),
 ):
@@ -547,7 +547,7 @@ async def suppression_opt_out(
 async def suppression_delete(
     entry_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_suppression_manage,
+    user: Annotated[object, Depends(require_suppression_manage)],
 ):
     try:
         await suppression_service.remove(session, entry_id)
@@ -560,7 +560,7 @@ async def campaign_detail(
     request: Request,
     campaign_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=campaigns_view,
+    user: Annotated[object, Depends(campaigns_view)],
     ok: str | None = None,
     err: str | None = None,
     recipients_page: int = Query(default=1, ge=1),
@@ -631,7 +631,7 @@ async def campaign_validate(
     campaign_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(get_db)],
     request: Request,
-    user=require_campaigns_validate,
+    user: Annotated[object, Depends(require_campaigns_validate)],
 ):
     try:
         report = await campaigns_service.validate(
@@ -654,7 +654,7 @@ async def campaign_launch(
     campaign_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(get_db)],
     request: Request,
-    user=require_campaigns_launch,
+    user: Annotated[object, Depends(require_campaigns_launch)],
 ):
     try:
         campaign = await campaigns_service.request_launch(
@@ -677,7 +677,7 @@ async def campaign_launch(
 async def campaign_pause(
     campaign_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_campaigns_pause,
+    user: Annotated[object, Depends(require_campaigns_pause)],
 ):
     try:
         await campaigns_service.pause(session, campaign_id)
@@ -690,7 +690,7 @@ async def campaign_pause(
 async def campaign_resume(
     campaign_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_campaigns_resume,
+    user: Annotated[object, Depends(require_campaigns_resume)],
 ):
     try:
         await campaigns_service.resume(session, campaign_id)
@@ -703,7 +703,7 @@ async def campaign_resume(
 async def campaign_cancel(
     campaign_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_campaigns_cancel,
+    user: Annotated[object, Depends(require_campaigns_cancel)],
 ):
     try:
         await campaigns_service.cancel(session, campaign_id)
@@ -716,7 +716,7 @@ async def campaign_cancel(
 async def campaign_archive(
     campaign_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(get_db)],
-    user=require_campaigns_edit,
+    user: Annotated[object, Depends(require_campaigns_edit)],
 ):
     try:
         await campaigns_service.archive(session, campaign_id)

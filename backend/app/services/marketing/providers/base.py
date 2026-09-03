@@ -115,11 +115,26 @@ class BaseMarketingProvider:
         body: str,
         idempotency_key: str,
         metadata: dict | None = None,
+        credentials: dict | None = None,
+        template: dict | None = None,
     ) -> SendResult:
         """Send one message. MUST be idempotent for the same idempotency_key
         where the provider supports it; must never raise for provider-side
-        failures — return SendResult.failure instead."""
+        failures — return SendResult.failure instead.
+
+        `credentials` carries decrypted secrets for THIS call only (resolved
+        by the caller from the encrypted vault); providers must never log or
+        persist them. `template` carries the channel-specific rendered
+        template payload (e.g. WhatsApp components) — providers that do not
+        use it ignore it."""
         raise NotImplementedError
+
+    async def validate_send_requirements(self, *, template, account_config: dict) -> list[str]:
+        """Channel/provider launch requirements for using `template` with an
+        account (e.g. WhatsApp requires a provider-APPROVED template).
+        Returns a problem list; empty means usable. Called by CampaignService
+        validation — CampaignService itself stays provider-agnostic."""
+        return []
 
     async def get_status(
         self, *, account_config: dict, provider_message_id: str
@@ -132,8 +147,9 @@ class BaseMarketingProvider:
         {event_type, provider_message_id, metadata}. Never log secrets."""
         raise NotImplementedError
 
-    async def health_check(self, account_config: dict) -> dict:
-        """Lightweight account health probe."""
+    async def health_check(self, account_config: dict, credentials: dict | None = None) -> dict:
+        """Lightweight account health probe. `credentials` = decrypted secret
+        payload for this call (never logged, never persisted)."""
         return {
             "health": "UNKNOWN",
             "checked_at": datetime.now(timezone.utc).isoformat(),

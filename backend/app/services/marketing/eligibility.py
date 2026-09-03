@@ -1,13 +1,20 @@
-"""Eligibility engine (Phase 5 §13).
+"""Eligibility engine (Phase 5 §13; Phase 6 §12 opt-in + §11 phone rules).
 
 Runs BEFORE any recipient enters the send queue. Checks (in order):
 
  1. valid contact address for the channel (email/phone present + valid)
+    — WhatsApp/SMS addresses must normalize to E.164; a number without a
+    country code and without a usable default context is INVALID, never
+    guessed (Phase 6 §11)
  2. channel availability (channel known + registered provider)
  3. suppression status (global list + opt-out evidence)
  4. opt-in / permission metadata where applicable — a scraped email/phone is
-    NOT automatic consent: leads must carry explicit opt-in metadata
-    (metadata.marketing_opt_in == true) for their status to count as consent
+    NOT automatic consent (Phase 6 §12: never fabricate consent). Leads are
+    opted-in when metadata carries EXPLICIT evidence, either:
+      metadata.marketing_opt_in == true                      (Phase 5 form)
+      metadata.opt_in_status in {"OPTED_IN", "OPT_IN", "GRANTED"}
+    Optional enrichment (never required, never invented):
+      opt_in_source, opt_in_timestamp, opt_in_notes
  5. lead usability (exists, not archived, not soft-merged away)
 
 Result per recipient: (ELIGIBLE, None) or (INELIGIBLE, reason).
@@ -27,11 +34,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.marketing import SuppressionType
 from app.models.scrape import Lead
 from app.services.marketing.channels import get_channel
+from app.services.marketing.phone import normalize_recipient_phone
 from app.services.marketing.providers import MarketingProviderRegistry
 from app.services.marketing.suppression import SuppressionService
 
 ELIGIBLE = "ELIGIBLE"
 INELIGIBLE = "INELIGIBLE"
+
+#: explicit opt-in evidence values accepted in metadata.opt_in_status (§12)
+OPT_IN_STATUSES = {"OPTED_IN", "OPT_IN", "GRANTED", "SUBSCRIBED"}
+
+
+def has_explicit_opt_in(lead: Lead) -> bool:
+    """Consent decision from lead metadata ONLY — nothing is inferred from
+    the mere existence of a phone number (Phase 6 §12)."""
+    meta = lead.metadata_json if isinstance(lead.metadata_json, dict) else {}
+    if bool(meta.get("marketing_opt_in")):
+        return True
+    status = str(meta.get("opt_in_status") or "").upper().strip()
+    return status in OPT_IN_STATUSES
 
 
 class EligibilityService:
@@ -69,10 +90,8 @@ class EligibilityService:
                 "UNSUBSCRIBED" if suppress_reason == "UNSUBSCRIBED" else "SUPPRESSED"
             )
 
-        if opt_in_required:
-            meta = lead.metadata_json or {}
-            if not bool(meta.get("marketing_opt_in")):
-                return INELIGIBLE, "NO_OPT_IN"
+        if opt_in_required and not has_explicit_opt_in(lead):
+            return INELIGIBLE, "NO_OPT_IN"
         return ELIGIBLE, None
 
     # ------------------------------------------------------------- addresses
@@ -85,8 +104,9 @@ class EligibilityService:
         import re
         if spec.address_kind == "email":
             return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$", address))
-        import re as _re
-        return bool(_re.match(r"^\+?[0-9]{7,15}$", address))
+        # Phase 6 §11: strict phone normalization — never guess country codes
+        ok, _normalized, _reason = normalize_recipient_phone(address)
+        return ok
 
     # --------------------------------------------------------------- batched
     async def check_batch(
@@ -130,9 +150,11 @@ class EligibilityService:
             if not provider_ok:
                 out[lead.id] = (INELIGIBLE, "CHANNEL_UNAVAILABLE")
                 continue
-            email = email_by_id.get(lead.id)
-            phone = phone_by_id.get(lead.id)
-            key = _key(spec.address_kind, email or phone or "")
+            # the suppression key MUST use the channel's own address kind
+            # (phone for WHATSAPP/SMS, email for EMAIL) — a Phase 5 bug here
+            # checked phone-channel suppression against the email value
+            address = self.address_for(spec, lead)
+            key = _key(spec.address_kind, address or "")
             hit, reason = suppression["suppressed"].get(key, (False, None))
             status, why = self.check_recipient(
                 channel=channel, lead=lead,

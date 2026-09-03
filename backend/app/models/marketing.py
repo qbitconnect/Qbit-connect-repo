@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import enum
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     DateTime,
@@ -79,6 +79,24 @@ class TemplateStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     ACTIVE = "ACTIVE"
     ARCHIVED = "ARCHIVED"
+
+
+class TemplateOrigin(str, enum.Enum):
+    LOCAL = "LOCAL"          # authored inside QBIT Connect
+    PROVIDER = "PROVIDER"    # synchronized from the provider (e.g. WhatsApp WABA)
+
+
+class ProviderTemplateStatus(str, enum.Enum):
+    """Provider-side template approval states (WhatsApp Business Platform, §8).
+
+    Platform status stays DRAFT/ACTIVE/ARCHIVED; provider_status mirrors the
+    provider's approval lifecycle and gates campaign usage (§10)."""
+
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    PAUSED = "PAUSED"
+    DISABLED = "DISABLED"
 
 
 class AccountStatus(str, enum.Enum):
@@ -166,9 +184,33 @@ class CampaignTemplate(Base):
     language: Mapped[str] = mapped_column(String(20), nullable=False, default="en")
     #: declared template variables, e.g. ["first_name", "business_name"]
     variables: Mapped[list] = mapped_column(PortableJSON, nullable=False, default=list)
+    # --- Phase 6: provider (WhatsApp) template fields -----------------------
+    #: LOCAL = authored in QBIT; PROVIDER = synced from the provider (§9)
+    origin: Mapped[str] = mapped_column(String(20), nullable=False, default=TemplateOrigin.LOCAL)
+    #: provider-side template id (stays available even after renames, §9)
+    provider_template_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: provider approval status: PENDING/APPROVED/REJECTED/PAUSED/DISABLED (§8)
+    provider_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    #: provider category, e.g. MARKETING / UTILITY / AUTHENTICATION
+    category: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    #: normalized provider components (header/body placeholder spec)
+    components: Mapped[dict] = mapped_column(PortableJSON, nullable=False, default=dict)
+    #: sending account this provider template belongs to (multi-account, §3)
+    account_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("sending_accounts.id", ondelete="SET NULL"), nullable=True
+    )
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rejected_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = timestamp_columns()[0]
     updated_at: Mapped[datetime] = timestamp_columns()[1]
+
+    @property
+    def is_provider_approved(self) -> bool:
+        return (
+            self.origin == TemplateOrigin.PROVIDER.value
+            and self.provider_status == ProviderTemplateStatus.APPROVED.value
+        )
 
     def to_public_dict(self) -> dict:
         return {
@@ -180,6 +222,14 @@ class CampaignTemplate(Base):
             "status": self.status,
             "language": self.language,
             "variables": self.variables or [],
+            "origin": self.origin,
+            "provider_template_id": self.provider_template_id,
+            "provider_status": self.provider_status,
+            "category": self.category,
+            "components": self.components or {},
+            "account_id": str(self.account_id) if self.account_id else None,
+            "last_synced_at": self.last_synced_at.isoformat() if self.last_synced_at else None,
+            "rejected_reason": self.rejected_reason,
             "created_by": str(self.created_by) if self.created_by else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
@@ -190,8 +240,8 @@ class SendingAccount(Base):
     """One sender identity (e.g. a WhatsApp Business number, an email account).
 
     `config_metadata` holds NON-SECRET provider configuration only. Credentials
-    (API keys/tokens) are stored by the provider layer in the settings-backed
-    secret store and referenced here by name, never embedded in this column.
+    (API keys/tokens) live in the encrypted provider_credentials vault and are
+    referenced by name in `credential_ref` — never embedded in any column.
     to_public_dict() only exposes display-safe fields — never raw config.
     """
 
@@ -204,6 +254,11 @@ class SendingAccount(Base):
     provider: Mapped[str] = mapped_column(String(50), nullable=False)
     identifier: Mapped[str] = mapped_column(String(300), nullable=False)
     display_identifier: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    #: encrypted credential reference (provider_credentials.name) — never a secret itself
+    credential_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    #: provider-side identifiers (NON-secret, queryable; Phase 6 §3 multi-account fields)
+    phone_number_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    business_account_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=AccountStatus.PENDING)
     capabilities: Mapped[dict] = mapped_column(PortableJSON, nullable=False, default=dict)
     config_metadata: Mapped[dict] = mapped_column(PortableJSON, nullable=False, default=dict)
@@ -220,6 +275,9 @@ class SendingAccount(Base):
             "provider": self.provider,
             "identifier": self.identifier,
             "display_identifier": self.display_identifier or self.identifier,
+            "phone_number_id": self.phone_number_id,
+            "business_account_id": self.business_account_id,
+            "has_credentials": bool(self.credential_ref),
             "status": self.status,
             "capabilities": self.capabilities or {},
             "health_status": self.health_status,

@@ -15,6 +15,7 @@ aiosqlite>=0.20        # SQLite fallback (development/tests only)
 redis>=5.0
 argon2-cffi>=23.1
 PyJWT>=2.8
+cryptography>=42.0      # provider credential vault (Fernet, Phase 6)
 
 python-multipart>=0.0.9  # multipart uploads
 openpyxl>=3.1            # XLSX export renderer

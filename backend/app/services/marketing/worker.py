@@ -37,10 +37,12 @@ from app.models.marketing import (
     SendingAccount,
 )
 from app.services.marketing.campaign import CampaignService
+from app.services.marketing.connections import resolve_account_credentials
 from app.services.marketing.eligibility import EligibilityService
 from app.services.marketing.events import EventService
 from app.services.marketing.providers import MarketingProviderRegistry
 from app.services.marketing.providers.base import ErrorClass, ProviderError
+from app.services.marketing.providers.whatsapp import WhatsAppProvider
 from app.services.marketing.queue import QueueService
 from app.services.marketing.template import render_from_lead
 from app.models.scrape import Lead
@@ -195,6 +197,16 @@ class CampaignWorker:
             await session.get(SendingAccount, item.sending_account_id)
             if item.sending_account_id else None
         )
+        # Phase 6 §29: an UNHEALTHY account must never receive provider sends
+        if account is not None and (account.health_status or "") == "UNHEALTHY":
+            await self._fail_item(
+                session, item, recipient,
+                "SENDING_ACCOUNT_UNHEALTHY", ErrorClass.CONFIGURATION,
+                campaign, account,
+                self.registry.get(account.provider) if account else None,
+                error_code="SENDING_ACCOUNT_UNHEALTHY",
+            )
+            return
         provider = self.registry.get(account.provider) if account else None
 
         # rate gate (§21) — conservative, per account
@@ -245,6 +257,31 @@ class CampaignWorker:
         subject = render_from_lead(template.subject, lead) if (template.subject and lead) else template.subject
         body = render_from_lead(template.body, lead) if lead else template.body
 
+        # Phase 6 §14/§28: WhatsApp adapter sends provider-template payloads.
+        # A recipient whose lead lacks a required variable value is skipped
+        # honestly instead of sending an incomplete template.
+        template_payload = None
+        if (
+            campaign.channel == "WHATSAPP"
+            and isinstance(provider, WhatsAppProvider)
+            and template.origin == "PROVIDER"
+            and lead is not None
+        ):
+            template_payload, missing_vars = provider.build_template_payload(template, lead)
+            if template_payload is None:
+                recipient.status = RecipientStatus.SKIPPED
+                recipient.skip_reason = "MISSING_TEMPLATE_VARIABLE"
+                item.status = QueueStatus.CANCELLED
+                item.completed_at = datetime.now(timezone.utc)
+                await session.commit()
+                await self.events.record(
+                    session, campaign_id=campaign.id, recipient_id=recipient.id,
+                    event_type=EventType.RECIPIENT_SKIPPED,
+                    metadata={"reason": "MISSING_TEMPLATE_VARIABLE",
+                              "variables": missing_vars},
+                )
+                return
+
         if provider is None or account is None:
             await self._fail_item(
                 session, item, recipient,
@@ -257,12 +294,17 @@ class CampaignWorker:
         await session.commit()
 
         idempotency_key = f"{item.campaign_id}:{item.recipient_id}:{item.message_version}"
+        # Phase 6 §4: resolve credentials for THIS call only (vault → env);
+        # the payload is consumed by the provider client, never logged/stored
+        credentials = await resolve_account_credentials(session, account, self.settings)
         try:
             result = await provider.send(
                 account_config=account.config_metadata or {},
                 recipient_address=recipient.recipient_address,
                 subject=subject, body=body,
                 idempotency_key=idempotency_key,
+                credentials=credentials,
+                template=template_payload,
             )
         except ProviderError as exc:
             await self._fail_item(session, item, recipient, str(exc),
@@ -285,7 +327,10 @@ class CampaignWorker:
                 session, campaign_id=campaign.id, recipient_id=recipient.id,
                 event_type=EventType.MESSAGE_SENT, provider=provider.provider_id,
                 provider_event_id=result.provider_message_id,
-                metadata={"mock": result.metadata.get("mock", False)},
+                metadata={
+                    "mock": result.metadata.get("mock", False),
+                    "provider_status": result.metadata.get("provider_status"),
+                },
             )
             logger.info(
                 "recipient_sent",
@@ -300,6 +345,7 @@ class CampaignWorker:
                 result.error or "Provider send failed",
                 ErrorClass(result.error_class.value) if isinstance(result.error_class, ErrorClass) else result.error_class,
                 campaign, account, provider, error_code=result.error_code,
+                provider_retry_after=result.metadata.get("retry_after_seconds"),
             )
 
     async def _fail_item(
@@ -307,10 +353,12 @@ class CampaignWorker:
         recipient: CampaignRecipient, error: str, error_class: ErrorClass,
         campaign: Campaign, account: SendingAccount | None,
         provider, error_code: str | None = None,
+        provider_retry_after: float | None = None,
     ) -> None:
         status = await self.queue.fail(
             session, item, error=error,
             error_class=error_class.value, settings=self.settings,
+            provider_retry_after=provider_retry_after,
         )
         if status == QueueStatus.FAILED:
             recipient.status = RecipientStatus.FAILED

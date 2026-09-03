@@ -1,4 +1,4 @@
-"""SQLAlchemy models — Phase 2 core + Phase 3 scraping + Phase 4 leads + Phase 5 marketing."""
+"""SQLAlchemy models — Phase 2 core + Phase 3 scraping + Phase 4 leads + Phase 5 marketing + Phase 6 messaging."""
 
 from app.models.audit import AuditLog
 from app.models.connection import Connection
@@ -24,6 +24,12 @@ from app.models.marketing import (
     SendingAccount,
     SuppressionEntry,
 )
+from app.models.messaging import (
+    Conversation,
+    Message,
+    ProviderCredentials,
+    ProviderEvent,
+)
 from app.models.rbac import Permission, Role
 from app.models.scrape import Lead, ScrapeJob, ScrapeJobCheckpoint, ScrapeJobEvent
 from app.models.setting import SystemSetting
@@ -37,6 +43,7 @@ __all__ = [
     "CampaignRecipient",
     "CampaignTemplate",
     "Connection",
+    "Conversation",
     "FileRecord",
     "ImportBatch",
     "Lead",
@@ -47,8 +54,11 @@ __all__ = [
     "LeadNote",
     "LeadTag",
     "LeadTagAssignment",
+    "Message",
     "OptOutRecord",
     "Permission",
+    "ProviderCredentials",
+    "ProviderEvent",
     "Role",
     "SavedView",
     "ScrapeJob",

@@ -46,7 +46,8 @@ class MockProvider(BaseMarketingProvider):
 
     async def send(self, *, account_config: dict, recipient_address: str,
                    subject: str | None, body: str, idempotency_key: str,
-                   metadata: dict | None = None) -> SendResult:
+                   metadata: dict | None = None, credentials: dict | None = None,
+                   template: dict | None = None) -> SendResult:
         address = (recipient_address or "").lower()
         if "flaky" in address:
             return SendResult.failure(

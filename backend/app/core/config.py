@@ -134,7 +134,6 @@ class Settings(BaseSettings):
     # --- Marketing engine (Phase 5) --------------------------------------------
     #: register the MOCK/TEST-ONLY marketing provider (isolated test envs only)
     QBIT_MARKETING_ALLOW_MOCK_PROVIDER: bool = False
-    #: recipient snapshot / eligibility batches (never load whole audiences)
     QBIT_MARKETING_SNAPSHOT_BATCH_SIZE: int = Field(default=1000, ge=100)
     #: queue items claimed per worker cycle
     QBIT_MARKETING_QUEUE_BATCH_SIZE: int = Field(default=25, ge=1)
@@ -154,6 +153,27 @@ class Settings(BaseSettings):
     QBIT_MAPS_PROVIDER: str = "none"
     QBIT_MAPS_PROVIDER_URL: str | None = None
     QBIT_MAPS_PROVIDER_API_KEY: str | None = None  # env only; never committed
+
+    # --- WhatsApp Business provider (Phase 6 §2) --------------------------------
+    #: provider registry id used when creating WhatsApp connections by default
+    WHATSAPP_PROVIDER: str = "whatsapp_cloud"
+    #: official Graph API base — overridable ONLY for testing/staging proxies
+    WHATSAPP_API_BASE_URL: str = "https://graph.facebook.com"
+    WHATSAPP_API_VERSION: str = "v21.0"
+    #: webhook verification challenge token (Meta app level; never logged)
+    WHATSAPP_WEBHOOK_VERIFY_TOKEN: str | None = None
+    #: app secret for X-Hub-Signature-256 validation (app-level fallback;
+    #: per-account app secrets in the vault take precedence)
+    WHATSAPP_APP_SECRET: str | None = None
+    #: dev / single-account bootstrap fallbacks — per-account ENCRYPTED vault
+    #: credentials always take precedence; never returned by any API
+    WHATSAPP_ACCESS_TOKEN: str | None = None
+    WHATSAPP_BUSINESS_ACCOUNT_ID: str | None = None
+    WHATSAPP_PHONE_NUMBER_ID: str | None = None
+    #: webhook replay protection: reject events older than this (seconds)
+    QBIT_WEBHOOK_MAX_AGE_SECONDS: int = Field(default=600, ge=30)
+    #: max inbound payload size accepted by webhook endpoints (bytes)
+    QBIT_WEBHOOK_MAX_BODY_BYTES: int = Field(default=1_048_576, ge=1024)
 
     # --- Derived helpers ----------------------------------------------------
     @property
@@ -235,6 +255,11 @@ class Settings(BaseSettings):
         if self.is_production and self.QBIT_MAPS_PROVIDER == "mock":
             problems.append(
                 "QBIT_MAPS_PROVIDER=mock is forbidden in production (fake data)."
+            )
+        if self.is_production and not self.WHATSAPP_WEBHOOK_VERIFY_TOKEN:
+            problems.append(
+                "WHATSAPP_WEBHOOK_VERIFY_TOKEN must be set in production to validate "
+                "WhatsApp webhook subscription requests."
             )
         return problems
 

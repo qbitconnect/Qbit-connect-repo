@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Connections — QBIT Connect{% endblock %}
+{% block nav_connections %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>CONNECTIONS</h1>
+    <p class="muted">Provider connections per channel. WhatsApp accounts use the official WhatsApp Business Cloud API — credentials are encrypted at rest and never displayed.</p>
+  </div>
+  <div class="head-actions">
+    {% if can_manage %}<a class="btn btn-primary" href="/connections/whatsapp/new">Add WhatsApp account</a>{% endif %}
+  </div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+<h2 style="margin:18px 0 8px">WHATSAPP</h2>
+{% if whatsapp %}
+<div class="card-grid">
+  {% for a in whatsapp %}
+  <div class="card conn-card">
+    <div class="conn-head">
+      <strong>{{ a.name }}</strong>
+      <span class="badge badge-{{ a.status | lower }}">{{ a.status }}</span>
+    </div>
+    <dl class="kv">
+      <dt>Phone</dt><dd class="mono">{{ a.display_identifier or a.identifier }}</dd>
+      <dt>Business account</dt><dd class="mono">{% if a.business_account_id %}{{ a.business_account_id[:12] }}…{% else %}<span class="muted">not configured</span>{% endif %}</dd>
+      <dt>Provider</dt><dd class="mono">{{ a.provider }}{% if a.provider_test_only %} <span class="badge badge-failed">MOCK / TEST ONLY</span>{% endif %}</dd>
+      <dt>Health</dt><dd><span class="badge badge-{{ a.health_status | lower }}">{{ a.health_status }}</span></dd>
+      <dt>Last checked</dt><dd>{% if a.last_health_check %}{{ a.last_health_check[:19] | replace('T',' ') }} UTC{% else %}<span class="muted">never</span>{% endif %}</dd>
+      <dt>Credentials</dt><dd>{% if a.has_credentials %}stored (encrypted){% else %}<span class="muted">none</span>{% endif %}</dd>
+    </dl>
+    <div class="form-actions">
+      <a class="btn btn-ghost" href="/connections/whatsapp/{{ a.id }}">View</a>
+      {% if can_health %}
+      <form method="post" action="/connections/whatsapp/{{ a.id }}/health"><button class="btn btn-ghost" type="submit">Health check</button></form>
+      {% endif %}
+      {% if can_edit %}
+      <form method="post" action="/connections/whatsapp/{{ a.id }}/status">
+        <input type="hidden" name="status" value="{{ 'INACTIVE' if a.status == 'ACTIVE' else 'ACTIVE' }}">
+        <button class="btn btn-ghost" type="submit">{{ 'Disable' if a.status == 'ACTIVE' else 'Enable' }}</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert">No WhatsApp accounts yet.{% if can_manage %} Use "Add WhatsApp account" to connect one — the account becomes ACTIVE only after the provider validates it.{% endif %}</div>
+{% endif %}
+
+<h2 style="margin:18px 0 8px">EMAIL</h2>
+<div class="alert">Email connections arrive with the email provider phase (Phase 7). Campaigns on the EMAIL channel stay disabled until then.</div>
+
+<h2 style="margin:18px 0 8px">SMS</h2>
+<div class="alert">SMS connections are planned for a later phase.</div>
+{% endblock %}

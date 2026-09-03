@@ -1,9 +1,9 @@
-"""Channel interfaces — WhatsApp / Email / SMS (Phase 5 §2, §38, §39, §40).
+"""Channel interfaces — Email / SMS (Phase 5 §2, §38, §39, §40).
 
-These classes establish the architecture for each channel. NO real provider
-integration happens in Phase 5: every concrete operation fails honestly with
-`ProviderNotConfigured` until a later phase adds an approved, provider-
-supported integration (WhatsApp Business API, transactional email, SMS).
+WhatsApp is NO LONGER an interface stub: the real WhatsApp Business Cloud API
+adapter lives in providers/whatsapp/ (Phase 6). These remaining stubs fail
+honestly with `ProviderNotConfigured` until their phases add approved,
+provider-supported integrations (transactional email: Phase 7, SMS: later).
 
 They are registered so campaigns/sending accounts can REFERENCE the channels
 and validation can report "Provider not configured" instead of crashing.
@@ -29,45 +29,6 @@ def _require_config(config: dict, provider_id: str) -> None:
     honestly instead of pretending success (brief §53)."""
     if not config or not config.get("configured"):
         raise ProviderNotConfigured(provider_id)
-
-
-class WhatsAppProvider(BaseMarketingProvider):
-    """WhatsApp Business API interface. Real integration: Phase 6.
-    WhatsApp Web automation is explicitly NOT supported (brief §39)."""
-
-    provider_id = "whatsapp_cloud"
-    channel = "WHATSAPP"
-    interface_only = True
-
-    async def validate_configuration(self, config: dict) -> list[str]:
-        if not config or not config.get("configured"):
-            return ["Provider not configured (WhatsApp Business API integration arrives in a later phase)"]
-        problems: list[str] = []
-        if not str(config.get("phone_number_id", "")).strip():
-            problems.append("phone_number_id is required")
-        if not str(config.get("access_token_ref", "")).strip():
-            problems.append("access_token reference is required (store secrets outside the database)")
-        return problems
-
-    async def validate_recipient(self, address: str) -> bool:
-        return bool(PHONE_RE.match((address or "").strip()))
-
-    async def validate_message(self, *, subject: str | None, body: str) -> list[str]:
-        problems: list[str] = []
-        if subject:
-            problems.append("WhatsApp templates do not use a subject")
-        if len(body) > 4096:
-            problems.append("WhatsApp message exceeds 4096 characters")
-        return problems
-
-    async def send(self, *, account_config: dict, recipient_address: str,
-                   subject: str | None, body: str, idempotency_key: str,
-                   metadata: dict | None = None) -> SendResult:
-        _require_config(account_config, self.provider_id)
-        return SendResult.failure(
-            "WhatsApp provider integration is not implemented in this phase",
-            code="PROVIDER_NOT_IMPLEMENTED",
-        )
 
 
 class EmailProvider(BaseMarketingProvider):
@@ -101,7 +62,8 @@ class EmailProvider(BaseMarketingProvider):
 
     async def send(self, *, account_config: dict, recipient_address: str,
                    subject: str | None, body: str, idempotency_key: str,
-                   metadata: dict | None = None) -> SendResult:
+                   metadata: dict | None = None, credentials: dict | None = None,
+                   template: dict | None = None) -> SendResult:
         _require_config(account_config, self.provider_id)
         return SendResult.failure(
             "Email provider integration is not implemented in this phase",
@@ -134,7 +96,8 @@ class SMSProvider(BaseMarketingProvider):
 
     async def send(self, *, account_config: dict, recipient_address: str,
                    subject: str | None, body: str, idempotency_key: str,
-                   metadata: dict | None = None) -> SendResult:
+                   metadata: dict | None = None, credentials: dict | None = None,
+                   template: dict | None = None) -> SendResult:
         _require_config(account_config, self.provider_id)
         return SendResult.failure(
             "SMS provider integration is not implemented in this phase",

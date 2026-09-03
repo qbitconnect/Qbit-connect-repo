@@ -258,3 +258,30 @@ details.adv-panel summary { cursor: pointer; color: var(--muted); font-size: 13p
 .cols-menu { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 0; }
 table td .mono { font-size: 12px; }
 tr.lead-row:hover { background: rgba(79,142,247,.05); }
+
+/* ---- Phase 6: connections UI ------------------------------------------- */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.conn-card { display: flex; flex-direction: column; gap: 10px; }
+.conn-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+dl.kv { margin: 0; }
+dl.kv dt { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; padding: 6px 0 2px; }
+dl.kv dd { margin: 0; font-size: 13px; padding-bottom: 6px; border-bottom: 1px solid rgba(35,45,59,.5); overflow-wrap: anywhere; }
+dl.kv dd:last-child { border-bottom: none; }
+.card.wizard { max-width: 900px; display: flex; flex-direction: column; gap: 0; }
+.card.wizard .wizard-step { display: flex; gap: 12px; align-items: flex-start; padding: 14px 0; border-bottom: 1px dashed rgba(35,45,59,.6); flex-wrap: wrap; }
+.card.wizard .wizard-step:last-of-type { border-bottom: none; }
+.card.wizard .step-num {
+  flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--accent); color: var(--accent); font-size: 13px; font-weight: 600;
+}
+.card.wizard .wizard-step label { display: flex; flex-direction: column; gap: 6px; flex: 1 1 280px; font-size: 13px; color: var(--text); }
+.card.wizard .wizard-step p { margin: 4px 0; }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+.stack label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.form-actions form { margin: 0; }
+.badge-active, .badge-healthy { color: var(--ok); border-color: var(--ok); background: rgba(46,168,111,.08); }
+.badge-inactive, .badge-unknown { color: var(--muted); border-color: var(--muted); background: rgba(139,152,169,.08); }
+.badge-error, .badge-unhealthy { color: var(--bad); border-color: var(--bad); background: rgba(224,82,82,.08); }
+.badge-suspended, .badge-pending { color: var(--warn); border-color: var(--warn); background: rgba(217,161,59,.08); }
+.badge-disconnected { color: var(--muted); border-color: var(--muted); background: rgba(139,152,169,.08); }
