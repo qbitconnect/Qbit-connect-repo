@@ -258,3 +258,47 @@ details.adv-panel summary { cursor: pointer; color: var(--muted); font-size: 13p
 .cols-menu { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 0; }
 table td .mono { font-size: 12px; }
 tr.lead-row:hover { background: rgba(79,142,247,.05); }
+
+/* ---------------------------------------------------------------- marketing (Phase 7) */
+.page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin: 18px 0 14px; }
+.page-head h1 { margin: 0 0 4px; }
+.head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.flash { background: rgba(52,211,153,.08); border: 1px solid rgba(52,211,153,.35); color: #a7f3d0; padding: 10px 14px; border-radius: var(--radius); margin: 0 0 14px; font-size: 13px; }
+.flash-error { background: rgba(248,113,113,.08); border-color: rgba(248,113,113,.35); color: #fecaca; }
+.grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.account-card { border: 1px solid var(--card-edge); border-radius: var(--radius); padding: 14px 16px; background: var(--bg-soft); display: flex; flex-direction: column; gap: 8px; }
+.account-card.status-error, .account-card.status-unhealthy { border-color: rgba(248,113,113,.4); }
+.account-card.status-active.status-active, .account-card.status-active { border-color: rgba(52,211,153,.35); }
+.acct-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.acct-line { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.acct-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.acct-actions form { display: inline; }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; letter-spacing: .04em; border: 1px solid var(--card-edge); color: var(--muted); }
+.pill-active, .pill-healthy, .pill-completed { color: #6ee7b7; border-color: rgba(52,211,153,.4); }
+.pill-pending, .pill-queued, .pill-running, .pill-draft { color: #93c5fd; border-color: rgba(96,165,250,.4); }
+.pill-error, .pill-failed, .pill-cancelled, .pill-disconnected, .pill-suspended { color: #fca5a5; border-color: rgba(248,113,113,.4); }
+.pill-paused { color: #fcd34d; border-color: rgba(252,211,77,.4); }
+.pill-health { border-style: dashed; }
+.pill-danger { color: #fca5a5; border-color: rgba(248,113,113,.4); }
+.metrics { display: flex; gap: 12px; font-size: 12px; color: var(--text); flex-wrap: wrap; }
+.error-text { color: #fca5a5; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin: 10px 0 14px; }
+.stat { background: var(--bg-soft); border: 1px solid var(--card-edge); border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.stat-num { font-size: 20px; font-weight: 700; }
+.stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.sub-title { margin: 14px 0 6px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+.kv div span:first-child { color: var(--muted); }
+.wizard .steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0 0 16px; }
+.wizard .steps li { font-size: 12px; padding: 5px 10px; border: 1px solid var(--card-edge); border-radius: 999px; color: var(--muted); }
+.wizard .steps li.active { color: var(--text); border-color: var(--accent); background: rgba(79,142,247,.1); }
+.wizard .steps li.done { color: #6ee7b7; border-color: rgba(52,211,153,.35); }
+.stack label { display: block; margin: 10px 0; font-size: 13px; color: var(--muted); }
+.stack input, .stack select, .stack textarea { width: 100%; margin-top: 5px; background: var(--bg-soft); border: 1px solid var(--card-edge); color: var(--text); border-radius: var(--radius); padding: 9px 11px; font-size: 14px; font-family: inherit; }
+.stack fieldset { border: 1px dashed var(--card-edge); border-radius: var(--radius); padding: 4px 14px 12px; margin: 10px 0; }
+.stack legend { font-size: 12px; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+.stack .check { display: flex; align-items: center; gap: 8px; }
+.stack .check input { width: auto; margin: 0; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.wizard-actions { margin-top: 14px; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }

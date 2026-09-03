@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Campaigns — QBIT Connect{% endblock %}
+{% block nav_campaigns %}nav-active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>Campaigns</h1>
+    <p class="muted">Multi-channel campaigns. All metrics come from real delivery events — nothing estimated.</p>
+  </div>
+  <div class="head-actions">
+    {% if can_create %}<a class="btn btn-primary" href="/campaigns/new">+ New campaign</a>{% endif %}
+  </div>
+</header>
+
+{% if not campaigns %}
+<p class="muted">No campaigns yet. Create one to start.</p>
+{% else %}
+<section class="card">
+  <table class="table">
+    <thead>
+      <tr><th>Name</th><th>Channel</th><th>Status</th><th>Audience</th><th>Sent</th><th>Delivered</th><th>Bounced</th><th>Failed</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for c in campaigns %}
+      <tr>
+        <td><a href="/campaigns/{{ c.id }}">{{ c.name }}</a></td>
+        <td><span class="pill">{{ c.channel }}</span></td>
+        <td><span class="pill pill-{{ c.status|lower }}">{{ c.status }}</span></td>
+        <td>{{ c.counters.audience_total }}</td>
+        <td>{{ c.counters.sent }}</td>
+        <td>{{ c.counters.delivered }}</td>
+        <td>{{ c.counters.bounced }}</td>
+        <td>{{ c.counters.failed }}</td>
+        <td><a class="btn btn-sm" href="/campaigns/{{ c.id }}">Open</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

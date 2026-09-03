@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Connections — QBIT Connect{% endblock %}
+{% block nav_connections %}nav-active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>Connections</h1>
+    <p class="muted">Sending accounts for the Marketing Engine. Secrets are encrypted at rest and never displayed.</p>
+  </div>
+  <div class="head-actions">
+    {% if can_add_email %}<a class="btn btn-primary" href="/connections/email/new">+ Add Email account</a>{% endif %}
+    {% if can_add_whatsapp %}<a class="btn" href="/connections/whatsapp/new">+ Add WhatsApp account</a>{% endif %}
+  </div>
+</header>
+
+{% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
+
+<section class="card">
+  <h2 class="card-title">Email sender accounts</h2>
+  {% if not email_rows %}
+    <p class="muted">No email accounts yet. Add one to enable EMAIL campaigns.</p>
+  {% else %}
+  <div class="grid-cards">
+    {% for row in email_rows %}
+    {% set a = row.account %}
+    <article class="account-card status-{{ a.status|lower }}">
+      <div class="acct-head">
+        <strong>{{ a.name }}</strong>
+        <span class="pill pill-{{ a.status|lower }}">{{ a.status }}</span>
+        <span class="pill pill-health">{{ a.health_status }}</span>
+      </div>
+      <p class="acct-line">{{ a.sender_email }}{% if a.reply_to %} · reply-to {{ a.reply_to }}{% endif %}</p>
+      <p class="acct-line muted">provider: {{ a.provider }}</p>
+      {% if row.metrics and row.metrics.sent_total %}
+      <div class="metrics">
+        <span>Delivery: {{ row.metrics.delivery_rate if row.metrics.delivery_rate is not none else "—" }}%</span>
+        <span>Bounce: {{ row.metrics.bounce_rate if row.metrics.bounce_rate is not none else "—" }}%</span>
+        <span>Complaint: {{ row.metrics.complaint_rate if row.metrics.complaint_rate is not none else "—" }}%</span>
+      </div>
+      {% else %}
+      <div class="metrics muted"><span>Delivery: —</span><span>Bounce: —</span><span>Complaint: —</span></div>
+      {% endif %}
+      <p class="acct-line muted">Last check: {{ a.last_health_check or "never" }}</p>
+      {% if a.status_message %}<p class="acct-line error-text">{{ a.status_message }}</p>{% endif %}
+      <div class="acct-actions">
+        {% if can_validate %}<form method="post" action="/connections/EMAIL/{{ a.id }}/validate"><button class="btn btn-sm">Validate</button></form>{% endif %}
+        {% if can_health %}<form method="post" action="/connections/EMAIL/{{ a.id }}/health"><button class="btn btn-sm">Health check</button></form>{% endif %}
+        {% if can_delete %}<form method="post" action="/connections/EMAIL/{{ a.id }}/delete" onsubmit="return confirm('Remove this account?')"><button class="btn btn-sm btn-danger">Remove</button></form>{% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+{% if show_whatsapp %}
+<section class="card">
+  <h2 class="card-title">WhatsApp Business accounts</h2>
+  {% if not whatsapp_rows %}
+    <p class="muted">No WhatsApp accounts yet.</p>
+  {% else %}
+  <div class="grid-cards">
+    {% for row in whatsapp_rows %}
+    {% set a = row.account %}
+    <article class="account-card status-{{ a.status|lower }}">
+      <div class="acct-head">
+        <strong>{{ a.name }}</strong>
+        <span class="pill pill-{{ a.status|lower }}">{{ a.status }}</span>
+        <span class="pill pill-health">{{ a.health_status }}</span>
+      </div>
+      <p class="acct-line">phone_number_id: {{ a.phone_number_id or "—" }}</p>
+      <p class="acct-line muted">provider: {{ a.provider }}</p>
+      <p class="acct-line muted">Last check: {{ a.last_health_check or "never" }}</p>
+      {% if a.status_message %}<p class="acct-line error-text">{{ a.status_message }}</p>{% endif %}
+      <div class="acct-actions">
+        <form method="post" action="/connections/WHATSAPP/{{ a.id }}/validate"><button class="btn btn-sm">Validate</button></form>
+        <form method="post" action="/connections/WHATSAPP/{{ a.id }}/health"><button class="btn btn-sm">Health check</button></form>
+        <form method="post" action="/connections/WHATSAPP/{{ a.id }}/delete" onsubmit="return confirm('Remove this account?')"><button class="btn btn-sm btn-danger">Remove</button></form>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

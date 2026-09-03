@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Add sending account — QBIT Connect{% endblock %}
+{% block nav_connections %}nav-active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>Add {{ channel }} account</h1>
+    <p class="muted">Step-by-step setup. Validation failures are shown honestly — an account is never activated without a successful provider round-trip.</p>
+  </div>
+  <div class="head-actions"><a class="btn" href="/connections">Back to connections</a></div>
+</header>
+
+<section class="card wizard">
+  <ol class="steps">
+    <li class="{{ 'active' if step == 1 else 'done' }}">1 · Account name</li>
+    <li class="{{ 'active' if step == 2 else ('done' if step > 2 else '') }}">2 · Provider type</li>
+    <li class="{{ 'active' if step == 3 else ('done' if step > 3 else '') }}">3 · Sender details</li>
+    <li class="{{ 'active' if step == 4 else ('done' if step > 4 else '') }}">4 · Configuration</li>
+    <li>5 · Validate</li>
+    <li>6 · Health check</li>
+    <li>7 · Complete</li>
+  </ol>
+
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+
+  {% if channel == "EMAIL" %}
+  <form method="post" action="/connections/email" class="stack">
+    <label>Account name (e.g. QBIT Marketing)
+      <input name="name" required maxlength="200" placeholder="QBIT Marketing" value="{{ form.get('name', '') }}">
+    </label>
+    <label>Provider type
+      <select name="provider">
+        <option value="smtp">SMTP</option>
+        <option value="email_api">Email API (generic HTTP provider)</option>
+      </select>
+    </label>
+    <fieldset>
+      <legend>Sender details</legend>
+      <label>Sender name <input name="sender_name" placeholder="QBIT Team"></label>
+      <label>Sender email <input name="sender_email" type="email" required placeholder="marketing@yourcompany.com" value="{{ form.get('sender_email', '') }}"></label>
+      <label>Reply-To (optional) <input name="reply_to" type="email" placeholder="replies@yourcompany.com"></label>
+    </fieldset>
+    <fieldset>
+      <legend>Provider configuration</legend>
+      <div id="smtp-fields">
+        <label>SMTP host <input name="host" placeholder="smtp.yourcompany.com"></label>
+        <label>SMTP port <input name="port" value="587" inputmode="numeric"></label>
+        <label>Security
+          <select name="security">
+            <option value="STARTTLS">STARTTLS (recommended)</option>
+            <option value="TLS">Implicit TLS (port 465)</option>
+          </select>
+        </label>
+        <label>Username <input name="username" autocomplete="off"></label>
+        <label>Password <input name="password" type="password" autocomplete="new-password"></label>
+      </div>
+      <div id="api-fields">
+        <label>API base URL <input name="api_base_url" placeholder="https://mail.yourcompany.com/api/v1"></label>
+        <label>API key <input name="api_key" type="password" autocomplete="new-password"></label>
+      </div>
+      <p class="muted small">Credentials are encrypted (Fernet) before storage, never returned by the API and never displayed again.</p>
+    </fieldset>
+    <div class="wizard-actions">
+      <button class="btn btn-primary" type="submit">Save &amp; continue to Validate</button>
+    </div>
+  </form>
+  {% else %}
+  <form method="post" action="/connections/whatsapp" class="stack">
+    <label>Account name (e.g. WA Sales 01)
+      <input name="name" required maxlength="200" placeholder="WA Sales 01">
+    </label>
+    <label>Phone number ID (WhatsApp Business)
+      <input name="phone_number_id" required placeholder="123456789012345">
+    </label>
+    <label>Business account ID (WABA, optional)
+      <input name="business_account_id" placeholder="987654321098765">
+    </label>
+    <label>Graph API version
+      <input name="api_version" value="v21.0">
+    </label>
+    <label>Permanent access token
+      <input name="access_token" type="password" autocomplete="new-password" required>
+    </label>
+    <p class="muted small">Only the official WhatsApp Business Cloud API is supported. Rate limits and template approval rules are honored — never bypassed.</p>
+    <div class="wizard-actions">
+      <button class="btn btn-primary" type="submit">Save &amp; continue to Validate</button>
+    </div>
+  </form>
+  {% endif %}
+</section>
+<script>
+  function syncProviderFields() {
+    var sel = document.querySelector('select[name="provider"]');
+    if (!sel) return;
+    var smtp = document.getElementById('smtp-fields');
+    var api = document.getElementById('api-fields');
+    if (smtp && api) {
+      smtp.style.display = sel.value === 'smtp' ? '' : 'none';
+      api.style.display = sel.value === 'smtp' ? 'none' : '';
+    }
+  }
+  document.addEventListener('change', syncProviderFields);
+  document.addEventListener('DOMContentLoaded', syncProviderFields);
+</script>
+{% endblock %}

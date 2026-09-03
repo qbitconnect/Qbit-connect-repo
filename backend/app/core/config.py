@@ -137,6 +137,29 @@ class Settings(BaseSettings):
     QBIT_MAPS_PROVIDER_URL: str | None = None
     QBIT_MAPS_PROVIDER_API_KEY: str | None = None  # env only; never committed
 
+    # --- Marketing engine (Phase 7) --------------------------------------------
+    #: Public base URL used to build unsubscribe + tracking links (no trailing /).
+    QBIT_PUBLIC_BASE_URL: str = "http://localhost:8000"
+    #: Operational rate control ONLY (not a restriction-evasion mechanism).
+    QBIT_MARKETING_EMAILS_PER_MINUTE: int = Field(default=60, ge=1)
+    QBIT_MARKETING_EMAILS_PER_HOUR: int = Field(default=1000, ge=1)
+    QBIT_MARKETING_CONCURRENCY: int = Field(default=2, ge=1)
+    QBIT_MARKETING_MAX_SEND_ATTEMPTS: int = Field(default=3, ge=1, le=10)
+    QBIT_MARKETING_RETRY_BASE_SECONDS: float = Field(default=30.0, ge=1)
+    QBIT_MARKETING_RETRY_MAX_SECONDS: float = Field(default=900.0, ge=1)
+    #: Campaign launch: default privacy-friendly tracking settings.
+    QBIT_MARKETING_DEFAULT_TRACK_OPENS: bool = False
+    QBIT_MARKETING_DEFAULT_TRACK_CLICKS: bool = False
+    #: Unsubscribe tokens validity window (days).
+    QBIT_MARKETING_UNSUBSCRIBE_TOKEN_TTL_DAYS: int = Field(default=365, ge=1)
+    #: Webhook timestamp tolerance (seconds) for replay protection.
+    QBIT_MARKETING_WEBHOOK_TIMESTAMP_TOLERANCE: int = Field(default=300, ge=10)
+    #: Shared secret for generic email provider webhooks (HMAC-SHA256).
+    QBIT_MARKETING_WEBHOOK_SECRET: str | None = None
+    #: WhatsApp Cloud API webhook verification (official scheme).
+    QBIT_MARKETING_WHATSAPP_VERIFY_TOKEN: str | None = None
+    QBIT_MARKETING_WHATSAPP_APP_SECRET: str | None = None
+
     # --- Derived helpers ----------------------------------------------------
     @property
     def is_production(self) -> bool:
@@ -217,6 +240,11 @@ class Settings(BaseSettings):
         if self.is_production and self.QBIT_MAPS_PROVIDER == "mock":
             problems.append(
                 "QBIT_MAPS_PROVIDER=mock is forbidden in production (fake data)."
+            )
+        if self.is_production and self.QBIT_PUBLIC_BASE_URL.startswith("http://"):
+            problems.append(
+                "QBIT_PUBLIC_BASE_URL must be https:// in production "
+                "(unsubscribe/tracking links carry security tokens)."
             )
         return problems
 

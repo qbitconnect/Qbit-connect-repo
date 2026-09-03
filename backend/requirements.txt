@@ -21,6 +21,10 @@ openpyxl>=3.1            # XLSX export renderer
 beautifulsoup4>=4.12     # HTML parsing for scraper actors (pure-python)
 jinja2>=3.1              # operator UI templates (scraping pages)
 
+# --- marketing / email provider (Phase 7) ---
+aiosmtplib>=3.0          # async SMTP client (official protocol support only)
+cryptography>=42.0      # Fernet secret-at-rest encryption for provider credentials
+
 # --- test/tooling ---
 pytest>=8.2
 pytest-asyncio>=0.23

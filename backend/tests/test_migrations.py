@@ -39,6 +39,14 @@ LEAD_WORKSPACE_TABLES = {
     "import_batches", "lead_exports",
 }
 
+#: Phase 7 marketing/email provider tables (migration 0004) — additive only.
+MARKETING_TABLES = {
+    "secret_vault", "sending_accounts", "marketing_templates", "campaigns",
+    "campaign_recipients", "campaign_events", "suppressions",
+    "marketing_consents", "unsubscribe_tokens", "email_tracking_events",
+    "provider_events", "conversations", "messages",
+}
+
 
 def _alembic_config(db_path: Path) -> Config:
     cfg = Config(str(ALEMBIC_INI))
@@ -128,7 +136,9 @@ def test_greenfield_repo_had_no_preexisting_schema(tmp_path: Path):
     from app.db.base import Base
 
     # No "legacy" tables are part of the metadata beyond the approved sets.
-    assert set(Base.metadata.tables) == CORE_TABLES | SCRAPING_TABLES | LEAD_WORKSPACE_TABLES
+    assert set(Base.metadata.tables) == (
+        CORE_TABLES | SCRAPING_TABLES | LEAD_WORKSPACE_TABLES | MARKETING_TABLES
+    )
 
 
 def test_seed_rbac_works_on_migrated_schema(migration_db: Path):

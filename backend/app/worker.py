@@ -75,6 +75,7 @@ class ScrapeWorker:
     async def run(self) -> None:
         self.load_actors()
         await self.recover()
+        await self._recover_marketing()
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:
@@ -89,6 +90,7 @@ class ScrapeWorker:
 
         sweep_task = asyncio.create_task(self._periodic_sweep())
         data_task = asyncio.create_task(self._data_jobs_loop())
+        marketing_task = asyncio.create_task(self._marketing_loop())
         try:
             while not self._shutdown.is_set():
                 if len(self._tasks) >= self.settings.QBIT_WORKER_MAX_CONCURRENT_JOBS:
@@ -105,6 +107,7 @@ class ScrapeWorker:
         finally:
             sweep_task.cancel()
             data_task.cancel()
+            marketing_task.cancel()
             await self._drain()
             await self.queue.aclose()
             await self.db.close()
@@ -145,6 +148,73 @@ class ScrapeWorker:
     def _handle_signal(self) -> None:
         log_with(logger, 20, "Shutdown signal received; pausing in-flight jobs")
         self._shutdown.set()
+
+    # -------------------------------------------------------------- marketing
+    async def _marketing_loop(self) -> None:
+        """Phase 7: campaign email delivery loop.
+
+        - dedicated marketing queue (Redis or in-process fallback)
+        - operational rate control: emails/minute + concurrency (§42) —
+          throttling ONLY, never a provider-restriction bypass
+        - per-send isolation: one recipient failure never kills the loop
+        """
+        from app.services.marketing.delivery import EmailDeliveryService
+        from app.services.marketing.queue import build_marketing_queue
+
+        mqueue = build_marketing_queue(self.settings, self.redis)
+        delivery = EmailDeliveryService(self.settings)
+        interval = 60.0 / max(self.settings.QBIT_MARKETING_EMAILS_PER_MINUTE, 1)
+        log_with(
+            logger, 20, "Marketing delivery loop started",
+            queue=mqueue.name,
+            emails_per_minute=self.settings.QBIT_MARKETING_EMAILS_PER_MINUTE,
+        )
+        try:
+            while not self._shutdown.is_set():
+                recipient_id = await mqueue.dequeue(timeout_seconds=2.0)
+                if recipient_id is None:
+                    continue
+                try:
+                    async with self.db.session() as session:
+                        await delivery.process(session, uuid.UUID(recipient_id), queue=mqueue)
+                except Exception:  # noqa: BLE001 — per-send isolation
+                    logger.exception(
+                        "Marketing send crashed",
+                        extra={"extra_fields": {"recipient_id": recipient_id}},
+                    )
+                await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            return
+
+    async def _recover_marketing(self) -> None:
+        """Startup recovery: recipients stuck in SENDING after a crash have
+        UNKNOWN provider acceptance — they are marked FAILED (never blindly
+        resent, spec §20) with a code telling the operator what happened."""
+        import datetime as _dt
+
+        from sqlalchemy import update
+
+        from app.models.marketing import CampaignRecipient, RecipientStatus
+
+        cutoff = _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(
+            seconds=self.settings.QBIT_WORKER_LEASE_SECONDS
+        )
+        async with self.db.session() as session:
+            result = await session.execute(
+                update(CampaignRecipient)
+                .where(
+                    CampaignRecipient.status == RecipientStatus.SENDING,
+                    CampaignRecipient.last_attempt_at < cutoff,
+                )
+                .values(
+                    status=RecipientStatus.FAILED,
+                    last_error_code="SEND_STATE_UNKNOWN",
+                    last_error="Worker restarted mid-send; provider acceptance unknown",
+                )
+            )
+            await session.commit()
+            if result.rowcount:
+                log_with(logger, 20, "Marketing recovery: sends marked unknown", count=result.rowcount)
 
     async def _drain(self) -> None:
         if not self._tasks:

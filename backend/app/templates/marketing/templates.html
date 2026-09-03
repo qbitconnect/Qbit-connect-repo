@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Templates — QBIT Connect{% endblock %}
+{% block nav_templates %}nav-active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>Message templates</h1>
+    <p class="muted">Whitelisted {{ "{{variables}}" }} only — no code execution. Email HTML is sanitized on save. WhatsApp campaigns require provider-APPROVED templates.</p>
+  </div>
+</header>
+
+{% if flash %}<div class="flash {{ 'flash-error' if flash.startswith('Error') else '' }}">{{ flash }}</div>{% endif %}
+
+{% if can_manage %}
+<section class="card">
+  <h2 class="card-title">Create template</h2>
+  <form method="post" action="/marketing/templates" class="stack">
+    <div class="form-row">
+      <label>Name <input name="name" required maxlength="200" placeholder="Partnership outreach"></label>
+      <label>Channel
+        <select name="channel">
+          <option value="EMAIL">EMAIL</option>
+          <option value="WHATSAPP">WHATSAPP</option>
+        </select>
+      </label>
+    </div>
+    <label>Subject (email) <input name="subject" placeholder="Hello {{ '{{first_name}}' }} — partnership opportunity"></label>
+    <label>HTML body (email)
+      <textarea name="html_body" rows="6" placeholder="<p>Hello {{ '{{first_name}}' }},</p><p>We would like to discuss an opportunity with {{ '{{business_name}}' }}.</p><p><a href='{{ '{{unsubscribe_url}}' }}'>Unsubscribe</a></p>"></textarea>
+    </label>
+    <label>Plain-text body (email fallback)
+      <textarea name="text_body" rows="3" placeholder="Hello {{ '{{first_name}}' }}, we would like to discuss an opportunity with {{ '{{business_name}}' }}."></textarea>
+    </label>
+    <label>Body (WhatsApp template text)
+      <textarea name="body" rows="2" placeholder="Hi {{ '{{first_name}}' }}, can we share details about {{ '{{business_name}}' }}?"></textarea>
+    </label>
+    <p class="muted small">Allowed variables: first_name, last_name, business_name, email, phone, city, state, country, website, unsubscribe_url, company_name, company_address. Unknown variables are rejected.</p>
+    <button class="btn btn-primary" type="submit">Create template</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2 class="card-title">All templates</h2>
+  {% if not templates_list %}
+  <p class="muted">No templates yet.</p>
+  {% else %}
+  <table class="table">
+    <thead><tr><th>Name</th><th>Channel</th><th>Status</th><th>Provider</th><th>Variables</th><th>Updated</th><th></th></tr></thead>
+    <tbody>
+      {% for t in templates_list %}
+      <tr>
+        <td>{{ t.name }}</td>
+        <td><span class="pill">{{ t.channel }}</span></td>
+        <td><span class="pill pill-{{ t.status|lower }}">{{ t.status }}</span></td>
+        <td>{{ t.provider_status }}{% if t.provider_template_id %} ({{ t.provider_template_id }}){% endif %}</td>
+        <td class="muted">{{ t.variables|join(", ") if t.variables else "—" }}</td>
+        <td class="muted">{{ t.updated_at[:19] if t.updated_at else "—" }}</td>
+        <td>
+          {% if (t.channel == "EMAIL" and can_manage) or (t.channel == "WHATSAPP" and can_manage_whatsapp) %}
+          <form method="post" action="/marketing/templates/{{ t.id }}/delete" onsubmit="return confirm('Delete this template?')">
+            <button class="btn btn-sm btn-danger">Delete</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endblock %}

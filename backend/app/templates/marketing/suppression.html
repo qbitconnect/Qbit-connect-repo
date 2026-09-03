@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Suppression — QBIT Connect{% endblock %}
+{% block nav_suppression %}nav-active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>Suppression list</h1>
+    <p class="muted">Do-not-contact registry. Unsubscribed, hard-bounced and complained addresses can never be removed silently — a compliant re-subscription flow with consent evidence is required.</p>
+  </div>
+</header>
+
+{% if flash %}<div class="flash {{ 'flash-error' if flash.startswith('Error') else '' }}">{{ flash }}</div>{% endif %}
+
+{% if can_manage %}
+<section class="card">
+  <h2 class="card-title">Add suppression</h2>
+  <form method="post" action="/marketing/suppression" class="stack">
+    <div class="form-row">
+      <label>Channel
+        <select name="channel">
+          <option value="EMAIL">EMAIL</option>
+          <option value="WHATSAPP">WHATSAPP</option>
+        </select>
+      </label>
+      <label>Reason
+        <select name="reason">
+          <option value="MANUAL">MANUAL</option>
+          <option value="INVALID">INVALID</option>
+        </select>
+      </label>
+    </div>
+    <label>Address (email or phone) <input name="address" required placeholder="user@example.com"></label>
+    <label>Notes (optional) <input name="notes" maxlength="1000"></label>
+    <button class="btn btn-primary" type="submit">Add</button>
+  </form>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2 class="card-title">Entries</h2>
+  {% if not suppressions %}
+  <p class="muted">Suppression list is empty.</p>
+  {% else %}
+  <table class="table">
+    <thead><tr><th>Channel</th><th>Address</th><th>Reason</th><th>Source</th><th>Since</th><th></th></tr></thead>
+    <tbody>
+      {% for s in suppressions %}
+      <tr>
+        <td><span class="pill">{{ s.channel }}</span></td>
+        <td>{{ s.address }}</td>
+        <td><span class="pill pill-{{ 'danger' if s.reason in ('UNSUBSCRIBED', 'HARD_BOUNCE', 'COMPLAINT') else '' }}">{{ s.reason }}</span></td>
+        <td class="muted">{{ s.source }}</td>
+        <td class="muted">{{ s.created_at[:19] if s.created_at else "—" }}</td>
+        <td>
+          {% if s.reason in ('UNSUBSCRIBED', 'HARD_BOUNCE', 'COMPLAINT') %}
+            <span class="muted small" title="Terminal: requires compliant re-subscription with consent evidence">locked</span>
+          {% elif can_manage %}
+          <form method="post" action="/marketing/suppression/{{ s.id }}/delete" onsubmit="return confirm('Remove this suppression?')">
+            <button class="btn btn-sm">Remove</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endblock %}

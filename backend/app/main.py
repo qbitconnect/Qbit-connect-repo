@@ -167,9 +167,15 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     # --- routers ----------------------------------------------------------------
     from app.api.v1 import auth, files, leads, roles, users
     from app.api.v1 import health as health_routes
+    from app.api.v1 import campaigns as campaigns_routes
+    from app.api.v1 import connections_email as email_connections_routes
+    from app.api.v1 import connections_whatsapp as whatsapp_connections_routes
+    from app.api.v1 import marketing_templates as marketing_templates_routes
     from app.api.v1 import scrape_jobs as scrape_jobs_routes
     from app.api.v1 import scrapers as scrapers_routes
     from app.api.v1 import settings as settings_routes
+    from app.api.v1 import suppressions as suppressions_routes
+    from app.api.v1 import webhooks_marketing as webhooks_routes
 
     api_v1_prefix = "/api/v1"
     app.include_router(health_routes.router)  # /health, /health/database, ...
@@ -181,6 +187,14 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     app.include_router(scrapers_routes.router, prefix=api_v1_prefix)
     app.include_router(scrape_jobs_routes.router, prefix=api_v1_prefix)
     app.include_router(leads.router, prefix=api_v1_prefix)
+    app.include_router(email_connections_routes.router, prefix=api_v1_prefix)
+    app.include_router(whatsapp_connections_routes.router, prefix=api_v1_prefix)
+    app.include_router(marketing_templates_routes.router, prefix=api_v1_prefix)
+    app.include_router(campaigns_routes.router, prefix=api_v1_prefix)
+    app.include_router(suppressions_routes.router)
+    app.include_router(webhooks_routes.router, prefix=api_v1_prefix)
+    # public unsubscribe + tracking endpoints (no auth by design, §13/§29)
+    app.include_router(suppressions_routes.public_router)
 
     # --- operator UI (cookie-authenticated server-rendered pages) ---------------
     from fastapi.staticfiles import StaticFiles
@@ -188,9 +202,11 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
 
     from app.ui import UiRedirect, router as ui_router
     from app.ui.leads import router as leads_ui_router
+    from app.ui.marketing import router as marketing_ui_router
 
     app.include_router(ui_router)
     app.include_router(leads_ui_router)
+    app.include_router(marketing_ui_router)
 
     async def _ui_redirect_handler(request: Request, exc: UiRedirect):
         return RedirectResponse(url=exc.url, status_code=303)

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ campaign.name }} — QBIT Connect{% endblock %}
+{% block nav_campaigns %}nav-active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>{{ campaign.name }}</h1>
+    <p class="muted">
+      <span class="pill">{{ campaign.channel }}</span>
+      <span class="pill pill-{{ campaign.status|lower }}">{{ campaign.status }}</span>
+      version v{{ campaign.message_version }}
+    </p>
+  </div>
+  <div class="head-actions">
+    {% if can_control and campaign.status in ("QUEUED", "RUNNING") %}
+      <form method="post" action="/campaigns/{{ campaign.id }}/pause"><button class="btn">Pause</button></form>
+      <form method="post" action="/campaigns/{{ campaign.id }}/cancel" onsubmit="return confirm('Cancel this campaign?')"><button class="btn btn-danger">Cancel</button></form>
+    {% endif %}
+    {% if can_control and campaign.status == "PAUSED" %}
+      <form method="post" action="/campaigns/{{ campaign.id }}/resume"><button class="btn btn-primary">Resume</button></form>
+      <form method="post" action="/campaigns/{{ campaign.id }}/cancel" onsubmit="return confirm('Cancel this campaign?')"><button class="btn btn-danger">Cancel</button></form>
+    {% endif %}
+    {% if can_control and can_launch and campaign.status in ("COMPLETED", "FAILED", "CANCELLED") %}
+      <form method="post" action="/campaigns/{{ campaign.id }}/requeue"><button class="btn">Requeue failed (v{{ campaign.message_version + 1 }})</button></form>
+    {% endif %}
+    {% if can_launch and campaign.status == "DRAFT" %}
+      <a class="btn btn-primary" href="/campaigns/new">Launch from wizard</a>
+    {% endif %}
+  </div>
+</header>
+
+{% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
+{% if campaign.error %}<div class="flash flash-error">{{ campaign.error_code }}: {{ campaign.error }}</div>{% endif %}
+{% if campaign.validation_result and campaign.validation_result.issues %}
+<div class="flash flash-error">
+  Validation issues:
+  <ul>
+    {% for i in campaign.validation_result.issues %}<li><strong>{{ i.code }}</strong> — {{ i.message }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<section class="card">
+  <h2 class="card-title">Configuration</h2>
+  <div class="kv">
+    <div><span>Template</span><strong>{{ template_name or "—" }}</strong></div>
+    <div><span>Sending account</span><strong>{{ account.name if account else "—" }}{% if account %} ({{ account.status }} / {{ account.health_status }}){% endif %}</strong></div>
+    <div><span>Reply-To</span><strong>{{ account.reply_to if account else "—" }}</strong></div>
+    <div><span>Require opt-in</span><strong>{{ "yes" if campaign.audience.require_opt_in else "no" }}</strong></div>
+    <div><span>Track opens</span><strong>{{ "yes" if campaign.track_opens else "no" }}</strong></div>
+    <div><span>Track clicks</span><strong>{{ "yes" if campaign.track_clicks else "no" }}</strong></div>
+    <div><span>Rate config</span><strong>{{ campaign.rate_config or "platform defaults" }}</strong></div>
+    <div><span>Started</span><strong>{{ campaign.started_at or "—" }}</strong></div>
+  </div>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Delivery (real events only)</h2>
+  <div class="stat-grid">
+    <div class="stat"><span class="stat-num">{{ campaign.counters.audience_total }}</span><span class="stat-label">Recipients</span></div>
+    <div class="stat"><span class="stat-num">{{ campaign.counters.eligible }}</span><span class="stat-label">Eligible</span></div>
+    <div class="stat"><span class="stat-num">{{ campaign.counters.skipped }}</span><span class="stat-label">Skipped</span></div>
+    <div class="stat"><span class="stat-num">{{ campaign.counters.queued }}</span><span class="stat-label">Queued</span></div>
+    <div class="stat"><span class="stat-num">{{ analytics.verified.sent_total }}</span><span class="stat-label">Sent</span></div>
+    <div class="stat"><span class="stat-num">{{ analytics.verified.delivered_total }}</span><span class="stat-label">Delivered</span></div>
+    <div class="stat"><span class="stat-num">{{ analytics.verified.bounced_total }}</span><span class="stat-label">Bounced</span></div>
+    <div class="stat"><span class="stat-num">{{ campaign.counters.complained }}</span><span class="stat-label">Complaints</span></div>
+    <div class="stat"><span class="stat-num">{{ campaign.counters.opened }}</span><span class="stat-label">Opens</span></div>
+    <div class="stat"><span class="stat-num">{{ campaign.counters.clicked }}</span><span class="stat-label">Clicks</span></div>
+    <div class="stat"><span class="stat-num">{{ campaign.counters.replied }}</span><span class="stat-label">Replies</span></div>
+    <div class="stat"><span class="stat-num">{{ campaign.counters.unsubscribed }}</span><span class="stat-label">Unsubscribes</span></div>
+  </div>
+  <h3 class="sub-title">Rates</h3>
+  <div class="kv">
+    <div><span>Delivery rate</span><strong>{{ analytics.rates.delivery_rate if analytics.rates.delivery_rate is not none else "—" }}%</strong></div>
+    <div><span>Bounce rate</span><strong>{{ analytics.rates.bounce_rate if analytics.rates.bounce_rate is not none else "—" }}%</strong></div>
+    <div><span>Complaint rate</span><strong>{{ analytics.rates.complaint_rate if analytics.rates.complaint_rate is not none else "—" }}%</strong></div>
+    {% if campaign.channel == "EMAIL" %}
+    <div><span>Open rate</span><strong>{{ analytics.rates.open_rate if analytics.rates.open_rate is not none else "—" }}%</strong></div>
+    <div><span>Click rate</span><strong>{{ analytics.rates.click_rate if analytics.rates.click_rate is not none else "—" }}%</strong></div>
+    <div><span>Reply rate</span><strong>{{ analytics.rates.reply_rate if analytics.rates.reply_rate is not none else "—" }}%</strong></div>
+    <div><span>Unsubscribe rate</span><strong>{{ analytics.rates.unsubscribe_rate if analytics.rates.unsubscribe_rate is not none else "—" }}%</strong></div>
+    {% endif %}
+  </div>
+  {% if analytics.notes %}
+    {% for n in analytics.notes %}<p class="muted small">{{ n }}</p>{% endfor %}
+  {% endif %}
+</section>
+{% endblock %}

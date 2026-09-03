@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}New campaign — QBIT Connect{% endblock %}
+{% block nav_campaigns %}nav-active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>New campaign</h1>
+    <p class="muted">Details → Channel → Audience → Template → Sender → Eligibility → Preview → Schedule → Review → Launch.</p>
+  </div>
+  <div class="head-actions"><a class="btn" href="/campaigns">Back to campaigns</a></div>
+</header>
+
+{% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+
+<form method="post" action="/campaigns/new" class="stack">
+<section class="card">
+  <h2 class="card-title">Step 1–2 · Details &amp; channel</h2>
+  <label>Campaign name
+    <input name="name" required maxlength="200" placeholder="Q1 partnership outreach">
+  </label>
+  <label>Channel
+    <select name="channel" id="channel-select">
+      <option value="EMAIL">EMAIL</option>
+      <option value="WHATSAPP">WHATSAPP</option>
+    </select>
+  </label>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Step 3 · Audience (lead filter)</h2>
+  <label>Filter JSON (same grammar as saved views; required lead fields: has_email / has_phone)
+    <textarea name="audience_filter" rows="4" placeholder='{"and": [{"field": "has_email", "op": "eq", "value": true}, {"field": "state", "op": "eq", "value": "Gujarat"}]}'>{"and": [{"field": "has_email", "op": "eq", "value": true}]}</textarea>
+  </label>
+  <label class="check"><input type="checkbox" name="require_opt_in"> Require documented opt-in consent (recommended; unsubscribed/suppressed addresses are always skipped)</label>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Step 4 · Template</h2>
+  <label>Template
+    <select name="template_id" required>
+      {% for t in templates %}
+      <option value="{{ t.id }}" data-channel="{{ t.channel }}">
+        [{{ t.channel }}] {{ t.name }} ({{ t.status }}{% if t.channel == "WHATSAPP" %}, provider: {{ t.provider_status }}{% endif %})
+      </option>
+      {% endfor %}
+    </select>
+  </label>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Step 5 · Sender account</h2>
+  <label>Sending account
+    <select name="sending_account_id" required>
+      {% for a in accounts %}
+      <option value="{{ a.id }}" data-channel="{{ a.channel }}">
+        [{{ a.channel }}] {{ a.name }} — {{ a.status }} / {{ a.health_status }}
+      </option>
+      {% endfor %}
+    </select>
+  </label>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Step 6 · Eligibility &amp; compliance</h2>
+  <label>Company name ({{ "{{company_name}}" }} variable) <input name="company_name" placeholder="Your Company Ltd"></label>
+  <label>Company address ({{ "{{company_address}}" }} variable) <input name="company_address" placeholder="1 Main Street"></label>
+  <p class="muted small">Every sent email includes a functional unsubscribe link built from a one-time token. Hard bounces and complaints suppress the address automatically.</p>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Step 7–8 · Preview, tracking &amp; rate</h2>
+  <label class="check"><input type="checkbox" name="track_opens"> Track opens (optional; accuracy is indicative — some clients block pixels)</label>
+  <label class="check"><input type="checkbox" name="track_clicks"> Track clicks (http/https links only)</label>
+  <label>Emails per minute override (operational throttle, default from settings)
+    <input name="emails_per_minute" inputmode="numeric" placeholder="60">
+  </label>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Step 9–10 · Review &amp; launch</h2>
+  <label class="check"><input type="checkbox" name="launch_now"> Validate &amp; launch now (runs the full eligibility chain before queueing)</label>
+  <p class="muted small">If validation fails (e.g. SENDING_ACCOUNT_UNHEALTHY, template not APPROVED) nothing is queued and the issues are shown on the campaign page.</p>
+  <div class="wizard-actions">
+    <button class="btn btn-primary" type="submit">Create campaign</button>
+  </div>
+</section>
+</form>
+{% endblock %}

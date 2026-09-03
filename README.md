@@ -1,8 +1,10 @@
 # QBIT — Self-Hosted Enterprise Data & Marketing Operations Platform
 
-> **Status: PHASE 4 COMPLETE — Lead Management + Import/Export + Data Workspace on the
-> Phase 2/3 foundation. 247 tests passing. Lead database + dedup/merge + import wizard
-> + streaming exports + quality dashboard + workspace UI.**
+> **Status: PHASE 7 COMPLETE — Email Marketing Provider Integration on the Phase 0–4
+> foundation (+ marketing engine core & WhatsApp provider abstraction). 390 tests passing.
+> Email sending accounts (SMTP/Email API, multi-account) + templates + eligibility/suppression
+> + unsubscribe tokens + campaign pipeline + signed webhooks + bounce/complaint handling +
+> optional open/click tracking + analytics + connections/campaigns/templates UI.**
 
 QBIT is a self-hosted **admin/operations portal** — not a marketing website — for
 managing: Data Scraping · Lead/Data Management · Multi-channel Marketing ·
@@ -20,11 +22,11 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 |---|---|
 | Repo | `qbitconnect/Qbit-connect-repo` (private) |
 | Audit result | Empty repository — greenfield build (see `docs/01-repository-audit.md`) |
-| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) complete — see `docs/25`–`28` completion reports |
-| Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine + lead data workspace — `backend/` |
-| Version | `0.4.0` (backend/app/__init__.py) |
-| Tests | 247 passing (`backend/tests`, isolated per-test database) |
-| Next step | Phase 5 — Marketing engine foundation (campaigns/templates/suppression; no sending) |
+| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) + Phase 7 (email marketing provider; incl. the marketing-engine core & provider abstraction Phase 7 requires) complete — see `docs/25`–`28` completion reports |
+| Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine + lead data workspace + marketing/email provider stack — `backend/` |
+| Version | `0.7.0` (backend/app/__init__.py) |
+| Tests | 390 passing (`backend/tests`, isolated per-test database) |
+| Next step | Phase 8 — remaining platform modules (inbox UI on the new conversation/message foundation, dashboard, settings UI) |
 
 ## Documentation Index
 
@@ -59,6 +61,14 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 | 27 | [Leads](docs/leads.md) | lead schema, provenance, search/filter/sort, tags/notes/activity, RBAC, API |
 | 28 | [Import / Export](docs/import-export.md) | formats, column mapping, duplicate strategies, batches, rejected reports, streaming exports |
 | 29 | [Data Workspace](docs/data-workspace.md) | architecture, dedup ladder, performance, observability |
+| 30 | [Email Provider](docs/email-provider.md) | BaseMarketingProvider contract, adapters, error normalization, non-goals |
+| 31 | [Email Connections](docs/email-connections.md) | sending accounts, SMTP/API configuration, validation, secret safety |
+| 32 | [Email Templates](docs/email-templates.md) | variables whitelist, sanitization, unsubscribe variable, preview |
+| 33 | [Email Delivery](docs/email-delivery.md) | queue pipeline, idempotency, retry, bounce/complaint handling |
+| 34 | [Email Webhooks](docs/email-webhooks.md) | signature/replay verification, payload contract, idempotent application |
+| 35 | [Email Unsubscribe](docs/email-unsubscribe.md) | token architecture, public flow, terminal suppression |
+| 36 | [Email Tracking](docs/email-tracking.md) | opt-in open/click tracking, safe redirects, privacy honesty |
+| — | [Phase 7 Audit](PHASE7_AUDIT.md) | Phase 7 baseline audit + gap analysis + implementation plan |
 
 ## Final Architecture Output (Brief §43, items A–T)
 
