@@ -39,7 +39,7 @@ import json
 import time
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
@@ -362,3 +362,137 @@ class EmailWebhookService:
             lead_id=recipient.lead_id,
         ))
         return True
+
+
+class EmailInboundWebhookService(EmailWebhookService):
+    """Inbound-email ingestion (Phase 8 §38): provider/mailbox event →
+    validate → normalize → store ProviderEvent (idempotent) → Message →
+    Lead match → Conversation → unread → inbox event.
+
+    Uses the SAME signature/replay contract as the delivery webhook
+    (X-QBIT-Signature + X-QBIT-Timestamp). Nothing is invented: the payload
+    supplies from/to/subject/text/threading headers, and only those fields
+    are stored."""
+
+    INBOUND_PROVIDER_PREFIX = "email_inbound"
+
+    @staticmethod
+    def _extract_address(value: str) -> str:
+        """Extract the bare address from 'Name <addr>' / '"Name" <addr>'
+        forms (standard inbound-mail formats). Pure; no guessing."""
+        raw = str(value or "").strip()
+        if "<" in raw and ">" in raw:
+            return raw.split("<", 1)[1].split(">", 1)[0].strip()
+        return raw
+
+    async def process_inbound_payload(
+        self, session: AsyncSession, payload: dict, *, provider_id: str,
+    ) -> dict:
+        if not isinstance(payload, dict):
+            raise ValidationError("Webhook payload must be a JSON object")
+        messages = payload.get("messages")
+        if not isinstance(messages, list):
+            messages = [payload]  # single-message convenience form
+
+        summary = {"received": 0, "duplicates": 0, "stored": 0, "invalid": 0}
+        for raw in messages:
+            if not isinstance(raw, dict):
+                continue
+            summary["received"] += 1
+            message_id = str(raw.get("message_id") or raw.get("Message-ID") or "").strip()
+            from_email = str(raw.get("from") or raw.get("From") or "").strip()
+            if not message_id or not from_email:
+                summary["invalid"] += 1
+                continue
+            event_id = f"{message_id}:inbound"
+            normalized = {
+                "provider_event_id": event_id,
+                "category": ProviderEventCategory.INBOUND.value,
+                "event_type": "EMAIL_INBOUND",
+                "provider_message_id": message_id[:300],
+            }
+            _row, created = await self._store_event(
+                session, provider_id=f"{self.INBOUND_PROVIDER_PREFIX}:{provider_id}",
+                normalized=normalized,
+                raw_subset={"from": from_email[:200], "subject": str(raw.get("subject") or "")[:300]},
+            )
+            if not created:
+                summary["duplicates"] += 1
+                continue
+
+            account = await self._account_for_inbound(session, raw)
+            from app.services.marketing.email_tracking import EmailInboundService
+
+            occurred_at = self._parse_occurred_at(raw.get("occurred_at") or raw.get("date"))
+            from_email = self._extract_address(from_email)
+            conversation, message = await EmailInboundService().record_inbound_email(
+                session,
+                account=account,
+                from_email=from_email,
+                to_email=self._extract_address(str(raw.get("to") or raw.get("To") or ""))[:320] or None,
+                subject=str(raw.get("subject") or raw.get("Subject") or "")[:300] or None,
+                body_text=str(raw.get("text") or raw.get("body") or "")[:20000] or None,
+                provider_message_id=message_id[:300],
+                in_reply_to=str(raw.get("in_reply_to") or raw.get("In-Reply-To") or "")[:300] or None,
+                references=str(raw.get("references") or raw.get("References") or "")[:1000] or None,
+                occurred_at=occurred_at,
+                metadata=self._inbound_metadata(raw),
+                settings=self.settings,
+            )
+            if message is None:
+                summary["invalid"] += 1
+                continue
+            await EmailInboundService().link_reply_to_campaign(
+                session, from_email=from_email,
+                in_reply_to=str(raw.get("in_reply_to") or raw.get("In-Reply-To") or "")[:300] or None,
+                occurred_at=occurred_at,
+            )
+            summary["stored"] += 1
+
+        await session.commit()
+        logger.info(
+            "email_inbound_webhook_processed",
+            extra={"extra_fields": {"provider": provider_id, **summary}},
+        )
+        return summary
+
+    async def _account_for_inbound(self, session: AsyncSession, raw: dict):
+        """Resolve the receiving email sending account by the 'to' address."""
+        to_email = str(raw.get("to") or raw.get("To") or "").strip().lower()
+        if not to_email:
+            return None
+        return (await session.execute(
+            select(SendingAccount).where(
+                SendingAccount.channel == "EMAIL",
+                func.lower(SendingAccount.identifier) == to_email,
+            ).limit(1)
+        )).scalars().first()
+
+    @staticmethod
+    def _parse_occurred_at(raw) -> datetime | None:
+        if raw is None:
+            return None
+        if isinstance(raw, (int, float)):
+            try:
+                return datetime.fromtimestamp(float(raw), tz=timezone.utc)
+            except (ValueError, OSError, OverflowError):
+                return None
+        try:
+            parsed = datetime.fromisoformat(str(raw).strip().replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _inbound_metadata(raw: dict) -> dict:
+        """Bounded, secret-free extras (media foundation §42: metadata only)."""
+        metadata: dict = {}
+        html = str(raw.get("html") or "")[:100000]
+        if html:
+            metadata["html"] = html
+        cc = str(raw.get("cc") or "")[:500]
+        if cc:
+            metadata["cc"] = cc
+        return metadata

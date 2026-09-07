@@ -273,6 +273,54 @@ class WhatsAppProvider(BaseMarketingProvider):
             },
         )
 
+    # ------------------------------------------------- inbox session replies
+    async def send_session_text(
+        self, *, account_config: dict, recipient_address: str, body: str,
+        idempotency_key: str, credentials: dict | None = None,
+    ) -> SendResult:
+        """Free-text reply INSIDE the 24h customer-service window (Phase 8
+        §21–§22). This is the OFFICIAL session-messaging capability of the
+        WhatsApp Business Platform — used ONLY by the inbox reply path; the
+        campaign send path stays template-only. The caller (outbox worker)
+        enforces the window and never retries PERMANENT failures."""
+        config = account_config if isinstance(account_config, dict) else {}
+        try:
+            client = self._client(config, credentials)
+        except ProviderError as exc:
+            return SendResult.failure(str(exc), code=exc.code, error_class=exc.error_class)
+
+        ok, e164, reason = normalize_recipient_phone(recipient_address)
+        if not ok:
+            return SendResult.failure(
+                f"Recipient phone is invalid ({reason})",
+                code="INVALID_RECIPIENT", error_class=ErrorClass.PERMANENT,
+            )
+
+        status_code, payload = await client.send_session_text(
+            phone_number_id=str(config.get("phone_number_id")),
+            to=e164, body=body,
+        )
+        if status_code == 200:
+            messages = payload.get("messages") or []
+            first = messages[0] if isinstance(messages, list) and messages else {}
+            provider_message_id = str(first.get("id") or "").strip() or None
+            return SendResult.success(
+                provider_message_id, status="SENT",
+                metadata={"provider_message_id": provider_message_id,
+                          "session_text": True},
+            )
+        normalized = self.errors.normalize(status_code=status_code, payload=payload)
+        return SendResult(
+            ok=False, error=normalized.message[:500], error_code=normalized.code,
+            error_class=normalized.error_class, status="FAILED",
+            metadata={
+                "provider_code": normalized.provider_code,
+                "provider_subcode": normalized.provider_subcode,
+                "detail": normalized.detail,
+                "retry_after_seconds": normalized.retry_after_seconds,
+            },
+        )
+
     # ---------------------------------------------------------------- health
     async def health_check(self, account_config: dict, credentials: dict | None = None) -> dict:
         """§7 probe: credentials + availability + phone configuration.

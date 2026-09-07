@@ -90,6 +90,7 @@ class ScrapeWorker:
         sweep_task = asyncio.create_task(self._periodic_sweep())
         data_task = asyncio.create_task(self._data_jobs_loop())
         campaign_task = asyncio.create_task(self._campaign_loop())
+        outbox_task = asyncio.create_task(self._inbox_outbox_loop())
         try:
             while not self._shutdown.is_set():
                 if len(self._tasks) >= self.settings.QBIT_WORKER_MAX_CONCURRENT_JOBS:
@@ -107,6 +108,7 @@ class ScrapeWorker:
             sweep_task.cancel()
             data_task.cancel()
             campaign_task.cancel()
+            outbox_task.cancel()
             await self._drain()
             await self.queue.aclose()
             await self.db.close()
@@ -173,6 +175,34 @@ class ScrapeWorker:
                 await asyncio.sleep(
                     self.settings.QBIT_WORKER_POLL_SECONDS if actions else max(
                         self.settings.QBIT_WORKER_POLL_SECONDS * 3, 3.0
+                    )
+                )
+        except asyncio.CancelledError:
+            return
+
+    async def _inbox_outbox_loop(self) -> None:
+        """Phase 8: inbox reply delivery loop — drains the outbox through the
+        SAME provider abstraction campaigns use (§24). Isolated from the
+        scrape/campaign loops; a failing reply never stops the others."""
+        from app.services.inbox.outbox import OutboxService
+        from app.services.marketing import build_provider_registry
+
+        worker = OutboxService(
+            self.settings,
+            build_provider_registry(self.settings),
+            owner=f"inbox-{uuid.uuid4().hex[:8]}",
+        )
+        try:
+            while not self._shutdown.is_set():
+                try:
+                    async with self.db.session() as session:
+                        processed = await worker.process_cycle(session)
+                except Exception:  # noqa: BLE001 — keep the loop alive
+                    logger.exception("Inbox outbox loop iteration failed")
+                    processed = 0
+                await asyncio.sleep(
+                    self.settings.QBIT_WORKER_POLL_SECONDS if processed else max(
+                        self.settings.QBIT_WORKER_POLL_SECONDS * 2, 2.0
                     )
                 )
         except asyncio.CancelledError:

@@ -340,6 +340,17 @@ class WhatsAppWebhookService:
                     **(normalized.get("metadata") or {}),
                 },
             )
+        # Phase 8 §17/§41: mirror delivery statuses onto inbox Message rows
+        # (forward-only — out-of-order events can never downgrade a state)
+        from app.services.inbox.engine import ConversationEngine
+
+        await ConversationEngine().apply_delivery_to_message(
+            session, provider_message_id=message_id,
+            event_type=normalized["event_type"].value
+            if hasattr(normalized["event_type"], "value") else normalized["event_type"],
+            occurred_at=occurred,
+        )
+        if recipient is not None:
             return True
         # no campaign recipient matched (e.g. a manual message) — the raw
         # ProviderEvent is still stored; nothing is fabricated
@@ -361,6 +372,7 @@ class WhatsAppWebhookService:
             body=normalized.get("body"),
             occurred_at=normalized.get("occurred_at"),
             metadata={"provider": PROVIDER_ID, "type": normalized.get("message_type")},
+            settings=self.settings,
         )
         await self.inbox.link_reply_to_campaign(
             session, account=account, contact_phone=normalized.get("sender"),

@@ -27,6 +27,9 @@ from app.models.marketing import (
 )
 from app.models.messaging import (
     Conversation,
+    ConversationEvent,
+    ConversationNote,
+    InboxOutboxItem,
     Message,
     ProviderCredentials,
     ProviderEvent,
@@ -45,10 +48,13 @@ __all__ = [
     "CampaignTemplate",
     "Connection",
     "Conversation",
+    "ConversationEvent",
+    "ConversationNote",
     "EmailTrackingEvent",
     "EmailUnsubscribeToken",
     "FileRecord",
     "ImportBatch",
+    "InboxOutboxItem",
     "Lead",
     "LeadActivity",
     "LeadDuplicateCandidate",

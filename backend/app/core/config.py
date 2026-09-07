@@ -208,6 +208,23 @@ class Settings(BaseSettings):
     #: max inbound payload size accepted by webhook endpoints (bytes)
     QBIT_WEBHOOK_MAX_BODY_BYTES: int = Field(default=1_048_576, ge=1024)
 
+    # --- Unified inbox (Phase 8) -------------------------------------------------
+    #: when a customer replies to a RESOLVED/CLOSED conversation, reopen it
+    #: (§32 business rule) instead of silently creating a new thread
+    QBIT_INBOX_REOPEN_ON_REPLY: bool = True
+    #: conversation visibility scope (§50): ALL | ASSIGNED_ONLY.
+    #: TEAM falls back to ALL until a team model exists (audit §9.1).
+    QBIT_INBOX_VISIBILITY: str = "ALL"
+    #: WhatsApp customer-service window (hours) — free-text replies are allowed
+    #: only inside it; outside it providers require an approved template (§22).
+    #: This is the provider's published rule, shown honestly — never bypassed.
+    QBIT_INBOX_WHATSAPP_WINDOW_HOURS: int = Field(default=24, ge=1, le=720)
+    #: reply outbox tuning (§24): batch claimed per worker cycle + max attempts
+    QBIT_INBOX_OUTBOX_BATCH_SIZE: int = Field(default=25, ge=1, le=500)
+    QBIT_INBOX_OUTBOX_MAX_ATTEMPTS: int = Field(default=5, ge=1, le=50)
+    #: message page size for the conversation timeline (cursor pagination, §48)
+    QBIT_INBOX_MESSAGE_PAGE_SIZE: int = Field(default=50, ge=1, le=200)
+
     # --- Derived helpers ----------------------------------------------------
     @property
     def is_production(self) -> bool:

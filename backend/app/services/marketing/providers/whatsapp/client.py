@@ -123,3 +123,21 @@ class WhatsAppCloudClient:
             },
         }
         return await self._request("POST", self._endpoint(f"{phone_number_id}/messages"), json_body=body)
+
+    async def send_session_text(
+        self, *, phone_number_id: str, to: str, body: str,
+    ) -> tuple[int, dict]:
+        """Official free-text send INSIDE the 24h customer-service window
+        (Phase 8 §21–§22 — inbox replies only; business-initiated campaign
+        sends still REQUIRE templates). Callers must enforce the window
+        BEFORE invoking this; the client refuses obviously invalid input."""
+        if not body or not body.strip():
+            return 400, {"error": {"code": 400, "message": "text body is required"}}
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": to,
+            "type": "text",
+            "text": {"preview_url": False, "body": body[:4096]},
+        }
+        return await self._request("POST", self._endpoint(f"{phone_number_id}/messages"), json_body=payload)

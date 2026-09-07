@@ -143,73 +143,35 @@ class EmailInboundService:
         provider_message_id: str | None = None,
         in_reply_to: str | None = None, references: str | None = None,
         occurred_at: datetime | None = None, metadata: dict | None = None,
+        settings=None,
     ) -> tuple[Conversation | None, Message | None]:
         """Normalized inbound email → conversation → message → lead match.
 
+        Phase 8: delegates to the unified ConversationEngine (threading
+        headers preserved, unread counting, match-review, reopen-on-reply,
+        activity events, message-level idempotency).
+
         - conversation matching key: (sending_account, normalized contact email)
-        - threading: In-Reply-To/References are stored for later association
-          (§33) and, when they match a stored Message-ID / a campaign
-          recipient's provider_message_id, the reply is linked to that thread
+        - threading: Message-ID/In-Reply-To/References are stored on the
+          message (§33) and, when they match a campaign recipient's
+          provider_message_id, the reply links to that campaign
         - no Lead is invented: unresolved contacts stay lead-less (§24 rule)
         """
-        from app.services.marketing.email_normalization import normalize_email
+        from app.services.inbox.engine import ConversationEngine
+        from app.services.inbox.normalizer import normalize_email_inbound
 
-        ok, normalized, _reason = normalize_email(from_email)
-        if not ok:
-            return None, None
-        now = occurred_at or datetime.now(timezone.utc)
-        conversation = (await session.execute(
-            select(Conversation).where(
-                Conversation.channel == "EMAIL",
-                Conversation.sending_account_id == (
-                    account.id if account is not None else None
-                ) if account is not None else Conversation.sending_account_id.is_(None),
-                Conversation.contact_email == normalized,
-            ).limit(1)
-        )).scalars().first()
-        created = False
-        if conversation is None:
-            conversation = Conversation(
-                channel="EMAIL",
-                sending_account_id=account.id if account is not None else None,
-                contact_email=normalized,
-                external_contact_id=normalized,
-                status="PENDING",
-                last_message_at=now,
-            )
-            session.add(conversation)
-            await session.flush()
-            created = True
-        else:
-            conversation.last_message_at = now
-
-        message = Message(
-            conversation_id=conversation.id,
-            direction="INBOUND",
-            provider_message_id=(provider_message_id or "")[:300] or None,
-            message_type="EMAIL",
-            body=(body_text or "")[:20000] or None,
-            status="RECEIVED",
-            message_metadata={
-                "from": normalized,
-                "to": to_email,
-                "subject": (subject or "")[:300],
-                "message_id": (in_reply_to or "")[:300] or None,
-                "in_reply_to": (in_reply_to or "")[:300] or None,
-                "references": (references or "")[:1000] or None,
-                **(metadata or {}),
-            },
-            created_at=now,
+        normalized_msg = normalize_email_inbound(
+            from_email=from_email, to_email=to_email, subject=subject,
+            body_text=body_text, provider_message_id=provider_message_id,
+            message_id_header=in_reply_to, in_reply_to=in_reply_to,
+            references=references, occurred_at=occurred_at,
+            metadata={"from": None, **(metadata or {})},
         )
-        session.add(message)
-        await session.commit()
-        logger.info(
-            "email_inbound_recorded",
-            extra={"extra_fields": {
-                "conversation": str(conversation.id),
-                "created": created,
-                "threaded": bool(in_reply_to or references),
-            }},
+        if normalized_msg is None:
+            return None, None
+        normalized_msg.metadata["from"] = normalized_msg.contact_email
+        conversation, message, _created = await ConversationEngine().ingest_inbound(
+            session, normalized_msg, account=account, settings=settings,
         )
         return conversation, message
 

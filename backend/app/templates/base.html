@@ -38,7 +38,10 @@
       <a href="/connections" class="nav-item {% block nav_connections %}{% endblock %}">
         <span class="nav-ico">&#9642;</span> Connections
       </a>
-      <span class="nav-item nav-disabled" title="Planned for a later phase">Inbox</span>
+      <a href="/inbox" class="nav-item {% block nav_inbox %}{% endblock %}">
+        <span class="nav-ico">&#9992;</span> Inbox
+        <span id="inbox-unread-badge" class="nav-badge" hidden></span>
+      </a>
       <span class="nav-item nav-disabled" title="Planned for a later phase">Analytics</span>
       <span class="nav-item nav-disabled" title="Planned for a later phase">Settings</span>
     </nav>
@@ -54,5 +57,25 @@
   </main>
 </div>
 {% block scripts %}{% endblock %}
+{% if user %}
+<script>
+// Phase 8 §36: sidebar unread badge — real database values via /ui/inbox/counters
+(function () {
+  var badge = document.getElementById("inbox-unread-badge");
+  if (!badge) return;
+  function tick() {
+    fetch("/ui/inbox/counters").then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (payload) {
+        if (!payload || !payload.success) return;
+        var total = (payload.data && payload.data.total) || 0;
+        badge.textContent = total > 0 ? String(total) : "";
+        badge.hidden = total === 0;
+      }).catch(function () {});
+  }
+  tick();
+  setInterval(tick, 12000);
+})();
+</script>
+{% endif %}
 </body>
 </html>

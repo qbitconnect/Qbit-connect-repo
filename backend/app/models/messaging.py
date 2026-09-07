@@ -52,7 +52,26 @@ class ProviderEventCategory(str, enum.Enum):
 class ConversationStatus(str, enum.Enum):
     PENDING = "PENDING"     # unresolved contact — no lead matched yet
     OPEN = "OPEN"
+    WAITING = "WAITING"     # waiting for the customer (Phase 8 §31)
+    RESOLVED = "RESOLVED"   # issue handled (Phase 8 §31)
     CLOSED = "CLOSED"
+
+
+class ConversationPriority(str, enum.Enum):
+    NORMAL = "NORMAL"
+    HIGH = "HIGH"
+    URGENT = "URGENT"
+
+
+class MatchStatus(str, enum.Enum):
+    """Lead-matching outcome for a conversation (Phase 8 §6).
+
+    MATCH_REVIEW_REQUIRED: several leads share this contact identity — the
+    conversation is NEVER silently attached to a possibly-wrong lead."""
+
+    MATCHED = "MATCHED"
+    UNMATCHED = "UNMATCHED"
+    MATCH_REVIEW_REQUIRED = "MATCH_REVIEW_REQUIRED"
 
 
 class MessageDirection(str, enum.Enum):
@@ -61,11 +80,23 @@ class MessageDirection(str, enum.Enum):
 
 
 class MessageStatus(str, enum.Enum):
+    SENDING = "SENDING"     # queued/accepted locally, not yet confirmed (§26)
     RECEIVED = "RECEIVED"
     SENT = "SENT"
     DELIVERED = "DELIVERED"
     READ = "READ"
     FAILED = "FAILED"
+
+
+#: forward-only delivery status order for out-of-order webhook safety (§41)
+MESSAGE_STATUS_ORDER = [
+    MessageStatus.SENDING.value,
+    MessageStatus.SENT.value,
+    MessageStatus.RECEIVED.value,  # inbound terminal state, not part of outbound ladder
+    MessageStatus.DELIVERED.value,
+    MessageStatus.READ.value,
+    MessageStatus.FAILED.value,
+]
 
 
 class ProviderCredentials(Base):
@@ -190,6 +221,23 @@ class Conversation(Base):
     contact_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=ConversationStatus.PENDING)
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # --- Phase 8: unified inbox workspace fields (§2) ------------------------
+    #: thread subject (EMAIL threads; WhatsApp stays None)
+    subject: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    priority: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=ConversationPriority.NORMAL
+    )
+    assigned_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    #: RESERVED for a future team model — no team table exists yet (audit §9.1)
+    assigned_team_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    last_inbound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_outbound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    unread_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: lead-matching outcome (MATCHED / UNMATCHED / MATCH_REVIEW_REQUIRED, §6)
+    match_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
     created_at: Mapped[datetime] = timestamp_columns()[0]
     updated_at: Mapped[datetime] = timestamp_columns()[1]
 
@@ -203,19 +251,28 @@ class Conversation(Base):
             "contact_phone": self.contact_phone,
             "contact_email": self.contact_email,
             "status": self.status,
+            "subject": self.subject,
+            "priority": self.priority,
+            "assigned_user_id": str(self.assigned_user_id) if self.assigned_user_id else None,
             "last_message_at": self.last_message_at.isoformat() if self.last_message_at else None,
+            "last_inbound_at": self.last_inbound_at.isoformat() if self.last_inbound_at else None,
+            "last_outbound_at": self.last_outbound_at.isoformat() if self.last_outbound_at else None,
+            "unread_count": self.unread_count or 0,
+            "match_status": self.match_status,
+            "closed_at": self.closed_at.isoformat() if self.closed_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
 class Message(Base):
-    """One message inside a conversation (§23)."""
+    """One message inside a conversation (§23, extended in Phase 8 §3)."""
 
     __tablename__ = "messages"
     __table_args__ = (
         Index("ix_messages_conversation_created", "conversation_id", "created_at"),
         Index("ix_messages_provider_message", "provider_message_id"),
+        Index("ix_messages_external", "conversation_id", "external_message_id"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -234,6 +291,19 @@ class Message(Base):
         DateTime(timezone=True), nullable=False,
         default=lambda: datetime.now().astimezone(),
     )
+    # --- Phase 8: display + delivery-timeline fields (§3, §16, §17) ----------
+    lead_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("leads.id", ondelete="SET NULL"), nullable=True
+    )
+    #: caller-supplied idempotency id for OUTBOUND replies (client_message_id)
+    external_message_id: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    sender: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    recipient: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    subject: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def to_public_dict(self) -> dict:
         return {
@@ -241,9 +311,141 @@ class Message(Base):
             "conversation_id": str(self.conversation_id),
             "direction": self.direction,
             "provider_message_id": self.provider_message_id,
+            "external_message_id": self.external_message_id,
             "message_type": self.message_type,
             "body": self.body,
+            "subject": self.subject,
+            "sender": self.sender,
+            "recipient": self.recipient,
             "status": self.status,
             "metadata": self.message_metadata or {},
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "sent_at": self.sent_at.isoformat() if self.sent_at else None,
+            "delivered_at": self.delivered_at.isoformat() if self.delivered_at else None,
+            "read_at": self.read_at.isoformat() if self.read_at else None,
+            "failed_at": self.failed_at.isoformat() if self.failed_at else None,
         }
+
+
+class ConversationNote(Base):
+    """Internal team note (Phase 8 §27) — NEVER sent to the customer."""
+
+    __tablename__ = "conversation_notes"
+    __table_args__ = (
+        Index("ix_conversation_notes_conversation", "conversation_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = timestamp_columns()[0]
+    updated_at: Mapped[datetime] = timestamp_columns()[1]
+
+    def to_public_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "conversation_id": str(self.conversation_id),
+            "user_id": str(self.user_id) if self.user_id else None,
+            "content": self.content,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class ConversationEvent(Base):
+    """Append-only conversation activity timeline (Phase 8 §29, §34).
+
+    Assignment history (previous/new assignee), status/priority changes,
+    lead link/unlink, note-added markers and message lifecycle markers all
+    land here — history is never overwritten."""
+
+    __tablename__ = "conversation_events"
+    __table_args__ = (
+        Index("ix_conversation_events_conversation", "conversation_id", "created_at"),
+        Index("ix_conversation_events_type", "event_type"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    #: previous value snapshot (e.g. {"assigned_user_id": ...} for §29)
+    previous_value: Mapped[dict] = mapped_column(PortableJSON, nullable=False, default=dict)
+    #: new value snapshot
+    new_value: Mapped[dict] = mapped_column(PortableJSON, nullable=False, default=dict)
+    message_metadata: Mapped[dict] = mapped_column(
+        "metadata", PortableJSON, nullable=False, default=dict
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        default=lambda: datetime.now().astimezone(),
+    )
+
+    def to_public_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "conversation_id": str(self.conversation_id),
+            "event_type": self.event_type,
+            "actor_user_id": str(self.actor_user_id) if self.actor_user_id else None,
+            "previous_value": self.previous_value or {},
+            "new_value": self.new_value or {},
+            "metadata": self.message_metadata or {},
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class OutboxStatus(str, enum.Enum):
+    WAITING = "WAITING"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class InboxOutboxItem(Base):
+    """Outbound reply queue row (Phase 8 §24, §25).
+
+    Replies are NEVER sent from HTTP handlers: the API enqueues a row here
+    and the worker loop delivers through the SAME provider abstraction used
+    by campaigns. UNIQUE(idempotency_key) makes double-clicks harmless."""
+
+    __tablename__ = "inbox_outbox"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_inbox_outbox_idempotency"),
+        Index("ix_inbox_outbox_claim", "status", "available_at"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    message_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True
+    )
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    sending_account_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("sending_accounts.id", ondelete="SET NULL"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default=OutboxStatus.WAITING)
+    #: conversation_id + client_message_id — the duplicate-send gate (§25)
+    idempotency_key: Mapped[str] = mapped_column(String(300), nullable=False)
+    attempts: Mapped[int] = mapped_column(nullable=False, default=0)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        default=lambda: datetime.now().astimezone(),
+    )
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_owner: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = timestamp_columns()[0]
+    updated_at: Mapped[datetime] = timestamp_columns()[1]

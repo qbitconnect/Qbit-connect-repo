@@ -31,6 +31,7 @@ from app.services.marketing.webhooks_email import (
     PROVIDER_IDS,
     SIGNATURE_HEADER,
     TIMESTAMP_HEADER,
+    EmailInboundWebhookService,
     EmailWebhookService,
 )
 
@@ -96,4 +97,47 @@ async def email_webhook_receive(
         raise ValidationError("Webhook payload is not valid JSON") from exc
 
     summary = await service.process_payload(session, payload, provider_id=provider_id)
+    return {"success": True, "data": summary}
+
+
+@router.post("/inbound/{provider}")
+async def email_inbound_webhook_receive(
+    provider: str,
+    request: Request,
+    session: AsyncSession = Depends(get_db),
+):
+    """Inbound email ingestion (Phase 8 §38): provider/mailbox event →
+    signature + replay validation → normalize → idempotent ProviderEvent →
+    Message → Lead match → Conversation → unread → inbox.
+
+    Same X-QBIT-Signature / X-QBIT-Timestamp contract as the delivery
+    webhook; NOT JWT-authenticated (machine endpoint)."""
+    provider_id = (provider or "").strip().lower()
+    if provider_id not in PROVIDER_IDS:
+        raise ValidationError(f"Unknown email provider '{provider}'")
+    settings: Settings = request.app.state.settings
+    service = EmailInboundWebhookService(settings)
+
+    raw_body = await request.body()
+    if len(raw_body) > settings.QBIT_WEBHOOK_MAX_BODY_BYTES:
+        raise _payload_too_large()
+    secret = service.resolve_secret(provider_id)
+    if not secret:
+        logger.error("Email inbound webhook rejected: no shared secret configured")
+        raise _webhook_unauthorized("Webhook signature validation is not configured")
+    if not service.verify_signature(
+        raw_body=raw_body,
+        signature_header=request.headers.get(SIGNATURE_HEADER),
+        timestamp_header=request.headers.get(TIMESTAMP_HEADER),
+        secret=secret,
+    ):
+        logger.warning("Email inbound webhook rejected: missing/invalid signature or stale timestamp")
+        raise _webhook_unauthorized("Invalid webhook signature")
+
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValidationError("Webhook payload is not valid JSON") from exc
+
+    summary = await service.process_inbound_payload(session, payload, provider_id=provider_id)
     return {"success": True, "data": summary}

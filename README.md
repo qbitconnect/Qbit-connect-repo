@@ -1,11 +1,13 @@
 # QBIT — Self-Hosted Enterprise Data & Marketing Operations Platform
 
-> **Status: PHASE 7 COMPLETE — Email Marketing Provider Integration on the
-> Phase 2/3/4/5/6 foundation. 536 tests passing. Real SMTP (TLS/STARTTLS) + generic
-> transactional Email API adapters + multi-sender accounts + encrypted credential vault +
-> email templates (sanitized HTML + plain text + real unsubscribe) + signed idempotent
-> email webhooks + bounce/complaint suppression + opt-in open/click tracking +
-> reply-tracking foundation + email analytics + /connections/email UI.**
+> **Status: PHASE 8 COMPLETE — Unified Inbox + Conversations on the
+> Phase 2/3/4/5/6/7 foundation. 579 tests passing. One workspace for WhatsApp + Email
+> conversations: unified inbound pipeline (normalizer → conversation engine → lead matching) →
+> thread/lead MATCH_REVIEW handling, unread/read-state, status/priority/assignment with
+> full activity history, internal notes, link/create-lead, campaign↔conversation linkage,
+> idempotent outbound replies through the same provider abstraction (WhatsApp 24h window
+> honored — template fallback outside it), signed idempotent email-inbound webhook,
+> /inbox three-pane UI with lead context + sidebar unread badge.**
 
 QBIT is a self-hosted **admin/operations portal** — not a marketing website — for
 managing: Data Scraping · Lead/Data Management · Multi-channel Marketing ·
@@ -23,11 +25,11 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 |---|---|
 | Repo | `qbitconnect/Qbit-connect-repo` (private) |
 | Audit result | Empty repository — greenfield build (see `docs/01-repository-audit.md`) |
-| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) + Phase 5 (marketing engine foundation) + Phase 6 (WhatsApp Business provider integration) + Phase 7 (email marketing provider integration) complete — see `docs/25`–`29` completion/architecture reports + `docs/whatsapp-*.md` + `docs/email-*.md` |
+| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) + Phase 5 (marketing engine foundation) + Phase 6 (WhatsApp Business provider integration) + Phase 7 (email marketing provider integration) + Phase 8 (unified inbox + conversations) complete — see `docs/25`–`29` completion/architecture reports + `docs/whatsapp-*.md` + `docs/email-*.md` + `docs/unified-inbox.md` + `docs/conversations.md` + `docs/message-processing.md` + `docs/inbox-rbac.md` + `docs/inbox-webhooks.md` |
 | Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine + lead data workspace + marketing engine — `backend/` |
-| Version | `0.7.0` (backend/app/__init__.py) |
-| Tests | 536 passing (`backend/tests`, isolated per-test database) |
-| Next step | Later phases — SMS provider, full inbound-mailbox inbox UI, analytics dashboards |
+| Version | `0.8.0` (backend/app/__init__.py) |
+| Tests | 579 passing (`backend/tests`, isolated per-test database) |
+| Next step | Later phases — SMS provider, analytics dashboards, saved inbox views, team model |
 
 ## Documentation Index
 
@@ -78,6 +80,11 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 | 43 | [Email Webhooks](docs/email-webhooks.md) | signed webhook contract, replay protection, event normalization, idempotency |
 | 44 | [Email Unsubscribe](docs/email-unsubscribe.md) | token security (hash-at-rest), public opt-out flow, suppression enforcement |
 | 45 | [Email Tracking](docs/email-tracking.md) | opt-in open/click tracking, signed redirects, privacy posture, reply-tracking foundation |
+| 46 | [Unified Inbox](docs/unified-inbox.md) | Phase 8 provider-independent inbox architecture, endpoints, configuration, UI layout, non-goals |
+| 47 | [Conversations](docs/conversations.md) | conversation/message schema, threading keys, lead matching + MATCH_REVIEW, unread logic, status workflow |
+| 48 | [Message Processing](docs/message-processing.md) | inbound/outbound pipelines, idempotency, out-of-order safety, reply window rules, performance/indexes |
+| 49 | [Inbox RBAC](docs/inbox-rbac.md) | inbox permission catalog, role matrix, backend visibility scoping, audit + privacy |
+| 50 | [Inbox Webhooks](docs/inbox-webhooks.md) | WhatsApp + email-inbound webhook contracts, idempotency guarantees, troubleshooting |
 
 ## Final Architecture Output (Brief §43, items A–T)
 

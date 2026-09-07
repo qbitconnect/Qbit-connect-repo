@@ -370,6 +370,27 @@ class CampaignWorker:
                     "provider_status": result.metadata.get("provider_status"),
                 },
             )
+            # Phase 8 §61: campaign sends appear in the conversation history —
+            # a failure here must never break the campaign loop
+            try:
+                from app.services.inbox.engine import ConversationEngine
+
+                await ConversationEngine().ingest_campaign_outbound(
+                    session, campaign=campaign, recipient=recipient,
+                    account=account,
+                    provider_message_id=result.provider_message_id,
+                    subject=subject, body=body,
+                    message_type="EMAIL" if campaign.channel == "EMAIL" else "TEMPLATE",
+                )
+            except Exception:  # noqa: BLE001 — inbox linkage is best-effort
+                logger.exception(
+                    "Campaign→conversation linkage failed",
+                    extra={"extra_fields": {
+                        "campaign_id": str(campaign.id),
+                        "recipient_id": str(recipient.id),
+                    }},
+                )
+                await session.rollback()
             logger.info(
                 "recipient_sent",
                 extra={"extra_fields": {"campaign_id": str(campaign.id),

@@ -1,0 +1,638 @@
+{% extends "base.html" %}
+{% block title %}Inbox — QBIT Connect{% endblock %}
+{% block nav_inbox %}active{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>INBOX</h1>
+  <p class="muted">Unified WhatsApp + Email conversations</p>
+</div>
+
+<div class="inbox-shell">
+  <!-- ============================ LEFT: list ============================ -->
+  <section class="inbox-pane inbox-left card">
+    <div class="inbox-filters">
+      <input id="inbox-search" class="input" type="search" placeholder="Search contact, message, subject…" />
+      <div class="chip-row" id="channel-chips">
+        <button class="chip active" data-channel="">All</button>
+        <button class="chip" data-channel="WHATSAPP">WhatsApp</button>
+        <button class="chip" data-channel="EMAIL">Email</button>
+        <button class="chip" data-channel="UNREAD" data-mode="special">Unread</button>
+      </div>
+      <div class="chip-row" id="status-chips">
+        <button class="chip active" data-status="">Any</button>
+        <button class="chip" data-status="OPEN">Open</button>
+        <button class="chip" data-status="PENDING">Pending</button>
+        <button class="chip" data-status="WAITING">Waiting</button>
+        <button class="chip" data-status="RESOLVED">Resolved</button>
+        <button class="chip" data-status="CLOSED">Closed</button>
+      </div>
+      <div class="inbox-filter-row">
+        <select id="assignment-select" class="input">
+          <option value="">Everyone</option>
+          <option value="mine">Assigned to me</option>
+          <option value="unassigned">Unassigned</option>
+        </select>
+        <select id="priority-select" class="input">
+          <option value="">Any priority</option>
+          <option value="URGENT">Urgent</option>
+          <option value="HIGH">High</option>
+          <option value="NORMAL">Normal</option>
+        </select>
+      </div>
+    </div>
+    <div id="conversation-list" class="inbox-list" aria-live="polite"></div>
+    <div class="inbox-pager">
+      <button id="page-prev" class="btn btn-sm btn-ghost" disabled>&larr; Newer</button>
+      <span id="page-info" class="muted small"></span>
+      <button id="page-next" class="btn btn-sm btn-ghost" disabled>Older &rarr;</button>
+    </div>
+  </section>
+
+  <!-- ============================ CENTER: thread ============================ -->
+  <section class="inbox-pane inbox-center card">
+    <div id="thread-empty" class="inbox-empty">
+      <p class="muted">Select a conversation to view messages.</p>
+    </div>
+    <div id="thread" class="inbox-thread" hidden>
+      <div class="thread-head">
+        <div class="thread-id">
+          <span id="thread-channel" class="badge"></span>
+          <strong id="thread-name"></strong>
+          <span id="thread-contact" class="muted small mono"></span>
+        </div>
+        <div class="thread-controls">
+          <select id="thread-status" class="input input-sm" title="Status">
+            <option value="OPEN">Open</option>
+            <option value="PENDING">Pending</option>
+            <option value="WAITING">Waiting</option>
+            <option value="RESOLVED">Resolved</option>
+            <option value="CLOSED">Closed</option>
+          </select>
+          <select id="thread-priority" class="input input-sm" title="Priority">
+            <option value="NORMAL">Normal</option>
+            <option value="HIGH">High</option>
+            <option value="URGENT">Urgent</option>
+          </select>
+          <select id="thread-assignee" class="input input-sm" title="Assignee">
+            <option value="">Unassigned</option>
+          </select>
+        </div>
+      </div>
+      <div id="thread-subject" class="thread-subject muted small" hidden></div>
+      <div id="messages" class="message-list"></div>
+      <button id="load-older" class="btn btn-sm btn-ghost btn-block" hidden>Load older messages</button>
+      <div id="composer" class="composer">
+        <div id="window-warning" class="alert alert-warn" hidden></div>
+        <div id="template-row" class="template-row" hidden>
+          <select id="template-select" class="input input-sm"></select>
+          <button id="send-template" class="btn btn-sm btn-primary">Send template</button>
+        </div>
+        <div class="composer-row">
+          <textarea id="reply-body" class="input" rows="2"
+                    placeholder="Type a reply… (Ctrl+Enter to send)"></textarea>
+          <div class="composer-actions">
+            <button id="send-reply" class="btn btn-primary btn-sm">Send</button>
+            <button id="discard-reply" class="btn btn-ghost btn-sm">Discard</button>
+          </div>
+        </div>
+        <div id="composer-error" class="alert alert-bad" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ RIGHT: context ============================ -->
+  <section class="inbox-pane inbox-right card">
+    <div id="context-empty" class="inbox-empty">
+      <p class="muted">Contact not linked to a lead.</p>
+    </div>
+    <div id="lead-context" hidden>
+      <h2>Lead context</h2>
+      <div id="lead-fields" class="lead-fields"></div>
+      <div class="lead-actions">
+        <a id="lead-open" class="btn btn-sm" href="#" hidden>Open lead</a>
+        <button id="link-lead-btn" class="btn btn-sm" hidden>Link lead</button>
+        <button id="create-lead-btn" class="btn btn-sm" hidden>Create lead</button>
+      </div>
+      <div id="link-lead-form" hidden>
+        <input id="link-lead-id" class="input input-sm" placeholder="Lead UUID" />
+        <button id="link-lead-confirm" class="btn btn-sm btn-primary">Link</button>
+      </div>
+      <h3>Notes <span class="muted small">(internal only)</span></h3>
+      <div id="note-list" class="note-list"></div>
+      {% if 'inbox.add_notes' in permissions %}
+      <textarea id="note-content" class="input" rows="2" placeholder="Add an internal note…"></textarea>
+      <button id="note-add" class="btn btn-sm">Add note</button>
+      {% endif %}
+      <h3>Activity</h3>
+      <div id="activity-list" class="activity-list small"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var state = {
+    channel: "", status: "", assignment: "", priority: "", unreadOnly: false,
+    search: "", page: 1, pageSize: 25, total: 0,
+    selected: null, detail: null, nextBefore: null, oldestBefore: null,
+    pollThread: null
+  };
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function fmtTime(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    return d.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+  }
+  function fmtDay(iso) {
+    var d = new Date(iso), today = new Date(), yest = new Date(Date.now() - 86400000);
+    if (d.toDateString() === today.toDateString()) return "Today";
+    if (d.toDateString() === yest.toDateString()) return "Yesterday";
+    return d.toLocaleDateString();
+  }
+  async function api(url, opts) {
+    var res = await fetch(url, opts || {});
+    var payload = await res.json().catch(function () { return {}; });
+    if (!res.ok || payload.success === false) {
+      var msg = (payload.error && payload.error.message) || ("Request failed (" + res.status + ")");
+      throw new Error(msg);
+    }
+    return payload.data;
+  }
+
+  // ------------------------------------------------------------ list side
+  async function loadList() {
+    var qs = new URLSearchParams({page: state.page, page_size: state.pageSize});
+    if (state.unreadOnly) qs.set("unread", "true");
+    if (state.channel) qs.set("channel", state.channel);
+    if (state.status) qs.set("status", state.status);
+    if (state.assignment) qs.set("assignment", state.assignment);
+    if (state.priority) qs.set("priority", state.priority);
+    if (state.search) qs.set("search", state.search);
+    var data = await api("/ui/inbox/conversations?" + qs.toString());
+    state.total = data.total;
+    var list = $("conversation-list");
+    list.innerHTML = "";
+    if (!data.items.length) {
+      list.innerHTML = '<div class="inbox-empty"><p class="muted">No conversations yet.</p></div>';
+    }
+    data.items.forEach(function (c) {
+      var row = document.createElement("div");
+      row.className = "conv-row" + (state.selected === c.id ? " selected" : "");
+      row.dataset.id = c.id;
+      var who = c.lead ? (c.lead.business_name || c.lead.contact_name || c.contact_phone || c.contact_email)
+                       : (c.contact_phone || c.contact_email || c.external_contact_id || "Unknown contact");
+      var preview = c.last_message ? c.last_message.preview : "";
+      var dot = c.unread_count > 0 ? '<span class="unread-badge">' + c.unread_count + "</span>" : "";
+      var prio = c.priority && c.priority !== "NORMAL"
+        ? '<span class="prio prio-' + c.priority.toLowerCase() + '">' + c.priority + "</span>" : "";
+      var assignee = c.assigned_user_id ? "·" : "";  // detail view shows the name
+      row.innerHTML =
+        '<div class="conv-top"><span class="badge badge-' + c.channel.toLowerCase() + '">' +
+          c.channel + "</span>" + prio +
+          '<span class="muted small">' + fmtDay(c.last_message_at || c.created_at) + "</span>" + dot + "</div>" +
+        '<div class="conv-name">' + esc(who) + "</div>" +
+        '<div class="conv-preview muted">' + esc(preview) + "</div>" +
+        '<div class="conv-meta small muted"><span class="status-' + c.status.toLowerCase() + '">' +
+          esc(c.status) + "</span>" + (c.match_status === "MATCH_REVIEW_REQUIRED"
+            ? ' · <span class="prio prio-urgent">match review</span>' : "") + "</div>";
+      row.addEventListener("click", function () { selectConversation(c.id); });
+      list.appendChild(row);
+    });
+    var pages = Math.max(Math.ceil(state.total / state.pageSize), 1);
+    $("page-info").textContent = "Page " + state.page + " / " + pages + " · " + state.total;
+    $("page-prev").disabled = state.page <= 1;
+    $("page-next").disabled = state.page >= pages;
+  }
+
+  // ---------------------------------------------------------- thread side
+  async function selectConversation(id) {
+    state.selected = id;
+    document.querySelectorAll(".conv-row").forEach(function (r) {
+      r.classList.toggle("selected", r.dataset.id === id);
+    });
+    $("thread-empty").hidden = true;
+    $("thread").hidden = false;
+    $("context-empty").hidden = true;
+    $("lead-context").hidden = false;
+    await Promise.all([loadDetail(), loadMessages(true), loadActivity()]);
+    markRead();
+    clearInterval(state.pollThread);
+    state.pollThread = setInterval(refreshOpenThread, 8000);
+  }
+
+  async function refreshOpenThread() {
+    if (!state.selected) return;
+    await Promise.all([loadMessages(false), loadCounters(false)]);
+  }
+
+  async function loadDetail() {
+    var c = await api("/ui/inbox/conversations/" + state.selected);
+    state.detail = c;
+    $("thread-channel").textContent = c.channel;
+    $("thread-channel").className = "badge badge-" + c.channel.toLowerCase();
+    var who = c.lead ? (c.lead.business_name || c.lead.contact_name || "(lead)")
+                     : (c.contact_phone || c.contact_email || "Unknown contact");
+    $("thread-name").textContent = who;
+    $("thread-contact").textContent = c.contact_phone || c.contact_email || "";
+    $("thread-status").value = c.status;
+    $("thread-priority").value = c.priority || "NORMAL";
+    if (c.subject) { $("thread-subject").hidden = false; $("thread-subject").textContent = c.subject; }
+    else { $("thread-subject").hidden = true; }
+
+    // WhatsApp window rule surfaced honestly (§22)
+    var warn = $("window-warning");
+    if (c.channel === "WHATSAPP" && c.whatsapp_window_open === false) {
+      warn.hidden = false;
+      warn.textContent = "The 24h customer-service window has closed — an approved template is required.";
+      $("template-row").hidden = false;
+      loadTemplates();
+    } else {
+      warn.hidden = true;
+      $("template-row").hidden = true;
+    }
+    renderLeadContext(c);
+    await loadAssignees(c);
+  }
+
+  async function loadAssignees(c) {
+    var sel = $("thread-assignee");
+    sel.innerHTML = '<option value="">Unassigned</option>';
+    {% if 'inbox.assign' in permissions %}
+    try {
+      var data = await api("/ui/inbox/assignable-users");
+      data.items.forEach(function (u) {
+        var opt = document.createElement("option");
+        opt.value = u.id; opt.textContent = u.label;
+        if (c.assignee && c.assignee.id === u.id) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    } catch (e) { /* viewing without inbox.assign */ }
+    {% else %}
+    if (c.assignee) {
+      var opt = document.createElement("option");
+      opt.value = c.assignee.id; opt.textContent = c.assignee.full_name || c.assignee.email;
+      opt.selected = true; sel.appendChild(opt);
+    }
+    {% endif %}
+  }
+
+  async function loadTemplates() {
+    var sel = $("template-select");
+    sel.innerHTML = "";
+    try {
+      var data = await api("/ui/inbox/conversations/" + state.selected + "/templates");
+      if (!data.items.length) {
+        sel.innerHTML = '<option value="">No approved templates</option>';
+        $("send-template").disabled = true;
+        return;
+      }
+      $("send-template").disabled = false;
+      data.items.forEach(function (t) {
+        var opt = document.createElement("option");
+        opt.value = t.id;
+        opt.textContent = t.name + " (" + t.language + ")" + (t.variables.length ? " — vars: " + t.variables.join(", ") : "");
+        sel.appendChild(opt);
+      });
+    } catch (e) {
+      sel.innerHTML = '<option value="">Templates unavailable</option>';
+    }
+  }
+
+  async function loadMessages(reset) {
+    var data;
+    if (reset || !state.nextBefore) {
+      data = await api("/ui/inbox/conversations/" + state.selected + "/messages?limit=50");
+      state.nextBefore = data.next_before;
+      renderMessages(data.items, true);
+    }
+    $("load-older").hidden = !state.nextBefore;
+  }
+
+  function renderMessages(items, replace) {
+    var list = $("messages");
+    if (replace) list.innerHTML = "";
+    var lastDay = null;
+    if (!replace) lastDay = list.dataset.lastDay || null;
+    items.forEach(function (m) {
+      var day = fmtDay(m.created_at);
+      if (day !== lastDay) {
+        var sep = document.createElement("div");
+        sep.className = "day-separator";
+        sep.textContent = day;
+        list.appendChild(sep);
+        lastDay = day;
+      }
+      var inbound = m.direction === "INBOUND";
+      var bubble = document.createElement("div");
+      bubble.className = "bubble-row " + (inbound ? "in" : "out");
+      var metaBits = [];
+      if (m.subject) metaBits.push(esc(m.subject));
+      var statusLine = inbound ? "" :
+        '<span class="msg-status st-' + String(m.status).toLowerCase() + '">' + esc(m.status) + "</span>";
+      var retry = (!inbound && m.status === "FAILED" && "{{ 'inbox.reply' in permissions }}" === "True")
+        ? ' <button class="btn btn-sm btn-ghost retry-btn" data-id="' + m.id + '">Retry</button>' : "";
+      var htmlView = (!inbound && m.message_metadata && m.message_metadata.html)
+        || (inbound && m.message_type === "EMAIL" && m.message_metadata && m.message_metadata.html);
+      var bodyHtml = esc(m.body || "");
+      if (htmlView) {
+        bodyHtml = '<div class="mail-frame-wrap">' +
+          '<iframe class="mail-frame" sandbox="" data-mid="' + m.id + '"></iframe>' +
+          '<button class="btn btn-sm btn-ghost mail-text-btn" data-mid="' + m.id + '">Plain text</button>' +
+          '<div class="mail-text muted small" hidden>' + esc(m.body || "(empty)") + "</div></div>";
+      }
+      bubble.innerHTML =
+        '<div class="bubble ' + (inbound ? "b-in" : "b-out") + '">' +
+          (metaBits.length ? '<div class="msg-subject small muted">' + metaBits[0] + "</div>" : "") +
+          '<div class="msg-body">' + bodyHtml + "</div>" +
+          '<div class="msg-meta small muted">' + fmtTime(m.created_at) + " " + statusLine + retry + "</div>" +
+        "</div>";
+      list.appendChild(bubble);
+    });
+    list.dataset.lastDay = lastDay;
+    if (replace) list.scrollTop = list.scrollHeight;
+    list.querySelectorAll(".mail-frame").forEach(function (f) {
+      f.srcdoc = "";
+      fetch("/ui/inbox/messages/" + f.dataset.mid + "/html")
+        .then(function (r) { return r.ok ? r.text() : ""; })
+        .then(function (html) { f.srcdoc = html; f.style.height = "220px"; });
+    });
+    list.querySelectorAll(".mail-text-btn").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var wrap = b.closest(".mail-frame-wrap");
+        wrap.querySelector(".mail-frame").hidden = true;
+        wrap.querySelector(".mail-text").hidden = false;
+        b.hidden = true;
+      });
+    });
+    list.querySelectorAll(".retry-btn").forEach(function (b) {
+      b.addEventListener("click", async function () {
+        b.disabled = true;
+        try {
+          await api("/ui/inbox/conversations/" + state.selected + "/messages/" + b.dataset.id + "/retry", {method: "POST"});
+          await loadMessages(true);
+        } catch (e) { showComposerError(e.message); }
+      });
+    });
+  }
+
+  async function markRead() {
+    try { await api("/ui/inbox/conversations/" + state.selected + "/read", {method: "POST"}); }
+    catch (e) { /* view-only users may not mutate; unread stays */ }
+    loadCounters();
+  }
+
+  // --------------------------------------------------------- context side
+  function renderLeadContext(c) {
+    var fields = $("lead-fields");
+    fields.innerHTML = "";
+    var rows = [];
+    if (c.lead) {
+      rows.push(["Business", c.lead.business_name]);
+      rows.push(["Contact", c.lead.contact_name]);
+      rows.push(["Phone", c.lead.phone || c.contact_phone]);
+      rows.push(["Email", c.lead.email || c.contact_email]);
+      rows.push(["Website", c.lead.website]);
+      rows.push(["City", c.lead.city]); rows.push(["State", c.lead.state]);
+      rows.push(["Source", c.lead.source]);
+      rows.push(["Status", c.lead.status]);
+      rows.push(["Quality", c.lead.quality_score]);
+      rows.push(["Tags", (c.lead.tags || []).join(", ")]);
+      $("lead-open").hidden = false;
+      $("lead-open").href = "/leads/" + c.lead.id;
+      $("create-lead-btn").hidden = true;
+      $("link-lead-btn").hidden = false;
+    } else {
+      rows.push(["Phone", c.contact_phone]);
+      rows.push(["Email", c.contact_email]);
+      rows.push(["Provider id", c.external_contact_id]);
+      $("lead-open").hidden = true;
+      $("lead-open").href = "#";
+      {% if 'inbox.create_lead' in permissions %}$("create-lead-btn").hidden = false;{% endif %}
+      {% if 'inbox.link_lead' in permissions %}$("link-lead-btn").hidden = false;{% endif %}
+      if (c.match_status === "MATCH_REVIEW_REQUIRED") {
+        rows.push(["Match", "REVIEW REQUIRED — several leads share this contact"]);
+      }
+    }
+    rows.forEach(function (kv) {
+      if (!kv[1]) return;
+      var div = document.createElement("div");
+      div.className = "lead-field";
+      div.innerHTML = '<span class="muted small">' + esc(kv[0]) + '</span><span>' + esc(kv[1]) + "</span>";
+      fields.appendChild(div);
+    });
+  }
+
+  async function loadActivity() {
+    var data = await api("/ui/inbox/conversations/" + state.selected + "/activity");
+    var wrap = $("activity-list"); wrap.innerHTML = "";
+    var notes = $("note-list"); notes.innerHTML = "";
+    data.items.forEach(function (entry) {
+      var at = fmtDay(entry.at.isoformat || entry.at) + " " + fmtTime(entry.at.isoformat || entry.at);
+      var who = entry.user ? (entry.user.full_name || entry.user.email) : "";
+      if (entry.kind === "note") {
+        var div = document.createElement("div");
+        div.className = "note";
+        div.innerHTML = '<div class="small muted">' + esc(who) + " · " + at + "</div>" + esc(entry.note.content);
+        notes.appendChild(div);
+        return;
+      }
+      var ev = entry.event;
+      var li = document.createElement("div");
+      li.className = "activity-row";
+      li.innerHTML = '<span class="badge">' + esc(ev.event_type) + "</span> " +
+        '<span class="muted">' + esc(at) + (who ? " · " + esc(who) : "") + "</span>";
+      wrap.appendChild(li);
+    });
+    if (!data.items.length) wrap.innerHTML = '<p class="muted">No activity yet.</p>';
+    if (!notes.children.length) notes.innerHTML = '<p class="muted small">No notes yet.</p>';
+  }
+
+  // ------------------------------------------------------------ counters
+  async function loadCounters(refreshList) {
+    try {
+      var c = await api("/ui/inbox/counters");
+      var badge = window.__inboxBadge;
+      if (badge) {
+        badge.textContent = c.total > 0 ? String(c.total) : "";
+        badge.hidden = c.total === 0;
+      }
+      if (refreshList) await loadList();
+    } catch (e) { /* polling failures stay silent */ }
+  }
+
+  function showComposerError(msg) {
+    var el = $("composer-error");
+    el.hidden = false;
+    el.textContent = msg;
+  }
+
+  // -------------------------------------------------------------- actions
+  async function sendReply() {
+    var btn = $("send-reply");
+    btn.disabled = true;
+    $("composer-error").hidden = true;
+    var clientMessageId = "ui-" + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random());
+    var form = new FormData();
+    form.set("body", $("reply-body").value);
+    form.set("client_message_id", clientMessageId);
+    try {
+      await api("/ui/inbox/conversations/" + state.selected + "/messages",
+                {method: "POST", body: form});
+      $("reply-body").value = "";
+      await loadMessages(true);
+    } catch (e) { showComposerError(e.message); }
+    btn.disabled = false;
+  }
+
+  async function sendTemplate() {
+    var sel = $("template-select");
+    if (!sel.value) return;
+    var form = new FormData();
+    form.set("body", $("reply-body").value || "(template)");
+    form.set("client_message_id", "ui-" + (crypto.randomUUID ? crypto.randomUUID() : Date.now()));
+    form.set("template_id", sel.value);
+    try {
+      await api("/ui/inbox/conversations/" + state.selected + "/messages",
+                {method: "POST", body: form});
+      $("reply-body").value = "";
+      await loadMessages(true);
+    } catch (e) { showComposerError(e.message); }
+  }
+
+  function postForm(path, fields, done) {
+    var form = new FormData();
+    Object.keys(fields || {}).forEach(function (k) { if (fields[k] !== undefined) form.set(k, fields[k]); });
+    api(path, {method: "POST", body: form}).then(done)
+      .catch(function (e) { showComposerError(e.message); });
+  }
+
+  function bind() {
+    $("inbox-search").addEventListener("input", debounce(function () {
+      state.search = $("inbox-search").value.trim(); state.page = 1; loadList();
+    }, 350));
+    $("channel-chips").addEventListener("click", function (e) {
+      var chip = e.target.closest(".chip"); if (!chip) return;
+      if (chip.dataset.mode === "special") {
+        state.unreadOnly = !state.unreadOnly;
+        chip.classList.toggle("active", state.unreadOnly);
+      } else {
+        state.unreadOnly = false;
+        document.querySelectorAll("#channel-chips .chip").forEach(function (c) {
+          if (c.dataset.mode !== "special") c.classList.toggle("active", c === chip);
+        });
+        state.channel = chip.dataset.channel;
+      }
+      state.page = 1; loadList();
+    });
+    $("status-chips").addEventListener("click", function (e) {
+      var chip = e.target.closest(".chip"); if (!chip) return;
+      document.querySelectorAll("#status-chips .chip").forEach(function (c) {
+        c.classList.toggle("active", c === chip);
+      });
+      state.status = chip.dataset.status;
+      state.page = 1; loadList();
+    });
+    $("assignment-select").addEventListener("change", function () {
+      state.assignment = this.value; state.page = 1; loadList();
+    });
+    $("priority-select").addEventListener("change", function () {
+      state.priority = this.value; state.page = 1; loadList();
+    });
+    $("page-prev").addEventListener("click", function () { state.page--; loadList(); });
+    $("page-next").addEventListener("click", function () { state.page++; loadList(); });
+    $("load-older").addEventListener("click", loadOlder);
+
+    $("thread-status").addEventListener("change", function () {
+      postForm("/ui/inbox/conversations/" + state.selected + "/status",
+               {status: this.value}, function (d) { loadDetail(); loadList(); });
+    });
+    $("thread-priority").addEventListener("change", function () {
+      postForm("/ui/inbox/conversations/" + state.selected + "/priority",
+               {priority: this.value}, function () { loadDetail(); loadList(); });
+    });
+    $("thread-assignee").addEventListener("change", function () {
+      postForm("/ui/inbox/conversations/" + state.selected + "/assign",
+               {assigned_user_id: this.value}, function () { loadDetail(); loadList(); });
+    });
+    $("send-reply").addEventListener("click", sendReply);
+    $("send-template").addEventListener("click", sendTemplate);
+    $("discard-reply").addEventListener("click", function () {
+      $("reply-body").value = ""; $("composer-error").hidden = true;
+    });
+    $("reply-body").addEventListener("keydown", function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") sendReply();
+    });
+    $("note-add").addEventListener("click", function () {
+      var content = $("note-content").value.trim();
+      if (!content) return;
+      postForm("/ui/inbox/conversations/" + state.selected + "/notes",
+               {content: content}, function () {
+                 $("note-content").value = "";
+                 loadActivity();
+               });
+    });
+    $("link-lead-btn").addEventListener("click", function () {
+      $("link-lead-form").hidden = !$("link-lead-form").hidden;
+    });
+    $("link-lead-confirm").addEventListener("click", function () {
+      postForm("/ui/inbox/conversations/" + state.selected + "/link-lead",
+               {lead_id: $("link-lead-id").value.trim()},
+               function () { $("link-lead-form").hidden = true; loadDetail(); loadMessages(true); loadList(); });
+    });
+    $("create-lead-btn").addEventListener("click", function () {
+      postForm("/ui/inbox/conversations/" + state.selected + "/create-lead",
+               {display_name: state.detail && state.detail.external_contact_id || ""},
+               function () { loadDetail(); loadList(); });
+    });
+  }
+
+  async function loadOlder() {
+    if (!state.nextBefore) return;
+    var data = await api("/ui/inbox/conversations/" + state.selected +
+                         "/messages?limit=50&before=" + encodeURIComponent(state.nextBefore));
+    state.nextBefore = data.next_before;
+    renderOlder(data.items);
+    $("load-older").hidden = !state.nextBefore;
+  }
+
+  function renderOlder(items) {
+    // prepend chronological page above the current list
+    var list = $("messages");
+    var frag = document.createDocumentFragment();
+    items.slice().forEach(function (m) {
+      var div = document.createElement("div");
+      div.className = "bubble-row " + (m.direction === "INBOUND" ? "in" : "out");
+      div.innerHTML = '<div class="bubble ' + (m.direction === "INBOUND" ? "b-in" : "b-out") + '">' +
+        '<div class="msg-body">' + esc(m.body || "") + "</div>" +
+        '<div class="msg-meta small muted">' + fmtTime(m.created_at) + "</div></div>";
+      frag.appendChild(div);
+    });
+    list.insertBefore(frag, list.firstChild);
+  }
+
+  function debounce(fn, ms) {
+    var t; return function () {
+      clearTimeout(t); var args = arguments, self = this;
+      t = setTimeout(function () { fn.apply(self, args); }, ms);
+    };
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    bind();
+    loadList();
+    loadCounters(false);
+    setInterval(function () { loadCounters(true); }, 12000);
+    var preselect = "{{ selected_id or '' }}";
+    if (preselect) selectConversation(preselect);
+  });
+})();
+</script>
+{% endblock %}

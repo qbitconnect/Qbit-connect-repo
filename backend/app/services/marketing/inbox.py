@@ -105,44 +105,27 @@ class InboxService:
         body: str | None,
         occurred_at: datetime | None = None,
         metadata: dict | None = None,
+        settings=None,
     ) -> tuple[Conversation, Message]:
-        """Persist one inbound message (§23) + attach a Lead when one matches."""
-        conversation = await self.get_or_create_conversation(
-            session, account=account, contact_phone=contact_phone,
-            external_contact_id=external_contact_id,
-        )
+        """Persist one inbound message (§23) + attach a Lead when one matches.
 
-        # (re)attach a real lead whenever we can match one — never fabricate
-        if conversation.lead_id is None:
-            lead = await self.match_lead(session, contact_phone=contact_phone)
-            if lead is not None:
-                conversation.lead_id = lead.id
-        if conversation.lead_id is not None and conversation.status == ConversationStatus.PENDING:
-            conversation.status = ConversationStatus.OPEN
+        Phase 8: delegates to the unified ConversationEngine so WhatsApp
+        inbound gains engine-wide behavior — unread counting, match-review,
+        reopen-on-reply, activity events and message-level idempotency."""
+        from app.services.inbox.engine import ConversationEngine
+        from app.services.inbox.normalizer import normalize_whatsapp_inbound
 
-        message = Message(
-            conversation_id=conversation.id,
-            direction=MessageDirection.INBOUND.value,
+        normalized = normalize_whatsapp_inbound(
+            sender_phone=contact_phone,
             provider_message_id=provider_message_id,
-            message_type=(message_type or "TEXT").upper()[:30],
+            message_type=message_type,
             body=body,
-            status=MessageStatus.RECEIVED.value,
-            metadata=metadata or {},
-            created_at=occurred_at or datetime.now(timezone.utc),
+            external_contact_id=external_contact_id,
+            occurred_at=occurred_at,
+            metadata=metadata,
         )
-        session.add(message)
-        conversation.last_message_at = message.created_at
-        conversation.updated_at = datetime.now(timezone.utc)
-        await session.commit()
-        await session.refresh(message)
-        logger.info(
-            "inbound_message_recorded",
-            extra={"extra_fields": {
-                "conversation_id": str(conversation.id),
-                "sending_account_id": str(account.id) if account else None,
-                "lead_matched": conversation.lead_id is not None,
-                "message_type": message.message_type,
-            }},
+        conversation, message, _created = await ConversationEngine().ingest_inbound(
+            session, normalized, account=account, settings=settings,
         )
         return conversation, message
 
