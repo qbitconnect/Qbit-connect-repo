@@ -1,5 +1,17 @@
-"""SQLAlchemy models — Phase 2 core + Phase 3 scraping + Phase 4 leads + Phase 5 marketing + Phase 6 messaging + Phase 7 email + Phase 9 automation."""
+"""SQLAlchemy models — Phase 2 core + Phase 3 scraping + Phase 4 leads + Phase 5 marketing + Phase 6 messaging + Phase 7 email + Phase 9 automation + Phase 10 analytics."""
 
+from app.models.analytics import (
+    AnalyticsAggregationRun,
+    AnalyticsDailyAutomation,
+    AnalyticsDailyCampaign,
+    AnalyticsDailyConversation,
+    AnalyticsDailyLead,
+    AnalyticsDailyMessage,
+    AnalyticsDailyScraping,
+    Report,
+    ReportRun,
+    ReportSnapshot,
+)
 from app.models.automation import (
     Workflow,
     WorkflowEvent,
@@ -47,6 +59,13 @@ from app.models.setting import SystemSetting
 from app.models.user import User
 
 __all__ = [
+    "AnalyticsAggregationRun",
+    "AnalyticsDailyAutomation",
+    "AnalyticsDailyCampaign",
+    "AnalyticsDailyConversation",
+    "AnalyticsDailyLead",
+    "AnalyticsDailyMessage",
+    "AnalyticsDailyScraping",
     "AuditLog",
     "Campaign",
     "CampaignEvent",
@@ -75,6 +94,9 @@ __all__ = [
     "Permission",
     "ProviderCredentials",
     "ProviderEvent",
+    "Report",
+    "ReportRun",
+    "ReportSnapshot",
     "Role",
     "SavedView",
     "ScrapeJob",

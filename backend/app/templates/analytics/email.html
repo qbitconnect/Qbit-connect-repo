@@ -1,0 +1,63 @@
+{% extends "analytics/base_analytics.html" %}
+{% block analytics_content %}
+
+{{ filter_bar(False) }}
+
+<h2>EMAIL KPIS</h2>
+{% set k = data.kpis %}
+<div class="kpi-grid">
+  {{ kpi_card('RECIPIENTS', None, value=k.recipients) }}
+  {{ kpi_card('EMAILS SENT', None, value=k.emails_sent) }}
+  {{ kpi_card('DELIVERED', None, value=k.delivered) }}
+  {{ kpi_card('BOUNCED', None, value=k.bounced) }}
+  {{ kpi_card('HARD BOUNCES', None, value=k.hard_bounces) }}
+  {{ kpi_card('SOFT BOUNCES', None, value=k.soft_bounces) }}
+  {{ kpi_card('COMPLAINED', None, value=k.complained) }}
+  {{ kpi_card('REPLIES', None, value=k.replies) }}
+  {{ kpi_card('UNSUBSCRIBED', None, value=k.unsubscribed) }}
+</div>
+
+<div class="rate-strip">
+  {{ rate('DELIVERY RATE', k.rates.delivery_rate) }}
+  {{ rate('BOUNCE RATE', k.rates.bounce_rate) }}
+  {{ rate('COMPLAINT RATE', k.rates.complaint_rate) }}
+  {{ rate('REPLY RATE', k.rates.reply_rate) }}
+  <div class="rate-pill">OPEN RATE<b>{{ (k.rates.open_rate * 100)|round(2) ~ '%' if k.rates.open_rate is not none else 'not available' }}</b></div>
+  <div class="rate-pill">CLICK RATE<b>{{ (k.rates.click_rate * 100)|round(2) ~ '%' if k.rates.click_rate is not none else 'not available' }}</b></div>
+</div>
+{% if not k.tracking_events_available %}
+<p class="muted small">No open/click tracking events recorded for this period (tracking is opt-in per campaign). Open and click rates are never estimated (spec §12).</p>
+{% endif %}
+
+<div class="chart-card">
+  <h2>PER SENDER ACCOUNT</h2>
+  <p class="chart-note">Volume and reputation rates per email sending account.</p>
+  {% if data.accounts %}
+  <div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th>Sender</th><th>Provider</th><th>Recipients</th><th>Sent</th>
+        <th>Delivery rate</th><th>Bounce rate</th><th>Complaint rate</th><th>Reply rate</th>
+      </tr></thead>
+      <tbody>
+        {% for a in data.accounts %}
+        <tr>
+          <td>{{ a.identifier }}</td>
+          <td>{{ a.provider or '—' }}</td>
+          <td>{{ a.recipients }}</td>
+          <td>{{ a.sent }}</td>
+          <td>{{ (a.delivery_rate * 100)|round(2) ~ '%' if a.delivery_rate is not none else '—' }}</td>
+          <td>{{ (a.bounce_rate * 100)|round(2) ~ '%' if a.bounce_rate is not none else '—' }}</td>
+          <td>{{ (a.complaint_rate * 100)|round(2) ~ '%' if a.complaint_rate is not none else '—' }}</td>
+          <td>{{ (a.reply_rate * 100)|round(2) ~ '%' if a.reply_rate is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  {{ empty_table([]) }}
+  {% endif %}
+</div>
+
+{% endblock %}

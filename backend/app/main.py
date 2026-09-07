@@ -176,12 +176,14 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     # --- routers ----------------------------------------------------------------
     from app.api.v1 import auth, files, leads, roles, users
     from app.api.v1 import health as health_routes
+    from app.api.v1 import analytics as analytics_routes
     from app.api.v1 import automation as automation_routes
     from app.api.v1 import campaigns as campaigns_routes
     from app.api.v1 import connections as connections_routes
     from app.api.v1 import connections_email as connections_email_routes
     from app.api.v1 import email_public as email_public_routes
     from app.api.v1 import inbox as inbox_routes
+    from app.api.v1 import reports as reports_routes
     from app.api.v1 import scrape_jobs as scrape_jobs_routes
     from app.api.v1 import scrapers as scrapers_routes
     from app.api.v1 import sending_accounts as sending_accounts_routes
@@ -213,6 +215,9 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     app.include_router(inbox_routes.router, prefix=api_v1_prefix)
     # Phase 9: workflow automation API
     app.include_router(automation_routes.router, prefix=api_v1_prefix)
+    # Phase 10: analytics + saved reports API
+    app.include_router(analytics_routes.router, prefix=api_v1_prefix)
+    app.include_router(reports_routes.router, prefix=api_v1_prefix)
     # Phase 7: public unsubscribe page (site root) + tracking endpoints
     app.include_router(email_public_routes.router)
     app.include_router(email_public_routes.tracking_router)
@@ -222,6 +227,7 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     from fastapi.responses import RedirectResponse
 
     from app.ui import UiRedirect, router as ui_router
+    from app.ui.analytics import router as analytics_ui_router
     from app.ui.automation import router as automation_ui_router
     from app.ui.campaigns import router as campaigns_ui_router
     from app.ui.connections import router as connections_ui_router
@@ -238,6 +244,8 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     app.include_router(inbox_ui_router)
     # Phase 9: automation workspace
     app.include_router(automation_ui_router)
+    # Phase 10: analytics dashboard + report builder workspace
+    app.include_router(analytics_ui_router)
 
     async def _ui_redirect_handler(request: Request, exc: UiRedirect):
         return RedirectResponse(url=exc.url, status_code=303)

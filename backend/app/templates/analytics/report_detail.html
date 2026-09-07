@@ -1,0 +1,117 @@
+{% extends "analytics/base_analytics.html" %}
+{% block head_actions %}
+<div class="head-actions">
+  {% if can_run and report.status == 'ACTIVE' %}
+  <form method="post" action="/reports/{{ report.id }}/run" style="display:inline">
+    <button class="btn btn-sm btn-primary" type="submit">Run now</button>
+  </form>
+  {% endif %}
+  {% if can_manage %}
+    {% if report.status == 'ACTIVE' %}
+    <a class="btn btn-sm" href="/reports/{{ report.id }}/edit">Edit</a>
+    <form method="post" action="/reports/{{ report.id }}/archive" style="display:inline">
+      <button class="btn btn-sm" type="submit">Archive</button>
+    </form>
+    {% else %}
+    <form method="post" action="/reports/{{ report.id }}/restore" style="display:inline">
+      <button class="btn btn-sm" type="submit">Restore</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/reports/{{ report.id }}/duplicate" style="display:inline">
+      <button class="btn btn-sm" type="submit">Duplicate</button>
+    </form>
+    <form method="post" action="/reports/{{ report.id }}/delete" style="display:inline"
+          onsubmit="return confirm('Delete this report and its run history?')">
+      <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+    </form>
+  {% endif %}
+  {% if can_export and snapshot %}
+    <a class="btn btn-sm" href="/reports/{{ report.id }}/export?format=csv">Export CSV</a>
+    <a class="btn btn-sm" href="/reports/{{ report.id }}/export?format=xlsx">Export XLSX</a>
+    <a class="btn btn-sm" href="/reports/{{ report.id }}/export?format=json">Export JSON</a>
+  {% endif %}
+</div>
+{% endblock %}
+{% block analytics_content %}
+
+<div class="chart-card">
+  <h2>{{ report.name }}</h2>
+  {% if report.description %}<p class="chart-note">{{ report.description }}</p>{% endif %}
+  <div class="config-preview">
+    <strong>{{ report.domain }}</strong> · visualization: {{ report.config.visualization if report.config else 'table' }}
+    · period: {{ report.config.period if report.config else '30d' }}{% if report.config and report.config.period == 'custom' %} ({{ report.config.date_from }} → {{ report.config.date_to }}){% endif %}
+    · timezone: {{ report.timezone }} · config v{{ report.config_version }} · visibility {{ report.visibility }}
+    <br>metrics: {{ report.config.metrics|join(', ') if report.config and report.config.metrics else '—' }}
+    <br>dimensions: {{ report.config.dimensions|join(', ') if report.config and report.config.dimensions else '—' }}
+    {% if report.config and report.config.filters %}
+    <br>filters: {{ report.config.filters|tojson }}
+    {% endif %}
+  </div>
+</div>
+
+<div class="chart-card">
+  <h2>LATEST SNAPSHOT</h2>
+  {% if snapshot and snapshot.data %}
+    <p class="chart-note">
+      run {{ snapshot.run_id[:8] }} · {{ snapshot.row_count }} rows ·
+      generated {{ snapshot.generated_at.strftime('%Y-%m-%d %H:%M UTC') if snapshot.generated_at else '—' }}
+      {% if snapshot.data.meta and snapshot.data.meta.notes %} · {{ snapshot.data.meta.notes|join(' ') }}{% endif %}
+    </p>
+    {% set rows = snapshot.data.rows or [] %}
+    {% if rows %}
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          {% for key in rows[0].keys() %}<th>{{ key }}</th>{% endfor %}
+        </tr></thead>
+        <tbody>
+          {% for row in rows[:200] %}
+          <tr>
+            {% for key in rows[0].keys() %}
+            <td>{{ row[key] if row[key] is not none else '—' }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if rows|length > 200 %}<p class="muted small">Showing first 200 of {{ rows|length }} rows — export for the full dataset.</p>{% endif %}
+    {% else %}
+    <p class="muted small">No data available for this configuration and period.</p>
+    {% endif %}
+  {% else %}
+  <p class="muted small">No completed run yet. Use “Run now” to generate a snapshot in the background.</p>
+  {% endif %}
+</div>
+
+<div class="chart-card">
+  <h2>RUN HISTORY <span class="muted small">({{ runs_total }})</span></h2>
+  {% if runs %}
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Run</th><th>Status</th><th>Requested by</th><th>Created</th><th>Completed</th><th>Error</th><th></th></tr></thead>
+      <tbody>
+        {% for run in runs %}
+        <tr>
+          <td class="mono">{{ run.id[:8] }}</td>
+          <td>{{ run.status }}</td>
+          <td class="muted small">{{ run.requested_by[:8] if run.requested_by else '—' }}</td>
+          <td class="muted small">{{ run.created_at.strftime('%Y-%m-%d %H:%M') if run.created_at else '—' }}</td>
+          <td class="muted small">{{ run.completed_at.strftime('%Y-%m-%d %H:%M') if run.completed_at else '—' }}</td>
+          <td class="muted small">{{ (run.error or '')[:80] }}</td>
+          <td>
+            {% if 'reports.export' in perms and run.status == 'COMPLETED' %}
+            <a class="btn btn-sm" href="/reports/{{ report.id }}/export?format=csv&run_id={{ run.id }}">CSV</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted small">No runs yet.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

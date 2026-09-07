@@ -1,0 +1,54 @@
+{% extends "analytics/base_analytics.html" %}
+{% block analytics_content %}
+
+{{ filter_bar() }}
+
+<h2>KEY METRICS</h2>
+<div class="kpi-grid">
+  {{ kpi_card('TOTAL LEADS', data.kpis.total_leads, value=data.kpis.total_leads.current) }}
+  {{ kpi_card('NEW LEADS', data.kpis.new_leads, value=data.kpis.new_leads.current) }}
+  {{ kpi_card('QUALIFIED LEADS', data.kpis.qualified_leads, value=data.kpis.qualified_leads.current) }}
+  {{ kpi_card('CONTACTED LEADS', data.kpis.contacted_leads, value=data.kpis.contacted_leads.current) }}
+  {{ kpi_card('INTERESTED LEADS', data.kpis.interested_leads, value=data.kpis.interested_leads.current) }}
+  {{ kpi_card('CONVERTED LEADS', data.kpis.converted_leads, value=data.kpis.converted_leads.current) }}
+  {{ kpi_card('ACTIVE CAMPAIGNS', data.kpis.active_campaigns, value=data.kpis.active_campaigns.current) }}
+  {{ kpi_card('MESSAGES SENT', data.kpis.messages_sent, value=data.kpis.messages_sent.current) }}
+  {{ kpi_card('MESSAGES DELIVERED', data.kpis.messages_delivered, value=data.kpis.messages_delivered.current) }}
+  {{ kpi_card('REPLIES', data.kpis.replies, value=data.kpis.replies.current) }}
+  {{ kpi_card('OPEN CONVERSATIONS', data.kpis.open_conversations, value=data.kpis.open_conversations.current) }}
+  {{ kpi_card('AUTOMATION EXECUTIONS', data.kpis.automation_executions, value=data.kpis.automation_executions.current) }}
+</div>
+
+<div class="rate-strip">
+  <div class="rate-pill">SCRAPING JOBS<b>{{ data.scraping.jobs_total }}</b></div>
+  <div class="rate-pill">RECORDS ACCEPTED<b>{{ data.scraping.records_accepted }}</b></div>
+  <div class="rate-pill">SCRAPING SUCCESS RATE<b>{{ (data.scraping.success_rate * 100)|round(2) ~ '%' if data.scraping.success_rate is not none else '—' }}</b></div>
+  <div class="rate-pill">UNSUBSCRIBED<b>{{ data.unsubscribed }}</b></div>
+</div>
+
+{% set labels = data.inbox_by_status.keys()|list if data.inbox_by_status else [] %}
+<div class="two-col">
+  {% if data.inbox_by_status %}
+  {{ chart('Conversations by status', 'Current conversation statuses within the selected period.',
+      {'type': 'donut', 'labels': data.inbox_by_status.keys()|list,
+       'series': [{'name': 'Conversations', 'values': data.inbox_by_status.values()|list}]}) }}
+  {% endif %}
+  {% if data.campaigns_by_status %}
+  {{ chart('Campaigns by status', 'Campaign lifecycle statuses within the selected period.',
+      {'type': 'donut', 'labels': data.campaigns_by_status.keys()|list,
+       'series': [{'name': 'Campaigns', 'values': data.campaigns_by_status.values()|list}]}) }}
+  {% endif %}
+</div>
+
+{% if 'analytics.view_leads' in perms %}
+<p class="muted small" style="margin-top:8px">
+  Dive deeper:
+  {% if 'analytics.view_leads' in perms %}<a href="/analytics/leads{{ querystring }}">Lead analytics →</a>{% endif %}
+  {% if 'analytics.view_scraping' in perms %} · <a href="/analytics/scraping{{ querystring }}">Scraping →</a>{% endif %}
+  {% if 'analytics.view_marketing' in perms %} · <a href="/analytics/marketing{{ querystring }}">Marketing →</a>{% endif %}
+  {% if 'analytics.view_inbox' in perms %} · <a href="/analytics/inbox{{ querystring }}">Inbox →</a>{% endif %}
+  {% if 'analytics.view_automation' in perms %} · <a href="/analytics/automation{{ querystring }}">Automation →</a>{% endif %}
+</p>
+{% endif %}
+
+{% endblock %}

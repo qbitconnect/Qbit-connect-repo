@@ -1,0 +1,47 @@
+{% extends "analytics/base_analytics.html" %}
+{% block head_actions %}
+{% if 'reports.create' in perms %}
+<a class="btn btn-primary btn-sm" href="/reports/new">+ New report</a>
+{% endif %}
+{% endblock %}
+{% block analytics_content %}
+
+<h2>SAVED REPORTS <span class="muted small">({{ total }})</span></h2>
+
+{% if reports %}
+<div class="cards">
+  {% for r in reports %}
+  <div class="card report-card">
+    <div class="card-top">
+      <a href="/reports/{{ r.id }}"><strong>{{ r.name }}</strong></a>
+      <span class="badge {{ 'badge-converted' if r.status == 'ACTIVE' else 'badge-archived' }}">{{ r.status }}</span>
+    </div>
+    <span class="muted small">{{ r.domain }} · {{ r.config.visualization if r.config and r.config.visualization else 'table' }} · {{ r.visibility }}
+      {% if r.status == 'ARCHIVED' %} · archived{% endif %}</span>
+    {% if r.description %}<span class="muted small">{{ r.description[:140] }}</span>{% endif %}
+    <div class="card-actions">
+      <a class="btn btn-sm" href="/reports/{{ r.id }}">Open</a>
+      {% if 'reports.run' in perms and r.status == 'ACTIVE' %}
+      <form method="post" action="/reports/{{ r.id }}/run" style="display:inline">
+        <button class="btn btn-sm btn-primary" type="submit">Run</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="chart-card">
+  <p class="muted small">No saved reports yet. {% if 'reports.create' in perms %}Create your first report to snapshot recurring analytics views.{% endif %}</p>
+</div>
+{% endif %}
+
+{% if 'reports.create' in perms %}
+<div class="chart-card">
+  <h2>BUILD A REPORT</h2>
+  <p class="chart-note">Pick a domain, choose real metrics (fabricated numbers are impossible — only these metric definitions exist), optional dimensions, filters and a visualization.</p>
+  {% include "analytics/_report_fields.html" %}
+</div>
+{% endif %}
+
+{% endblock %}

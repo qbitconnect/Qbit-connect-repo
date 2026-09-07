@@ -1,0 +1,65 @@
+{% extends "analytics/base_analytics.html" %}
+{% block analytics_content %}
+
+{{ filter_bar() }}
+
+<h2>INBOX KPIS</h2>
+{% set k = data.kpis %}
+{% set cmp = data.comparison if data.comparison is defined and data.comparison else {} %}
+<div class="kpi-grid">
+  {{ kpi_card('CONVERSATIONS', cmp.get('conversations_total'), value=k.conversations_total) }}
+  {{ kpi_card('OPEN', cmp.get('open'), value=k.open) }}
+  {{ kpi_card('PENDING', None, value=k.pending) }}
+  {{ kpi_card('WAITING', None, value=k.waiting) }}
+  {{ kpi_card('RESOLVED', cmp.get('resolved'), value=k.resolved) }}
+  {{ kpi_card('CLOSED', cmp.get('closed'), value=k.closed) }}
+  {{ kpi_card('REOPENED', None, value=k.reopened) }}
+  {{ kpi_card('UNREAD', None, value=k.unread) }}
+  {{ kpi_card('ASSIGNED', cmp.get('assigned'), value=k.assigned) }}
+  {{ kpi_card('UNASSIGNED', cmp.get('unassigned'), value=k.unassigned) }}
+</div>
+
+<div class="rate-strip">
+  {{ rate('RESOLUTION RATE', k.resolution_rate) }}
+</div>
+
+{{ chart('Conversations over time', 'New conversations per day.',
+    {'type': 'area', 'labels': data.timeseries|map(attribute='day')|list,
+     'series': [{'name': 'Created', 'values': data.timeseries|map(attribute='created')|list}]}) }}
+
+<div class="two-col">
+  {% if data.by_channel %}
+  {{ chart('Conversations by channel', None,
+      {'type': 'donut', 'labels': data.by_channel|map(attribute='value')|list,
+       'series': [{'name': 'Conversations', 'values': data.by_channel|map(attribute='count')|list}]}) }}
+  {% endif %}
+  {% if data.by_status %}
+  {{ chart('Conversations by status', None,
+      {'type': 'donut', 'labels': data.by_status|map(attribute='value')|list,
+       'series': [{'name': 'Conversations', 'values': data.by_status|map(attribute='count')|list}]}) }}
+  {% endif %}
+  {% if data.by_priority %}
+  {{ chart('Conversations by priority', None,
+      {'type': 'bar', 'labels': data.by_priority|map(attribute='value')|list,
+       'series': [{'name': 'Conversations', 'values': data.by_priority|map(attribute='count')|list}]}) }}
+  {% endif %}
+  {% if data.by_assignee %}
+  {{ chart('Conversations by team member', 'Assigned user (user id shown when no name is set).',
+      {'type': 'bar-h', 'labels': data.by_assignee|map(attribute='value')|list,
+       'series': [{'name': 'Conversations', 'values': data.by_assignee|map(attribute='count')|list}]}) }}
+  {% endif %}
+</div>
+
+<div class="chart-card">
+  <h2>RESPONSE ANALYTICS</h2>
+  <p class="chart-note">Computed only from real timestamps; conversations missing either side are excluded, never imputed.</p>
+  {% set r = data.response %}
+  <div class="kpi-grid">
+    {{ kpi_card('AVG FIRST RESPONSE', None, raw=(r.avg_first_response_seconds ~ 's' if r.avg_first_response_seconds is not none else 'not available')) }}
+    {{ kpi_card('AVG RESOLUTION TIME', None, raw=(r.avg_resolution_seconds ~ 's' if r.avg_resolution_seconds is not none else 'not available')) }}
+    {{ kpi_card('AVG MESSAGES / CONVERSATION', None, raw=(r.avg_messages_per_conversation if r.avg_messages_per_conversation is not none else 'not available')) }}
+    {{ kpi_card('CONVERSATIONS WITH RESPONSE', None, value=r.conversations_with_response) }}
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends "analytics/base_analytics.html" %}
+{% block analytics_content %}
+
+{{ filter_bar() }}
+
+<h2>MARKETING KPIS</h2>
+{% set k = data.kpis %}
+{% set cmp = data.comparison if data.comparison is defined and data.comparison else {} %}
+<div class="kpi-grid">
+  {{ kpi_card('CAMPAIGNS', cmp.get('campaigns_total'), value=k.campaigns_total) }}
+  {{ kpi_card('RUNNING', None, value=k.campaigns_running) }}
+  {{ kpi_card('COMPLETED', None, value=k.campaigns_completed) }}
+  {{ kpi_card('FAILED', None, value=k.campaigns_failed) }}
+  {{ kpi_card('RECIPIENTS', cmp.get('recipients'), value=k.recipients) }}
+  {{ kpi_card('MESSAGES QUEUED', cmp.get('messages_queued'), value=k.messages_queued) }}
+  {{ kpi_card('MESSAGES SENT', cmp.get('messages_sent'), value=k.messages_sent) }}
+  {{ kpi_card('DELIVERED', cmp.get('messages_delivered'), value=k.messages_delivered) }}
+  {{ kpi_card('FAILED', cmp.get('messages_failed'), value=k.messages_failed) }}
+  {{ kpi_card('REPLIES', cmp.get('replies'), value=k.replies) }}
+  {{ kpi_card('UNSUBSCRIBED', cmp.get('unsubscribed'), value=k.unsubscribed) }}
+</div>
+
+<div class="rate-strip">
+  {{ rate('DELIVERY RATE', k.rates.delivery_rate) }}
+  {{ rate('FAILURE RATE', k.rates.failure_rate) }}
+  {{ rate('REPLY RATE', k.rates.reply_rate) }}
+  {{ rate('UNSUBSCRIBE RATE', k.rates.unsubscribe_rate) }}
+  <div class="rate-pill" title="Open/click metrics exist only for providers that supply real tracking events">PROVIDER-SUPPLIED METRICS ONLY</div>
+</div>
+
+{{ chart('Campaign activity over time', 'Campaigns created per day.',
+    {'type': 'bar', 'labels': data.timeseries|map(attribute='day')|list,
+     'series': [{'name': 'Campaigns created', 'values': data.timeseries|map(attribute='campaigns_created')|list}]}) }}
+
+{{ chart('Message volume over time', 'Message lifecycle events per day (from the immutable campaign event stream).',
+    {'type': 'line', 'labels': data.timeseries|map(attribute='day')|list,
+     'series': [
+       {'name': 'Sent', 'values': data.timeseries|map(attribute='sent')|list},
+       {'name': 'Delivered', 'values': data.timeseries|map(attribute='delivered')|list},
+       {'name': 'Failed', 'values': data.timeseries|map(attribute='failed')|list},
+       {'name': 'Replied', 'values': data.timeseries|map(attribute='replied')|list}]}) }}
+
+<div class="two-col">
+  {% if data.channels %}
+  {{ chart('Channel comparison', 'Delivery events grouped by channel.',
+      {'type': 'bar-h', 'labels': data.channels|map(attribute='value')|list,
+       'series': [
+         {'name': 'Sent', 'values': data.channels|map(attribute='sent')|list},
+         {'name': 'Delivered', 'values': data.channels|map(attribute='delivered')|list},
+         {'name': 'Replied', 'values': data.channels|map(attribute='replied')|list}]}) }}
+  {% endif %}
+</div>
+
+<div class="chart-card">
+  <h2>CAMPAIGN PERFORMANCE</h2>
+  <p class="chart-note">Most recent campaigns in the period. Open/click metrics are omitted here — they exist only where a provider supplies real tracking events (see Email analytics).</p>
+  {% if data.campaigns %}
+  <div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th>Campaign</th><th>Channel</th><th>Status</th><th>Recipients</th>
+        <th>Sent</th><th>Delivered</th><th>Failed</th><th>Replied</th>
+        <th>Delivery rate</th><th>Reply rate</th><th>Completed</th>
+      </tr></thead>
+      <tbody>
+        {% for c in data.campaigns %}
+        <tr>
+          <td><a href="/campaigns">{{ c.name }}</a></td>
+          <td><span class="badge badge-{{ c.channel|lower }}">{{ c.channel }}</span></td>
+          <td>{{ c.status }}</td>
+          <td>{{ c.recipients }}</td>
+          <td>{{ c.sent }}</td>
+          <td>{{ c.delivered }}</td>
+          <td>{{ c.failed }}</td>
+          <td>{{ c.replied }}</td>
+          <td>{{ (c.delivery_rate * 100)|round(2) ~ '%' if c.delivery_rate is not none else '—' }}</td>
+          <td>{{ (c.reply_rate * 100)|round(2) ~ '%' if c.reply_rate is not none else '—' }}</td>
+          <td class="muted small">{{ c.completed_at[:16].replace('T',' ') if c.completed_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  {{ empty_table([]) }}
+  {% endif %}
+</div>
+
+{% endblock %}

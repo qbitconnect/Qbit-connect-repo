@@ -1,0 +1,121 @@
+{% macro report_fields(report, metric_catalog, dimension_catalog) %}
+{% set cfg = report.config if report else {} %}
+{% set current_domain = cfg.domain if cfg and cfg.domain else 'LEADS' %}
+<form method="post" action="{{ '/reports/' ~ report.id ~ '/edit' if report else '/reports' }}" id="report-form">
+  <div class="form-grid">
+    <div class="filter-field">
+      <label>REPORT NAME</label>
+      <input type="text" name="name" required maxlength="200"
+             value="{{ report.name if report else '' }}" placeholder="Weekly lead performance">
+    </div>
+    <div class="filter-field">
+      <label>DESCRIPTION</label>
+      <input type="text" name="description" maxlength="2000"
+             value="{{ report.description if report else '' }}" placeholder="What does this report answer?">
+    </div>
+    <div class="filter-field">
+      <label>DOMAIN</label>
+      <select name="domain" id="domain-select">
+        {% for domain in metric_catalog.keys()|sort %}
+        <option value="{{ domain }}" {{ 'selected' if domain == current_domain else '' }}>{{ domain|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label>VISUALIZATION</label>
+      <select name="visualization">
+        {% for v in ['table','kpi','line','area','bar','funnel','donut'] %}
+        <option value="{{ v }}" {{ 'selected' if report and cfg.visualization == v else '' }}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label>PERIOD</label>
+      <select name="period">
+        {% for p in ['7d','30d','90d','today','yesterday','this_month','previous_month','custom'] %}
+        <option value="{{ p }}" {{ 'selected' if report and cfg.period == p else '' }}>{{ p.replace('_',' ') }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label>TIMEZONE (IANA)</label>
+      <input type="text" name="timezone" maxlength="64" value="{{ report.timezone if report else 'UTC' }}" placeholder="Asia/Kolkata">
+    </div>
+    <div class="filter-field">
+      <label>VISIBILITY</label>
+      <select name="visibility">
+        {% for v in ['PRIVATE','TEAM','GLOBAL'] %}
+        <option value="{{ v }}" {{ 'selected' if report and report.visibility == v else '' }}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label>ROW LIMIT (1-1000)</label>
+      <input type="number" name="limit" min="1" max="1000" value="{{ cfg.limit if cfg and cfg.limit else 100 }}">
+    </div>
+  </div>
+
+  <div class="filter-field" style="margin-bottom:12px">
+    <label>DATE RANGE (only for custom period)</label>
+    <div style="display:flex; gap:8px">
+      <input type="text" name="date_from" maxlength="10" placeholder="2026-08-01" value="{{ cfg.date_from if cfg and cfg.date_from else '' }}">
+      <input type="text" name="date_to" maxlength="10" placeholder="2026-08-31" value="{{ cfg.date_to if cfg and cfg.date_to else '' }}">
+    </div>
+  </div>
+
+  <div class="filter-field" style="margin-bottom:12px">
+    <label>METRICS (real definitions only — availability depends on domain)</label>
+    <div class="check-group" id="metric-group">
+      {% for domain, metrics in metric_catalog.items()|sort %}
+        {% for m in metrics %}
+        <label class="metric-opt {{ domain }}-metric" data-domain="{{ domain }}" style="{{ '' if domain == current_domain else 'display:none' }}">
+          <input type="checkbox" name="metrics" value="{{ m }}"
+            {{ 'checked' if report and cfg.metrics and m in cfg.metrics else '' }}>{{ m }}
+        </label>
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="filter-field" style="margin-bottom:12px">
+    <label>DIMENSIONS (group rows by)</label>
+    <div class="check-group" id="dimension-group">
+      {% for domain, dims in dimension_catalog.items()|sort %}
+        {% for d in dims %}
+        <label class="dim-opt {{ domain }}-dim" data-domain="{{ domain }}" style="{{ '' if domain == current_domain else 'display:none' }}">
+          <input type="checkbox" name="dimensions" value="{{ d }}"
+            {{ 'checked' if report and cfg.dimensions and d in cfg.dimensions else '' }}>{{ d }}
+        </label>
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="filter-field" style="margin-bottom:12px">
+    <label>SORT DIR</label>
+    <select name="sort_dir">
+      <option value="desc" {{ 'selected' if report and cfg.sort_dir == 'desc' else '' }}>descending</option>
+      <option value="asc" {{ 'selected' if report and cfg.sort_dir == 'asc' else '' }}>ascending</option>
+    </select>
+  </div>
+
+  <button class="btn btn-primary" type="submit">{{ 'Save changes' if report else 'Create report' }}</button>
+  <a class="btn btn-ghost" href="{{ '/reports/' ~ report.id if report else '/reports' }}">Cancel</a>
+</form>
+
+<script>
+// domain-aware metric/dimension visibility (dependency-free, like the rest of the UI)
+(function () {
+  var select = document.getElementById("domain-select");
+  if (!select) return;
+  function sync() {
+    var d = select.value;
+    document.querySelectorAll(".metric-opt, .dim-opt").forEach(function (el) {
+      el.style.display = el.dataset.domain === d ? "" : "none";
+    });
+  }
+  select.addEventListener("change", sync);
+  sync();
+})();
+</script>
+{% endmacro %}

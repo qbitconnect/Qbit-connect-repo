@@ -1,0 +1,65 @@
+{% extends "analytics/base_analytics.html" %}
+{% block analytics_content %}
+
+{{ filter_bar(False) }}
+
+<h2>WHATSAPP KPIS</h2>
+{% set k = data.kpis %}
+<div class="kpi-grid">
+  {{ kpi_card('MESSAGES SENT', None, value=k.messages_sent) }}
+  {{ kpi_card('DELIVERED', None, value=k.messages_delivered) }}
+  {{ kpi_card('READ', None, value=k.messages_read) }}
+  {{ kpi_card('FAILED', None, value=k.messages_failed) }}
+  {{ kpi_card('INCOMING', None, value=k.incoming_messages) }}
+  {{ kpi_card('OUTGOING', None, value=k.outgoing_messages) }}
+  {{ kpi_card('CONVERSATIONS', None, value=k.conversations_total) }}
+  {{ kpi_card('ACTIVE CONVERSATIONS', None, value=k.conversations_active) }}
+</div>
+
+<div class="rate-strip">
+  {{ rate('DELIVERY RATE', k.rates.delivery_rate) }}
+  {{ rate('FAILURE RATE', k.rates.failure_rate) }}
+  <div class="rate-pill">READ RATE<b>{{ (k.rates.read_rate * 100)|round(2) ~ '%' if k.rates.read_rate is not none else 'not available' }}</b></div>
+  {{ rate('REPLY RATE', k.rates.reply_rate) }}
+</div>
+{% if not k.read_events_available %}
+<p class="muted small">No read events have been received from the WhatsApp provider yet — read metrics stay at zero and the read rate is not estimated (spec §11).</p>
+{% endif %}
+
+{{ chart('Response activity', 'Inbound vs outbound WhatsApp messages per day (real stored messages).',
+    {'type': 'area', 'labels': data.activity|map(attribute='day')|list,
+     'series': [
+       {'name': 'Outbound', 'values': data.activity|map(attribute='outbound')|list},
+       {'name': 'Inbound', 'values': data.activity|map(attribute='inbound')|list}]}) }}
+
+<div class="chart-card">
+  <h2>PER SENDING ACCOUNT</h2>
+  {% if data.accounts %}
+  <div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th>Account</th><th>Provider</th><th>Health</th><th>Sent</th>
+        <th>Delivery rate</th><th>Failure rate</th><th>Reads</th><th>Active conversations</th>
+      </tr></thead>
+      <tbody>
+        {% for a in data.accounts %}
+        <tr>
+          <td>{{ a.identifier }}</td>
+          <td>{{ a.provider }}</td>
+          <td>{{ a.health_status }}</td>
+          <td>{{ a.messages_sent }}</td>
+          <td>{{ (a.delivery_rate * 100)|round(2) ~ '%' if a.delivery_rate is not none else '—' }}</td>
+          <td>{{ (a.failure_rate * 100)|round(2) ~ '%' if a.failure_rate is not none else '—' }}</td>
+          <td>{{ a.reads }}</td>
+          <td>{{ a.active_conversations }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  {{ empty_table([]) }}
+  {% endif %}
+</div>
+
+{% endblock %}

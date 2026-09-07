@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Analytics — QBIT Connect{% endblock %}
+{% block nav_analytics %}active{% endblock %}
+
+{# ---- shared macros (top-level so child blocks can use them) ------------- #}
+{% macro filter_bar(show_compare=True) %}
+<form method="get" class="filter-bar">
+  <div class="filter-field">
+    <label>PERIOD</label>
+    <select name="period">
+      {% for p in ['today','yesterday','7d','30d','90d','this_month','previous_month','all','custom'] %}
+      <option value="{{ p }}" {{ 'selected' if request.query_params.get('period','30d') == p else '' }}>{{ p.replace('_',' ') }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-field">
+    <label>FROM (YYYY-MM-DD)</label>
+    <input type="text" name="date_from" value="{{ request.query_params.get('date_from','') }}" placeholder="2026-01-01" maxlength="10">
+  </div>
+  <div class="filter-field">
+    <label>TO (YYYY-MM-DD)</label>
+    <input type="text" name="date_to" value="{{ request.query_params.get('date_to','') }}" placeholder="2026-12-31" maxlength="10">
+  </div>
+  <div class="filter-field">
+    <label>TIMEZONE</label>
+    <input type="text" name="timezone" value="{{ request.query_params.get('timezone','UTC') }}" maxlength="64">
+  </div>
+  {% if show_compare %}
+  <div class="filter-field">
+    <label>COMPARE VS PREVIOUS</label>
+    <input type="checkbox" name="compare" value="1" {{ 'checked' if request.query_params.get('compare','1') == '1' else '' }}>
+  </div>
+  {% endif %}
+  <div class="filter-actions">
+    <button class="btn btn-primary btn-sm" type="submit">Apply</button>
+    <a class="btn btn-ghost btn-sm" href="{{ request.url.path }}">Reset</a>
+  </div>
+</form>
+{% endmacro %}
+
+{% macro delta_html(delta) %}
+  {% if delta %}
+  <div class="kpi-delta">
+    vs previous: {{ delta.current - delta.previous if delta.previous is not none else delta.current }}
+    {% if delta.change_pct is none %}
+      <span class="flat">—</span>
+    {% elif delta.change_pct > 0 %}
+      <span class="up">▲ {{ delta.change_pct }}%</span>
+    {% elif delta.change_pct < 0 %}
+      <span class="down">▼ {{ delta.change_pct|abs }}%</span>
+    {% else %}
+      <span class="flat">0%</span>
+    {% endif %}
+  </div>
+  {% endif %}
+{% endmacro %}
+
+{% macro kpi_card(label, delta, value=None, raw=None) %}
+<div class="kpi">
+  <div class="kpi-label">{{ label }}</div>
+  <div class="kpi-value">
+    {% if raw is not none %}{{ raw }}{% else %}{{ value if value is not none else 0 }}{% endif %}
+  </div>
+  {{ delta_html(delta) }}
+</div>
+{% endmacro %}
+
+{% macro chart(title, note, config, klass='') %}
+<div class="chart-card {{ klass }}">
+  <h2>{{ title }}</h2>
+  {% if note %}<p class="chart-note">{{ note }}</p>{% endif %}
+  <div class="qchart" data-chart="{{ config|tojson }}"></div>
+</div>
+{% endmacro %}
+
+{% macro rate(label, value, suffix='%') %}
+<div class="rate-pill">{{ label }}<b>{{ (value * 100)|round(2) ~ suffix if value is not none else '—' }}</b></div>
+{% endmacro %}
+
+{% macro empty_table(cols) %}
+<p class="muted small">No data available for this period.</p>
+{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>ANALYTICS</h1>
+    <p class="muted small" style="margin:0">Real operational data only — every number is computed from stored records. No demo statistics.</p>
+  </div>
+  <div class="head-actions">{% block head_actions %}{% endblock %}</div>
+</div>
+
+<nav class="an-subnav">
+  <a href="/analytics" class="{{ 'active' if active_page == '' else '' }}">Overview</a>
+  {% if 'analytics.view_leads' in perms %}<a href="/analytics/leads" class="{{ 'active' if active_page == 'leads' else '' }}">Leads</a>{% endif %}
+  {% if 'analytics.view_scraping' in perms %}<a href="/analytics/scraping" class="{{ 'active' if active_page == 'scraping' else '' }}">Scraping</a>{% endif %}
+  {% if 'analytics.view_marketing' in perms %}<a href="/analytics/marketing" class="{{ 'active' if active_page == 'marketing' else '' }}">Marketing</a>{% endif %}
+  {% if 'analytics.view_whatsapp' in perms %}<a href="/analytics/whatsapp" class="{{ 'active' if active_page == 'whatsapp' else '' }}">WhatsApp</a>{% endif %}
+  {% if 'analytics.view_email' in perms %}<a href="/analytics/email" class="{{ 'active' if active_page == 'email' else '' }}">Email</a>{% endif %}
+  {% if 'analytics.view_inbox' in perms %}<a href="/analytics/inbox" class="{{ 'active' if active_page == 'inbox' else '' }}">Inbox</a>{% endif %}
+  {% if 'analytics.view_automation' in perms %}<a href="/analytics/automation" class="{{ 'active' if active_page == 'automation' else '' }}">Automation</a>{% endif %}
+  {% if 'analytics.view_team' in perms %}<a href="/analytics/team" class="{{ 'active' if active_page == 'team' else '' }}">Team</a>{% endif %}
+  {% if 'reports.view' in perms %}<a href="/reports" class="{{ 'active' if active_page == 'reports' else '' }}">Reports</a>{% endif %}
+</nav>
+
+{% if flash %}
+<div class="badge" style="margin-bottom:14px; display:block; padding:9px 14px; border-radius:8px; border:1px solid var(--card-edge);">
+  {{ flash }}
+</div>
+{% endif %}
+
+{% block analytics_content %}{% endblock %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/qbit-charts.js"></script>
+{% endblock %}

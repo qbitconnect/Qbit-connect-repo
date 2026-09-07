@@ -25,11 +25,11 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 |---|---|
 | Repo | `qbitconnect/Qbit-connect-repo` (private) |
 | Audit result | Empty repository — greenfield build (see `docs/01-repository-audit.md`) |
-| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) + Phase 5 (marketing engine foundation) + Phase 6 (WhatsApp Business provider integration) + Phase 7 (email marketing provider integration) + Phase 8 (unified inbox + conversations) complete — see `docs/25`–`29` completion/architecture reports + `docs/whatsapp-*.md` + `docs/email-*.md` + `docs/unified-inbox.md` + `docs/conversations.md` + `docs/message-processing.md` + `docs/inbox-rbac.md` + `docs/inbox-webhooks.md` |
-| Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine + lead data workspace + marketing engine — `backend/` |
-| Version | `0.8.0` (backend/app/__init__.py) |
-| Tests | 579 passing (`backend/tests`, isolated per-test database) |
-| Next step | Later phases — SMS provider, analytics dashboards, saved inbox views, team model |
+| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) + Phase 5 (marketing engine foundation) + Phase 6 (WhatsApp Business provider integration) + Phase 7 (email marketing provider integration) + Phase 8 (unified inbox + conversations) + Phase 9 (automation & workflow engine) + Phase 10 (analytics & reporting engine) complete — see `docs/25`–`29` completion/architecture reports + `docs/whatsapp-*.md` + `docs/email-*.md` + `docs/unified-inbox.md` + `docs/conversations.md` + `docs/message-processing.md` + `docs/inbox-rbac.md` + `docs/inbox-webhooks.md` + `docs/automation*.md` + `docs/workflow-*.md` + `docs/analytics.md` + `docs/metric-definitions.md` + `docs/report-builder.md` |
+| Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine + lead data workspace + marketing engine + workflow automation + analytics & reporting — `backend/` |
+| Version | `0.10.0` (backend/app/__init__.py) |
+| Tests | 748 passing (`backend/tests`, isolated per-test database) |
+| Next step | Phase 11 — team / admin / enterprise engine |
 
 ## Documentation Index
 
@@ -92,6 +92,9 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 | 48 | [Message Processing](docs/message-processing.md) | inbound/outbound pipelines, idempotency, out-of-order safety, reply window rules, performance/indexes |
 | 49 | [Inbox RBAC](docs/inbox-rbac.md) | inbox permission catalog, role matrix, backend visibility scoping, audit + privacy |
 | 50 | [Inbox Webhooks](docs/inbox-webhooks.md) | WhatsApp + email-inbound webhook contracts, idempotency guarantees, troubleshooting |
+| 51 | [Analytics Engine](docs/analytics.md) | Phase 10 architecture, domains, caching, aggregates, timezone rules, RBAC, diagnostics |
+| 52 | [Metric Definitions](docs/metric-definitions.md) | every metric's source table, calculation, denominator, missing-data behavior |
+| 53 | [Report Builder](docs/report-builder.md) | saved reports, allowlisted configs, background runs, snapshots, exports, ownership |
 
 ## Final Architecture Output (Brief §43, items A–T)
 

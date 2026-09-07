@@ -1,0 +1,81 @@
+{% extends "analytics/base_analytics.html" %}
+{% block analytics_content %}
+
+{{ filter_bar() }}
+
+<h2>LEAD KPIS</h2>
+{% set k = data.kpis %}
+{% set cmp = data.comparison if data.comparison is defined and data.comparison else {} %}
+<div class="kpi-grid">
+  {{ kpi_card('TOTAL LEADS', cmp.get('total'), value=k.total) }}
+  {{ kpi_card('NEW', cmp.get('new'), value=k.new) }}
+  {{ kpi_card('VERIFIED', cmp.get('verified'), value=k.verified) }}
+  {{ kpi_card('QUALIFIED', cmp.get('qualified'), value=k.qualified) }}
+  {{ kpi_card('CONTACTED', cmp.get('contacted'), value=k.contacted) }}
+  {{ kpi_card('REPLIED', cmp.get('replied'), value=k.replied) }}
+  {{ kpi_card('INTERESTED', cmp.get('interested'), value=k.interested) }}
+  {{ kpi_card('CONVERTED', cmp.get('converted'), value=k.converted) }}
+  {{ kpi_card('LOST', cmp.get('lost'), value=k.lost) }}
+  {{ kpi_card('ARCHIVED', cmp.get('archived'), value=k.archived) }}
+  {{ kpi_card('VALID (ACTIONABLE)', None, value=k.valid) }}
+  {{ kpi_card('DUPLICATES MERGED', None, value=k.duplicates_merged) }}
+  {{ kpi_card('AVG QUALITY SCORE', None, raw=(k.avg_quality_score if k.avg_quality_score is not none else '—')) }}
+</div>
+
+{{ chart('Leads created over time', 'New leads per day in the selected timezone.',
+    {'type': 'area', 'labels': data.timeseries|map(attribute='day')|list,
+     'series': [{'name': 'Created', 'values': data.timeseries|map(attribute='created')|list}]}) }}
+
+{{ chart('Lead conversion funnel', 'Leads currently at or past each stage (point-in-time statuses — no invented transitions).',
+    {'type': 'funnel', 'labels': funnel.stages|map(attribute='stage')|list,
+     'series': [{'name': 'Reached stage', 'values': funnel.stages|map(attribute='count')|list}]}) }}
+
+<div class="two-col">
+  {% if data.by_status %}
+  {{ chart('Lead status distribution', None,
+      {'type': 'donut', 'labels': data.by_status|map(attribute='value')|list,
+       'series': [{'name': 'Leads', 'values': data.by_status|map(attribute='count')|list}]}) }}
+  {% endif %}
+  {% if data.by_source %}
+  {{ chart('Lead source distribution', None,
+      {'type': 'bar-h', 'labels': data.by_source|map(attribute='value')|list,
+       'series': [{'name': 'Leads', 'values': data.by_source|map(attribute='count')|list}]}) }}
+  {% endif %}
+  {% if data.by_category %}
+  {{ chart('Leads by category', None,
+      {'type': 'bar-h', 'labels': data.by_category|map(attribute='value')|list,
+       'series': [{'name': 'Leads', 'values': data.by_category|map(attribute='count')|list}]}) }}
+  {% endif %}
+  {% if data.by_industry %}
+  {{ chart('Leads by industry', None,
+      {'type': 'bar-h', 'labels': data.by_industry|map(attribute='value')|list,
+       'series': [{'name': 'Leads', 'values': data.by_industry|map(attribute='count')|list}]}) }}
+  {% endif %}
+  {% if data.by_city %}
+  {{ chart('Leads by city', None,
+      {'type': 'bar-h', 'labels': data.by_city|map(attribute='value')|list,
+       'series': [{'name': 'Leads', 'values': data.by_city|map(attribute='count')|list}]}) }}
+  {% endif %}
+  {% if data.by_state %}
+  {{ chart('Leads by state', None,
+      {'type': 'bar-h', 'labels': data.by_state|map(attribute='value')|list,
+       'series': [{'name': 'Leads', 'values': data.by_state|map(attribute='count')|list}]}) }}
+  {% endif %}
+  {% if data.by_country %}
+  {{ chart('Leads by country', None,
+      {'type': 'bar-h', 'labels': data.by_country|map(attribute='value')|list,
+       'series': [{'name': 'Leads', 'values': data.by_country|map(attribute='count')|list}]}) }}
+  {% endif %}
+  {% if data.by_tag %}
+  {{ chart('Leads by tag', 'From the relational tag assignments (source of truth).',
+      {'type': 'bar-h', 'labels': data.by_tag|map(attribute='value')|list,
+       'series': [{'name': 'Leads', 'values': data.by_tag|map(attribute='count')|list}]}) }}
+  {% endif %}
+  {% if data.by_scraper %}
+  {{ chart('Leads by scraper', None,
+      {'type': 'bar-h', 'labels': data.by_scraper|map(attribute='value')|list,
+       'series': [{'name': 'Leads', 'values': data.by_scraper|map(attribute='count')|list}]}) }}
+  {% endif %}
+</div>
+
+{% endblock %}

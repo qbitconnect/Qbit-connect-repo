@@ -1,0 +1,80 @@
+{% extends "analytics/base_analytics.html" %}
+{% block analytics_content %}
+
+{{ filter_bar() }}
+
+<h2>SCRAPER KPIS</h2>
+{% set k = data.kpis %}
+{% set cmp = data.comparison if data.comparison is defined and data.comparison else {} %}
+<div class="kpi-grid">
+  {{ kpi_card('TOTAL JOBS', cmp.get('jobs_total'), value=k.jobs_total) }}
+  {{ kpi_card('RUNNING / PAUSED', None, value=k.running) }}
+  {{ kpi_card('QUEUED', None, value=k.queued) }}
+  {{ kpi_card('COMPLETED', cmp.get('completed'), value=k.completed) }}
+  {{ kpi_card('FAILED', cmp.get('failed'), value=k.failed) }}
+  {{ kpi_card('CANCELLED', None, value=k.cancelled) }}
+  {{ kpi_card('RECORDS COLLECTED', cmp.get('records_accepted'), value=k.records_accepted) }}
+  {{ kpi_card('DUPLICATES', cmp.get('records_duplicate'), value=k.records_duplicate) }}
+  {{ kpi_card('REJECTED', cmp.get('records_rejected'), value=k.records_rejected) }}
+  {{ kpi_card('AVG JOB DURATION', None, raw=(k.avg_runtime_seconds ~ 's' if k.avg_runtime_seconds is not none else '—')) }}
+  {{ kpi_card('SUCCESS RATE', None, raw=(k.success_rate ~ '' if k.success_rate is not none else '—')) }}
+</div>
+
+{{ chart('Jobs over time', 'Jobs created per day, split by outcome.',
+    {'type': 'bar', 'labels': data.timeseries|map(attribute='day')|list,
+     'series': [
+       {'name': 'Completed', 'values': data.timeseries|map(attribute='completed')|list},
+       {'name': 'Failed', 'values': data.timeseries|map(attribute='failed')|list}]}) }}
+
+{{ chart('Records collected over time', 'Records accepted into the lead database per day.',
+    {'type': 'area', 'labels': data.timeseries|map(attribute='day')|list,
+     'series': [{'name': 'Records saved', 'values': data.timeseries|map(attribute='records_saved')|list}]}) }}
+
+<div class="two-col">
+  {% if data.errors %}
+  {{ chart('Error distribution', 'Failed jobs grouped by error code.',
+      {'type': 'bar-h', 'labels': data.errors|map(attribute='value')|list,
+       'series': [{'name': 'Failed jobs', 'values': data.errors|map(attribute='count')|list}]}) }}
+  {% endif %}
+  {% if data.avg_runtime_by_actor %}
+  {{ chart('Average runtime by scraper', 'Completed jobs only; seconds.',
+      {'type': 'bar-h', 'labels': data.avg_runtime_by_actor|map(attribute='value')|list,
+       'series': [{'name': 'Avg runtime (s)', 'values': data.avg_runtime_by_actor|map(attribute='count')|list}]}) }}
+  {% endif %}
+</div>
+
+<div class="chart-card">
+  <h2>PER-SCRAPER PERFORMANCE</h2>
+  <p class="chart-note">Grouped by scraper version so version changes never blur per-version performance.</p>
+  {% if data.scrapers %}
+  <div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th>Scraper</th><th>Version</th><th>Jobs</th><th>Completed</th><th>Failed</th>
+        <th>Generated</th><th>Accepted</th><th>Duplicates</th><th>Avg runtime</th><th>Success rate</th><th>Last run</th>
+      </tr></thead>
+      <tbody>
+        {% for s in data.scrapers %}
+        <tr>
+          <td>{{ s.actor_id }}</td>
+          <td class="mono">{{ s.actor_version }}</td>
+          <td>{{ s.jobs }}</td>
+          <td>{{ s.completed }}</td>
+          <td>{{ s.failed }}</td>
+          <td>{{ s.records_generated }}</td>
+          <td>{{ s.records_accepted }}</td>
+          <td>{{ s.duplicates }}</td>
+          <td>{{ s.avg_runtime_seconds if s.avg_runtime_seconds is not none else '—' }}</td>
+          <td>{{ (s.success_rate * 100)|round(2) ~ '%' if s.success_rate is not none else '—' }}</td>
+          <td class="muted small">{{ s.last_run[:16].replace('T',' ') if s.last_run else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  {{ empty_table([]) }}
+  {% endif %}
+</div>
+
+{% endblock %}

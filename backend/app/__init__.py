@@ -1,3 +1,3 @@
 """QBIT Connect — application package (Phase 2 foundation)."""
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"

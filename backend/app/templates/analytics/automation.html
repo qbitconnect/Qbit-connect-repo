@@ -1,0 +1,67 @@
+{% extends "analytics/base_analytics.html" %}
+{% block analytics_content %}
+
+{{ filter_bar(False) }}
+
+<h2>AUTOMATION KPIS</h2>
+{% set k = data.kpis %}
+<div class="kpi-grid">
+  {{ kpi_card('ACTIVE WORKFLOWS', None, value=k.workflows_active) }}
+  {{ kpi_card('EXECUTIONS', None, value=k.executions) }}
+  {{ kpi_card('COMPLETED', None, value=k.executions_completed) }}
+  {{ kpi_card('FAILED', None, value=k.executions_failed) }}
+  {{ kpi_card('CANCELLED', None, value=k.executions_cancelled) }}
+  {{ kpi_card('IN FLIGHT', None, value=k.executions_waiting) }}
+  {{ kpi_card('ACTION STEPS RUN', None, value=k.action_steps_executed) }}
+  {{ kpi_card('AVG DURATION', None, raw=(k.avg_duration_seconds ~ 's' if k.avg_duration_seconds is not none else '—')) }}
+  {{ kpi_card('SUCCESS RATE', None, raw=(k.success_rate ~ '' if k.success_rate is not none else '—')) }}
+</div>
+
+{{ chart('Workflow executions over time', 'Executions started per day, split by outcome.',
+    {'type': 'bar', 'labels': data.timeseries|map(attribute='day')|list,
+     'series': [
+       {'name': 'Completed', 'values': data.timeseries|map(attribute='completed')|list},
+       {'name': 'Failed', 'values': data.timeseries|map(attribute='failed')|list}]}) }}
+
+<div class="two-col">
+  {% if data.action_frequency %}
+  {{ chart('Action frequency', 'Execution steps by node type (from WorkflowExecutionStep rows).',
+      {'type': 'bar', 'labels': data.action_frequency|map(attribute='value')|list,
+       'series': [{'name': 'Steps', 'values': data.action_frequency|map(attribute='count')|list}]}) }}
+  {% endif %}
+  {% if data.failure_reasons %}
+  {{ chart('Most common failure reasons', 'Top failure messages across failed executions.',
+      {'type': 'bar-h', 'labels': data.failure_reasons|map(attribute='value')|list,
+       'series': [{'name': 'Failures', 'values': data.failure_reasons|map(attribute='count')|list}]}) }}
+  {% endif %}
+</div>
+
+<div class="chart-card">
+  <h2>MOST EXECUTED WORKFLOWS</h2>
+  {% if data.top_workflows %}
+  <div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th>Workflow</th><th>Executions</th><th>Completed</th><th>Failed</th>
+        <th>Success rate</th><th>Avg duration</th>
+      </tr></thead>
+      <tbody>
+        {% for w in data.top_workflows %}
+        <tr>
+          <td><a href="/automation/{{ w.workflow_id }}">{{ w.name }}</a></td>
+          <td>{{ w.executions }}</td>
+          <td>{{ w.completed }}</td>
+          <td>{{ w.failed }}</td>
+          <td>{{ (w.success_rate * 100)|round(2) ~ '%' if w.success_rate is not none else '—' }}</td>
+          <td>{{ w.avg_duration_seconds if w.avg_duration_seconds is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  {{ empty_table([]) }}
+  {% endif %}
+</div>
+
+{% endblock %}

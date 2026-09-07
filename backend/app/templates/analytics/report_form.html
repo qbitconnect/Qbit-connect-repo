@@ -1,0 +1,9 @@
+{% extends "analytics/base_analytics.html" %}
+{% block analytics_content %}
+
+<h2>{{ 'EDIT REPORT' if report else 'NEW REPORT' }}</h2>
+<div class="chart-card">
+  {% include "analytics/_report_fields.html" %}
+</div>
+
+{% endblock %}

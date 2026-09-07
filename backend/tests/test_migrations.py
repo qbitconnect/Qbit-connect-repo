@@ -65,6 +65,15 @@ AUTOMATION_TABLES = {
     "workflow_executions", "workflow_execution_steps",
 }
 
+#: Phase 10 analytics & reporting tables (migration 0009) — additive only.
+ANALYTICS_TABLES = {
+    "reports", "report_runs", "report_snapshots",
+    "analytics_daily_leads", "analytics_daily_campaigns",
+    "analytics_daily_messages", "analytics_daily_conversations",
+    "analytics_daily_scraping", "analytics_daily_automation",
+    "analytics_aggregation_runs",
+}
+
 
 def _alembic_config(db_path: Path) -> Config:
     cfg = Config(str(ALEMBIC_INI))
@@ -157,6 +166,7 @@ def test_greenfield_repo_had_no_preexisting_schema(tmp_path: Path):
     assert set(Base.metadata.tables) == (
         CORE_TABLES | SCRAPING_TABLES | LEAD_WORKSPACE_TABLES | MARKETING_TABLES
         | MESSAGING_TABLES | EMAIL_TABLES | INBOX_TABLES | AUTOMATION_TABLES
+        | ANALYTICS_TABLES
     )
 
 

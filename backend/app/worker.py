@@ -92,6 +92,7 @@ class ScrapeWorker:
         campaign_task = asyncio.create_task(self._campaign_loop())
         outbox_task = asyncio.create_task(self._inbox_outbox_loop())
         automation_task = asyncio.create_task(self._automation_loop())
+        analytics_task = asyncio.create_task(self._analytics_loop())
         try:
             while not self._shutdown.is_set():
                 if len(self._tasks) >= self.settings.QBIT_WORKER_MAX_CONCURRENT_JOBS:
@@ -111,6 +112,7 @@ class ScrapeWorker:
             campaign_task.cancel()
             outbox_task.cancel()
             automation_task.cancel()
+            analytics_task.cancel()
             await self._drain()
             await self.queue.aclose()
             await self.db.close()
@@ -233,6 +235,55 @@ class ScrapeWorker:
                         self.settings.QBIT_WORKER_POLL_SECONDS * 3, 3.0
                     )
                 )
+        except asyncio.CancelledError:
+            return
+
+    async def _analytics_loop(self) -> None:
+        """Phase 10: analytics loops — (1) daily aggregate incremental refresh
+        on its own cadence, (2) report run execution every poll cycle. Both are
+        failure-isolated: a failing aggregate never touches report runs or the
+        other loops (isolation rule)."""
+        from app.analytics.aggregation import AggregationService
+        from app.analytics.reports.executor import ReportWorker
+        from app.services.files import FileService
+        from app.services.audit import AuditService
+
+        storage = StorageService(self.settings)
+        report_worker = ReportWorker(
+            owner=f"analytics-{uuid.uuid4().hex[:8]}",
+            storage_files=FileService(storage, AuditService()),
+            max_snapshot_rows=self.settings.QBIT_ANALYTICS_MAX_SNAPSHOT_ROWS,
+        )
+        dialect = "postgresql" if self.settings.DATABASE_URL.startswith("postgresql") \
+            else "sqlite"
+        aggregator = AggregationService(dialect=dialect)
+        next_aggregation = 0.0  # run on the first cycle
+        try:
+            while not self._shutdown.is_set():
+                # 1) report runs: cheap polling, at most one claimed per cycle
+                try:
+                    async with self.db.session() as session:
+                        await report_worker.process_cycle(session)
+                except Exception:  # noqa: BLE001 — keep the loop alive
+                    logger.exception("Report run loop iteration failed")
+
+                # 2) aggregate refresh on its configured cadence
+                now = asyncio.get_running_loop().time()
+                if self.settings.QBIT_ANALYTICS_AGGREGATION_ENABLED \
+                        and now >= next_aggregation:
+                    try:
+                        async with self.db.session() as session:
+                            results = await aggregator.refresh_incremental(session)
+                            done = [r for r in results if r.get("status") == "COMPLETED"]
+                            if done:
+                                log_with(logger, 20, "Analytics aggregates refreshed",
+                                         tables=len(done))
+                    except Exception:  # noqa: BLE001 — keep the loop alive
+                        logger.exception("Analytics aggregation iteration failed")
+                    next_aggregation = now + max(
+                        self.settings.QBIT_ANALYTICS_AGGREGATION_INTERVAL_SECONDS, 300
+                    )
+                await asyncio.sleep(max(self.settings.QBIT_WORKER_POLL_SECONDS, 2.0))
         except asyncio.CancelledError:
             return
 

@@ -246,6 +246,16 @@ class Settings(BaseSettings):
     QBIT_AUTOMATION_ENABLE_TEAM_ASSIGN: bool = False
     QBIT_AUTOMATION_ENABLE_START_CAMPAIGN: bool = True
 
+    # --- Analytics & reporting engine (Phase 10) -------------------------------
+    #: dashboard/metric cache TTL (Redis-backed; direct queries when unset)
+    QBIT_ANALYTICS_CACHE_TTL_SECONDS: int = Field(default=60, ge=5, le=3600)
+    #: aggregation refresh cadence for the background worker (seconds)
+    QBIT_ANALYTICS_AGGREGATION_INTERVAL_SECONDS: int = Field(default=3600, ge=300)
+    #: enable/disable the daily aggregate worker loop entirely
+    QBIT_ANALYTICS_AGGREGATION_ENABLED: bool = True
+    #: rows above which a report snapshot spills to a StorageService export file
+    QBIT_ANALYTICS_MAX_SNAPSHOT_ROWS: int = Field(default=10_000, ge=100)
+
     # --- Derived helpers ----------------------------------------------------
     @property
     def is_production(self) -> bool:

@@ -1,0 +1,37 @@
+{% extends "analytics/base_analytics.html" %}
+{% block analytics_content %}
+
+{{ filter_bar(False) }}
+
+<h2>TEAM PERFORMANCE</h2>
+<p class="chart-note">Activity attributed through real audit trails (lead activities, conversation events). Visibility rules apply — you only see data you are authorized to view. A team model does not exist yet; assignment is per-user.</p>
+
+<div class="chart-card">
+  {% if data.members %}
+  <div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th>Member</th><th>Leads created</th><th>Leads updated</th><th>Replies sent</th>
+        <th>Conversations assigned</th><th>Conversations resolved</th><th>Notes added</th>
+      </tr></thead>
+      <tbody>
+        {% for m in data.members %}
+        <tr>
+          <td>{{ m.name }} <span class="muted small">{{ m.email }}</span></td>
+          <td>{{ m.leads_created }}</td>
+          <td>{{ m.leads_updated }}</td>
+          <td>{{ m.replies_sent }}</td>
+          <td>{{ m.conversations_assigned }}</td>
+          <td>{{ m.conversations_resolved }}</td>
+          <td>{{ m.notes_added }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted small">No data available.</p>
+  {% endif %}
+</div>
+
+{% endblock %}
