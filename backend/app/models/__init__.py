@@ -1,5 +1,12 @@
-"""SQLAlchemy models — Phase 2 core + Phase 3 scraping + Phase 4 leads + Phase 5 marketing + Phase 6 messaging + Phase 7 email."""
+"""SQLAlchemy models — Phase 2 core + Phase 3 scraping + Phase 4 leads + Phase 5 marketing + Phase 6 messaging + Phase 7 email + Phase 9 automation."""
 
+from app.models.automation import (
+    Workflow,
+    WorkflowEvent,
+    WorkflowExecution,
+    WorkflowExecutionStep,
+    WorkflowVersion,
+)
 from app.models.audit import AuditLog
 from app.models.connection import Connection
 from app.models.email import EmailTrackingEvent, EmailUnsubscribeToken

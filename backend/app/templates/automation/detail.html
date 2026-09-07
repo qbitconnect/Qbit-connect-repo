@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}{{ workflow.name }} — QBIT Connect{% endblock %}
+{% block nav_automation %}active{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ workflow.name|upper }}</h1>
+    <p class="muted">{{ trigger_labels.get(workflow.trigger_type, workflow.trigger_type) }}
+       · <span class="badge badge-{{ workflow.status|lower }}">{{ workflow.status }}</span>
+       · version {{ workflow.current_version or "—" }}</p>
+  </div>
+  <div class="page-actions">
+    {% if "automation.edit" in perms and workflow.status != "ARCHIVED" %}
+      <a class="btn btn-ghost" href="/automation/{{ workflow.id }}/edit">Edit draft</a>
+    {% endif %}
+    {% if "automation.publish" in perms and workflow.status != "ARCHIVED" %}
+      <form method="post" action="/automation/{{ workflow.id }}/publish" class="inline">
+        <button class="btn btn-primary">Publish</button>
+      </form>
+    {% endif %}
+    {% if "automation.pause" in perms and workflow.status == "ACTIVE" %}
+      <form method="post" action="/automation/{{ workflow.id }}/pause" class="inline">
+        <button class="btn btn-ghost">Pause</button>
+      </form>
+    {% endif %}
+    {% if "automation.resume" in perms and workflow.status == "PAUSED" %}
+      <form method="post" action="/automation/{{ workflow.id }}/resume" class="inline">
+        <button class="btn btn-primary">Resume</button>
+      </form>
+    {% endif %}
+    {% if "automation.create" in perms %}
+      <form method="post" action="/automation/{{ workflow.id }}/duplicate" class="inline">
+        <button class="btn btn-ghost">Duplicate</button>
+      </form>
+    {% endif %}
+    {% if "automation.edit" in perms and workflow.status != "ARCHIVED" %}
+      <form method="post" action="/automation/{{ workflow.id }}/archive" class="inline">
+        <button class="btn btn-ghost">Archive</button>
+      </form>
+    {% endif %}
+    {% if "automation.delete" in perms and workflow.status == "DRAFT" %}
+      <form method="post" action="/automation/{{ workflow.id }}/delete" class="inline">
+        <button class="btn btn-ghost btn-danger">Delete</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if flash %}
+  <div class="alert {{ 'alert-error' if flash_kind == 'error' else 'alert-ok' }}">{{ flash }}</div>
+{% endif %}
+
+<div class="grid-2">
+  <div class="card">
+    <h2 class="section-title">Overview</h2>
+    <p class="muted">{{ workflow.description or "No description" }}</p>
+    <div class="stat-row">
+      <div class="stat"><span class="stat-num">{{ stats.executions_total }}</span><span class="stat-label">Executions</span></div>
+      <div class="stat"><span class="stat-num">{{ stats.executions_completed }}</span><span class="stat-label">Completed</span></div>
+      <div class="stat"><span class="stat-num">{{ stats.executions_failed }}</span><span class="stat-label">Failed</span></div>
+      <div class="stat"><span class="stat-num">{{ stats.executions_waiting }}</span><span class="stat-label">Waiting</span></div>
+    </div>
+    <p class="muted small">
+      Success rate: {{ (stats.success_rate * 100)|round(1) ~ "%" if stats.success_rate is not none else "—" }}
+      · Avg duration: {{ stats.avg_duration_seconds ~ "s" if stats.avg_duration_seconds is not none else "—" }}
+      · Last run: {{ stats.last_execution_at[:16].replace("T", " ") if stats.last_execution_at else "—" }}
+    </p>
+    <h2 class="section-title">Validation</h2>
+    {% if validation.ok %}
+      <span class="badge badge-completed">PASS</span>
+      <ul class="muted small">{% for k, v in validation.checks.items() %}<li>{{ v.message }}</li>{% endfor %}</ul>
+    {% else %}
+      <span class="badge badge-failed">ERROR</span>
+      <ul class="muted small">{% for k, v in validation.checks.items() %}{% if not v.ok %}<li>{{ v.message }}</li>{% endif %}{% endfor %}</ul>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2 class="section-title">Versions</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Version</th><th>Status</th><th>Checksum</th><th>Published</th></tr></thead>
+        <tbody>
+        {% for v in versions %}
+          <tr>
+            <td>v{{ v.version }}</td>
+            <td><span class="badge badge-{{ 'completed' if v.status == 'PUBLISHED' else ('paused' if v.status == 'DRAFT' else 'cancelled') }}">{{ v.status }}</span></td>
+            <td class="muted small">{{ v.checksum[:12] }}…</td>
+            <td class="muted small">{{ v.published_at[:16].replace("T", " ") if v.published_at else "—" }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h2 class="section-title">Workflow definition</h2>
+  <div class="definition-flow">
+    {% for node in definition.nodes %}
+      <div class="node-chip node-{{ node.type|lower }}">
+        <span class="node-type">{{ node.type }}</span>
+        <span>{{ node.id }}</span>
+        {% if node.type == "ACTION" %}<span class="muted small">{{ node.action }}</span>{% endif %}
+        {% if node.type == "CONDITION" %}<span class="muted small">{{ node.condition.field }} {{ node.condition.operator }}</span>{% endif %}
+        {% if node.type == "WAIT" %}<span class="muted small">{{ node.duration }}</span>{% endif %}
+      </div>
+      {% if not loop.last %}<div class="flow-arrow">↓</div>{% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h2 class="section-title">Recent executions</h2>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Started</th><th>Entity</th><th>Status</th><th>Error</th><th></th></tr></thead>
+      <tbody>
+      {% for e in executions %}
+        <tr>
+          <td class="muted small">{{ e.created_at[:16].replace("T", " ") if e.created_at else "—" }}</td>
+          <td class="small">{{ e.entity_type }}{% if e.entity_id %} · {{ e.entity_id[:8] }}…{% endif %}</td>
+          <td><span class="badge badge-{{ e.status|lower }}">{{ e.status }}</span></td>
+          <td class="muted small">{{ e.error[:60] if e.error else "—" }}</td>
+          <td><a class="btn btn-sm btn-ghost" href="/automation/executions/{{ e.id }}">Timeline</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="muted" style="padding:18px;text-align:center">No executions yet — real runs appear here as events fire.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+.inline { display: inline; margin-left: 6px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.stat-row { display: flex; gap: 22px; margin: 14px 0; }
+.stat { display: flex; flex-direction: column; }
+.stat-num { font-size: 22px; font-weight: 700; }
+.stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+.section-title { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; margin: 6px 0 10px; color: var(--muted); }
+.definition-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.node-chip { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; display: flex; gap: 8px; align-items: center; background: rgba(139,152,169,.05); }
+.node-trigger { border-color: var(--accent); }
+.node-end { border-color: var(--ok); }
+.node-type { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+.flow-arrow { color: var(--muted); }
+.btn-danger { color: var(--bad); border-color: var(--bad); }
+</style>
+{% endblock %}

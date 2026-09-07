@@ -225,6 +225,27 @@ class Settings(BaseSettings):
     #: message page size for the conversation timeline (cursor pagination, §48)
     QBIT_INBOX_MESSAGE_PAGE_SIZE: int = Field(default=50, ge=1, le=200)
 
+    # --- Workflow automation engine (Phase 9) -------------------------------------
+    #: graph size + execution budget caps (§42) — prevent runaway definitions
+    QBIT_AUTOMATION_MAX_NODES: int = Field(default=50, ge=2, le=500)
+    QBIT_AUTOMATION_MAX_STEPS_PER_EXECUTION: int = Field(default=100, ge=1, le=10_000)
+    #: transient-error retry policy (§38): exponential backoff between bounds
+    QBIT_AUTOMATION_MAX_RETRIES: int = Field(default=3, ge=0, le=20)
+    QBIT_AUTOMATION_RETRY_BASE_SECONDS: int = Field(default=30, ge=1, le=3600)
+    QBIT_AUTOMATION_RETRY_MAX_SECONDS: int = Field(default=3600, ge=10, le=86400)
+    #: loop protection (§40): max executions per (workflow, entity) per window
+    #: and max automation-caused causation chain depth
+    QBIT_AUTOMATION_MAX_EXECUTIONS_PER_WINDOW: int = Field(default=10, ge=1, le=1000)
+    QBIT_AUTOMATION_WINDOW_MINUTES: int = Field(default=60, ge=1, le=1440)
+    QBIT_AUTOMATION_MAX_CAUSATION_DEPTH: int = Field(default=2, ge=0, le=10)
+    #: worker claim tuning (§58–§59): lease, batch size, wait cap (§28–§30)
+    QBIT_AUTOMATION_LEASE_SECONDS: int = Field(default=300, ge=10, le=3600)
+    QBIT_AUTOMATION_BATCH_SIZE: int = Field(default=10, ge=1, le=200)
+    QBIT_AUTOMATION_MAX_WAIT_HOURS: int = Field(default=720, ge=1, le=8760)
+    #: reserved-capability gates — honest defaults (§24, §54)
+    QBIT_AUTOMATION_ENABLE_TEAM_ASSIGN: bool = False
+    QBIT_AUTOMATION_ENABLE_START_CAMPAIGN: bool = True
+
     # --- Derived helpers ----------------------------------------------------
     @property
     def is_production(self) -> bool:

@@ -75,6 +75,13 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 | 38 | [WhatsApp Webhooks](docs/whatsapp-webhooks.md) | verification + signature security, idempotency, state machine, conversations foundation |
 | 39 | [Email Provider](docs/email-provider.md) | Phase 7 SMTP + generic Email API adapters, error normalization, uncertain-delivery rule, compliance boundary |
 | 40 | [Email Connections](docs/email-connections.md) | multi-sender accounts, validation/health flow, secret handling, reputation foundation, API |
+| 41 | [Automation Engine](docs/automation.md) | Phase 9 architecture, workflow lifecycle, versioning, idempotency, loop prevention, scheduler, delays |
+| 42 | [Workflow Triggers](docs/workflow-triggers.md) | 21 triggers: lead/campaign/conversation/message/scheduled, event bus, filters |
+| 43 | [Workflow Conditions](docs/workflow-conditions.md) | declarative operators, AND/OR/NOT groups, field catalog, validation |
+| 44 | [Workflow Actions](docs/workflow-actions.md) | lead/assignment/conversation/communication actions, safety ladder, campaign action |
+| 45 | [Workflow Execution](docs/workflow-execution.md) | state machine, claiming/locking, delays, retry, monitor, analytics, recovery |
+| 46 | [Workflow Builder](docs/workflow-builder.md) | UI pages, lightweight builder, validation display, persistence |
+| 47 | [Automation Security](docs/automation-security.md) | declarative-only engine, threat controls, RBAC matrix, secrets/privacy |
 | 41 | [Email Templates](docs/email-templates.md) | subject + sanitized HTML + plain text, variable allowlist, real unsubscribe, header-injection guards |
 | 42 | [Email Delivery](docs/email-delivery.md) | pipeline, eligibility, launch gates, idempotency, retry, bounce/complaint handling, analytics |
 | 43 | [Email Webhooks](docs/email-webhooks.md) | signed webhook contract, replay protection, event normalization, idempotency |

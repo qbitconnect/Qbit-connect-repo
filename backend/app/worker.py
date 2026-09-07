@@ -91,6 +91,7 @@ class ScrapeWorker:
         data_task = asyncio.create_task(self._data_jobs_loop())
         campaign_task = asyncio.create_task(self._campaign_loop())
         outbox_task = asyncio.create_task(self._inbox_outbox_loop())
+        automation_task = asyncio.create_task(self._automation_loop())
         try:
             while not self._shutdown.is_set():
                 if len(self._tasks) >= self.settings.QBIT_WORKER_MAX_CONCURRENT_JOBS:
@@ -109,6 +110,7 @@ class ScrapeWorker:
             data_task.cancel()
             campaign_task.cancel()
             outbox_task.cancel()
+            automation_task.cancel()
             await self._drain()
             await self.queue.aclose()
             await self.db.close()
@@ -203,6 +205,32 @@ class ScrapeWorker:
                 await asyncio.sleep(
                     self.settings.QBIT_WORKER_POLL_SECONDS if processed else max(
                         self.settings.QBIT_WORKER_POLL_SECONDS * 2, 2.0
+                    )
+                )
+        except asyncio.CancelledError:
+            return
+
+    async def _automation_loop(self) -> None:
+        """Phase 9: workflow automation loop — scheduled triggers, execution
+        claiming, node execution. Isolated from the other loops: a failing
+        workflow never touches scraping/campaigns/inbox (isolation rule)."""
+        from app.automation.workers.automation_worker import AutomationWorker
+
+        worker = AutomationWorker(
+            self.settings,
+            owner=f"automation-{uuid.uuid4().hex[:8]}",
+        )
+        try:
+            while not self._shutdown.is_set():
+                try:
+                    async with self.db.session() as session:
+                        actions = await worker.process_cycle(session)
+                except Exception:  # noqa: BLE001 — keep the loop alive
+                    logger.exception("Automation loop iteration failed")
+                    actions = 0
+                await asyncio.sleep(
+                    self.settings.QBIT_WORKER_POLL_SECONDS if actions else max(
+                        self.settings.QBIT_WORKER_POLL_SECONDS * 3, 3.0
                     )
                 )
         except asyncio.CancelledError:

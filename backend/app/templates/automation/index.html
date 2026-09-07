@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Automation — QBIT Connect{% endblock %}
+{% block nav_automation %}active{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>AUTOMATION</h1>
+    <p class="muted">Workflow engine — trigger, condition, action, wait (Phase 9)</p>
+  </div>
+  <div class="page-actions">
+    {% if "automation.create" in perms %}
+      <a class="btn btn-primary" href="/automation/new">+ New workflow</a>
+    {% endif %}
+    {% if "automation.view_executions" in perms %}
+      <a class="btn btn-ghost" href="/automation/executions">Executions</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if flash %}
+  <div class="alert {{ 'alert-error' if flash_kind == 'error' else 'alert-ok' }}">{{ flash }}</div>
+{% endif %}
+
+<div class="card table-card">
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>Trigger</th><th>Status</th><th>Version</th>
+          <th>Executions</th><th>Success</th><th>Failed</th><th>Last run</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for wf in items %}
+        <tr>
+          <td><a href="/automation/{{ wf.id }}"><strong>{{ wf.name }}</strong></a>
+              {% if wf.description %}<div class="muted small">{{ wf.description[:90] }}</div>{% endif %}</td>
+          <td>{{ trigger_labels.get(wf.trigger_type, wf.trigger_type) }}</td>
+          <td><span class="badge badge-{{ wf.status|lower }}">{{ wf.status }}</span></td>
+          <td>{{ wf.current_version or "—" }}</td>
+          <td>{{ wf.executions_total }}</td>
+          <td>{{ wf.executions_completed }}{% if wf.success_rate is not none %} <span class="muted small">({{ (wf.success_rate * 100)|round(1) }}%)</span>{% endif %}</td>
+          <td>{{ wf.executions_failed }}</td>
+          <td class="muted small">{{ wf.last_execution_at[:16].replace("T", " ") if wf.last_execution_at else "—" }}</td>
+          <td class="row-actions">
+            <a class="btn btn-sm btn-ghost" href="/automation/{{ wf.id }}">Open</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="9" class="muted" style="padding:28px;text-align:center">
+          No workflows yet. Create one from scratch or start from a template below.
+        </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if templates and "automation.create" in perms %}
+<div class="card" style="margin-top:20px">
+  <h2 class="section-title">Starter templates</h2>
+  <p class="muted small">Templates create a DRAFT you configure and publish yourself — nothing runs automatically.</p>
+  <div class="template-grid">
+    {% for tid, spec in templates.items() %}
+      <div class="template-card">
+        <strong>{{ spec.name }}</strong>
+        <p class="muted small">{{ spec.description[:140] }}</p>
+        <a class="btn btn-sm btn-ghost" href="/automation/new?from_template={{ tid }}">Use template</a>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

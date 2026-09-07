@@ -302,6 +302,15 @@ class JobRunner:
             )
             if extra_event:
                 session.add(_event_row(job.id, extra_event[0], extra_event[1], {}))
+            # Phase 9 §55: SCRAPE_JOB_COMPLETED event (best-effort intake)
+            await _emit_automation(
+                session, job_id=str(job.id),
+                payload={
+                    "records_found": fresh.records_found,
+                    "records_saved": fresh.records_saved,
+                    "records_updated": getattr(fresh, "records_updated", 0),
+                },
+            )
             await session.commit()
 
     async def _finish_failed(self, job: ScrapeJob, exc: Exception) -> None:
@@ -469,3 +478,17 @@ def _event_row(job_id, event_type, message, metadata=None):
         message=(message or "")[:1000] or None,
         metadata_json=metadata or {},
     )
+
+
+async def _emit_automation(session, *, job_id: str, payload: dict) -> None:
+    """Best-effort automation intake for scrape-job completion (Phase 9 §55)."""
+    try:
+        from app.automation.services.event_dispatcher import emit_system_event
+
+        await emit_system_event(
+            session, event_type="scrape.job.completed", entity_type="scrape_job",
+            entity_id=job_id, payload=payload,
+            event_id=f"scrape.job.completed:{job_id}",
+        )
+    except Exception:  # noqa: BLE001 — never break the scrape loop
+        pass

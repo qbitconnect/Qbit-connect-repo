@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Executions — QBIT Connect{% endblock %}
+{% block nav_automation %}active{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>EXECUTIONS</h1>
+    <p class="muted">Real workflow run history — refreshes on reload (§49)</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="/automation">← Workflows</a>
+  </div>
+</div>
+
+<div class="stat-row card" style="padding:14px 18px">
+  <div class="stat"><span class="stat-num">{{ counters.total }}</span><span class="stat-label">Total</span></div>
+  <div class="stat"><span class="stat-num">{{ counters.queued }}</span><span class="stat-label">Queued</span></div>
+  <div class="stat"><span class="stat-num">{{ counters.running }}</span><span class="stat-label">Running</span></div>
+  <div class="stat"><span class="stat-num">{{ counters.waiting }}</span><span class="stat-label">Waiting</span></div>
+  <div class="stat"><span class="stat-num">{{ counters.completed }}</span><span class="stat-label">Completed</span></div>
+  <div class="stat"><span class="stat-num">{{ counters.failed }}</span><span class="stat-label">Failed</span></div>
+  <div class="stat"><span class="stat-num">{{ counters.cancelled }}</span><span class="stat-label">Cancelled</span></div>
+</div>
+
+<form method="get" class="filters card" style="padding:14px 18px; display:flex; gap:10px; margin:14px 0">
+  <select class="input" name="status">
+    <option value="">Any status</option>
+    {% for s in ["QUEUED", "RUNNING", "WAITING", "COMPLETED", "FAILED", "CANCELLED"] %}
+      <option value="{{ s }}" {{ 'selected' if status == s }}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <select class="input" name="workflow_id">
+    <option value="">Any workflow</option>
+    {% for wf in workflows %}
+      <option value="{{ wf.id }}" {{ 'selected' if workflow_id == wf.id|string }}>{{ wf.name }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-primary btn-sm">Filter</button>
+</form>
+
+<div class="card table-card">
+  <div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th>Workflow</th><th>Trigger</th><th>Entity</th><th>Status</th>
+        <th>Current step</th><th>Started</th><th>Duration</th><th>Error</th><th></th>
+      </tr></thead>
+      <tbody>
+      {% for e, d in execution_rows %}
+        <tr>
+          <td class="small">{{ e.workflow_id[:8] }}…</td>
+          <td class="muted small">{{ e.context.get("event_type", "—") }}</td>
+          <td class="small">{{ e.entity_type }}{% if e.entity_id %} · {{ e.entity_id[:8] }}…{% endif %}</td>
+          <td><span class="badge badge-{{ e.status|lower }}">{{ e.status }}</span></td>
+          <td class="muted small">{{ e.current_node_id or "—" }}</td>
+          <td class="muted small">{{ e.started_at[:16].replace("T", " ") if e.started_at else "—" }}</td>
+          <td class="muted small">
+            {% if d.duration_s is not none %}{{ d.duration_s }}s{% elif e.completed_at %}{{ e.completed_at[:16].replace("T", " ") }}{% else %}running…{% endif %}
+          </td>
+          <td class="muted small">{{ e.error[:60] if e.error else "—" }}</td>
+          <td><a class="btn btn-sm btn-ghost" href="/automation/executions/{{ e.id }}">Open</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="9" class="muted" style="padding:28px;text-align:center">No executions yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if total > 25 %}
+  <div class="pager">
+    {% if page > 1 %}<a class="btn btn-sm btn-ghost" href="?page={{ page - 1 }}{% if status %}&status={{ status }}{% endif %}{% if workflow_id %}&workflow_id={{ workflow_id }}{% endif %}">← Prev</a>{% endif %}
+    <span class="muted small">page {{ page }} · {{ total }} total</span>
+    {% if page * 25 < total %}<a class="btn btn-sm btn-ghost" href="?page={{ page + 1 }}{% if status %}&status={{ status }}{% endif %}{% if workflow_id %}&workflow_id={{ workflow_id }}{% endif %}">Next →</a>{% endif %}
+  </div>
+{% endif %}
+
+<style>
+.stat-row { display: flex; gap: 26px; }
+.stat { display: flex; flex-direction: column; }
+.stat-num { font-size: 20px; font-weight: 700; }
+.stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; }
+.pager { display: flex; gap: 12px; align-items: center; justify-content: center; margin: 16px 0 40px; }
+</style>
+{% endblock %}

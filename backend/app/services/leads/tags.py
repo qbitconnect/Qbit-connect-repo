@@ -146,6 +146,10 @@ class TagService:
             return tag, False
         session.add(LeadTagAssignment(lead_id=lead_id, tag_id=tag.id, created_by=user_id))
         await self._refresh_mirror(session, lead_id)
+        await _emit_automation(
+            session, event_type="lead.tag_added", entity_type="lead", entity_id=lead_id,
+            payload={"tag": tag.name},
+        )
         if commit:
             await session.commit()
         return tag, True
@@ -162,6 +166,9 @@ class TagService:
         removed = (result.rowcount or 0) > 0
         if removed:
             await self._refresh_mirror(session, lead_id)
+            await _emit_automation(
+                session, event_type="lead.tag_removed", entity_type="lead", entity_id=lead_id,
+            )
         if commit:
             await session.commit()
         return removed
@@ -263,3 +270,18 @@ class TagService:
             # set directly (no expire → no lazy-load IO in async context);
             # identical value, harmless on the next flush
             cached.tags = names
+
+
+async def _emit_automation(session, *, event_type: str, entity_type: str,
+                           entity_id, payload: dict | None = None) -> None:
+    """Best-effort automation event intake (Phase 9 §12) — never breaks the
+    primary tag flow (same contract as AuditService)."""
+    try:
+        from app.automation.services.event_dispatcher import emit_system_event
+
+        await emit_system_event(
+            session, event_type=event_type, entity_type=entity_type,
+            entity_id=entity_id, payload=payload,
+        )
+    except Exception:  # noqa: BLE001
+        pass

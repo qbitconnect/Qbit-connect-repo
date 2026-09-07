@@ -183,6 +183,11 @@ class ConversationEngine:
             conversation.subject = msg.subject
 
         await session.flush()
+        # Phase 9 §9/§10: conversation + message triggers (best-effort intake)
+        await _emit_automation_events_for_inbound(
+            session, conversation=conversation, message=message,
+            is_new=is_new, reopened=any(e[0] == EVENT_CONVERSATION_REOPENED for e in events),
+        )
         await session.commit()
         await session.refresh(message)
         logger.info(
@@ -476,6 +481,10 @@ class ConversationEngine:
             actor_user_id=actor_user_id,
             previous_value={"status": previous}, new_value={"status": status.value},
         ))
+        await _emit_automation_conv(
+            session, conversation=conversation, event_type="conversation.status_changed",
+            payload={"from_status": previous, "to_status": status.value},
+        )
         await session.commit()
         return conversation
 
@@ -529,6 +538,12 @@ class ConversationEngine:
             previous_value={"assigned_user_id": str(previous_id) if previous_id else None},
             new_value={"assigned_user_id": str(assigned_user_id) if assigned_user_id else None},
         ))
+        if assigned_user_id is not None:
+            await _emit_automation_conv(
+                session, conversation=conversation, event_type="conversation.assigned",
+                payload={"assigned_user_id": str(assigned_user_id),
+                         "previous_user_id": str(previous_id) if previous_id else None},
+            )
         await session.commit()
         return conversation
 
@@ -688,3 +703,54 @@ class ConversationEngine:
         if last_inbound.tzinfo is None:
             last_inbound = last_inbound.replace(tzinfo=timezone.utc)
         return reference - last_inbound <= timedelta(hours=hours)
+
+
+async def _emit_automation_conv(session, *, conversation, event_type: str,
+                                payload: dict | None = None) -> None:
+    """Best-effort automation intake for conversation events (Phase 9 §9)."""
+    try:
+        from app.automation.services.event_dispatcher import emit_system_event
+
+        await emit_system_event(
+            session, event_type=event_type, entity_type="conversation",
+            entity_id=conversation.id,
+            payload={"refs": {
+                "conversation_id": str(conversation.id),
+                "lead_id": str(conversation.lead_id) if conversation.lead_id else None,
+            }, **(payload or {})},
+        )
+    except Exception:  # noqa: BLE001 — never break inbox flow
+        pass
+
+
+async def _emit_automation_events_for_inbound(session, *, conversation, message,
+                                              is_new: bool, reopened: bool) -> None:
+    """Best-effort automation intake for one ingested inbound message (§9/§10):
+    CONVERSATION_CREATED / CONVERSATION_REOPENED / INBOUND_MESSAGE / MESSAGE_RECEIVED."""
+    try:
+        from app.automation.services.event_dispatcher import emit_system_event
+
+        base_refs = {
+            "conversation_id": str(conversation.id),
+            "lead_id": str(conversation.lead_id) if conversation.lead_id else None,
+            "message_id": str(message.id),
+        }
+        if is_new:
+            await emit_system_event(
+                session, event_type="conversation.created", entity_type="conversation",
+                entity_id=conversation.id, payload={"refs": base_refs},
+            )
+        if reopened:
+            await emit_system_event(
+                session, event_type="conversation.reopened", entity_type="conversation",
+                entity_id=conversation.id, payload={"refs": base_refs},
+            )
+        # INBOUND_MESSAGE and MESSAGE_RECEIVED share the message refs
+        for event_type in ("conversation.inbound_message", "message.received"):
+            await emit_system_event(
+                session, event_type=event_type, entity_type="message",
+                entity_id=message.id, payload={"refs": base_refs},
+                event_id=f"{event_type}:{message.id}",
+            )
+    except Exception:  # noqa: BLE001 — never break inbox flow
+        pass

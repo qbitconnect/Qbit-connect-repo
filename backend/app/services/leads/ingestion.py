@@ -118,6 +118,18 @@ class LeadIngestionService:
                 },
                 user_id=self.created_by,
             )
+            # Phase 9 §7: LEAD_SCRAPED / LEAD_IMPORTED triggers
+            await _emit_automation(
+                session,
+                event_type=(
+                    "lead.imported" if self.source_type == "import" else "lead.scraped"
+                ),
+                entity_type="lead", entity_id=lead.id,
+                payload={
+                    "job_id": str(self.job_id), "actor_id": self.actor_id,
+                    "source_type": self.source_type,
+                },
+            )
         elif merge and match is not None and match.confidence is not None:
             await self.activities.log(
                 session, lead.id, "lead_updated",
@@ -132,3 +144,18 @@ class LeadIngestionService:
             and (lead.metadata_json or {}).get("possible_duplicate_of")
         )
         return IngestionResult(lead, created, merge and not created, flagged, match)
+
+
+async def _emit_automation(session, *, event_type: str, entity_type: str,
+                           entity_id, payload: dict | None = None) -> None:
+    """Best-effort automation event intake (Phase 9 §12) — never breaks the
+    ingestion flow (same contract as AuditService)."""
+    try:
+        from app.automation.services.event_dispatcher import emit_system_event
+
+        await emit_system_event(
+            session, event_type=event_type, entity_type=entity_type,
+            entity_id=entity_id, payload=payload,
+        )
+    except Exception:  # noqa: BLE001
+        pass

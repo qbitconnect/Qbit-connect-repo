@@ -24,6 +24,21 @@ from app.models.scrape import Lead
 _CUSTOM_STATUS_RE = re.compile(r"^[A-Z][A-Z0-9_]{1,29}$")
 
 
+async def _emit_automation(session: AsyncSession, *, event_type: str, entity_type: str,
+                           entity_id, payload: dict | None = None) -> None:
+    """Best-effort automation event intake (Phase 9 §12) — never breaks the
+    primary lead flow (same contract as AuditService)."""
+    try:
+        from app.automation.services.event_dispatcher import emit_system_event
+
+        await emit_system_event(
+            session, event_type=event_type, entity_type=entity_type,
+            entity_id=entity_id, payload=payload,
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _merge_metadata(existing: dict, incoming: dict) -> dict:
     merged = dict(existing or {})
     for key, value in (incoming or {}).items():
@@ -346,6 +361,10 @@ class LeadWorkspaceService:
             session, lead.id, EVENT_CREATED,
             message="Lead created", user_id=user_id,
         )
+        await _emit_automation(
+            session, event_type="lead.created", entity_type="lead", entity_id=lead.id,
+            payload={"status": lead.status, "source": lead.source},
+        )
         if commit:
             await session.commit()
             await session.refresh(lead)
@@ -384,6 +403,10 @@ class LeadWorkspaceService:
                 metadata={"changes": changed},
                 user_id=user_id,
             )
+            await _emit_automation(
+                session, event_type="lead.updated", entity_type="lead", entity_id=lead.id,
+                payload={"changed_fields": sorted(changed.keys())},
+            )
         if commit:
             await session.commit()
             await session.refresh(lead)
@@ -412,6 +435,10 @@ class LeadWorkspaceService:
         else:
             await self.activities.log(session, lead.id, EVENT_STATUS_CHANGED,
                                       message=f"Status {old} → {status}", user_id=user_id)
+        await _emit_automation(
+            session, event_type="lead.status_changed", entity_type="lead", entity_id=lead.id,
+            payload={"from_status": old, "to_status": status},
+        )
         if commit:
             await session.commit()
             await session.refresh(lead)

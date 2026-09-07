@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit workflow" if workflow else "New workflow" }} — QBIT Connect{% endblock %}
+{% block nav_automation %}active{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ "EDIT WORKFLOW" if workflow else "NEW WORKFLOW" }}</h1>
+    <p class="muted">Trigger → Condition → Action → Wait → End — declarative nodes only (no code)</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="{{ '/automation/' ~ workflow.id if workflow else '/automation' }}">Cancel</a>
+  </div>
+</div>
+
+{% if error %}<div class="alert alert-error"><strong>Cannot save:</strong> {{ error }}</div>{% endif %}
+
+<form method="post"
+      action="{{ '/automation/' ~ workflow.id ~ '/edit' if workflow else '/automation/new' }}"
+      id="builder-form">
+  <div class="card" style="margin-bottom:16px">
+    <div class="grid-3">
+      <label class="field">Name
+        <input class="input" name="name" required maxlength="200" value="{{ name }}">
+      </label>
+      <label class="field">Trigger
+        <select class="input" name="trigger_type" id="trigger-type">
+          {% for tt in trigger_types %}
+            <option value="{{ tt }}" {{ 'selected' if tt == trigger_type }}>{{ trigger_labels[tt] }} ({{ tt }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">Description
+        <input class="input" name="description" maxlength="2000" value="{{ description }}">
+      </label>
+    </div>
+  </div>
+
+  <div id="node-list" class="node-list"></div>
+
+  <div class="builder-actions">
+    <button type="button" class="btn btn-ghost" onclick="addNode()">+ Add node</button>
+    <button type="submit" class="btn btn-primary">Save draft</button>
+  </div>
+  <input type="hidden" name="definition_json" id="definition-json" value='{{ definition|tojson }}'>
+</form>
+
+<script>
+/* Lightweight, dependency-free builder (§43/§44): nodes are a vertical list;
+   each node targets its successor by id. Full branch graphs stay available
+   through the REST API — this builder covers the common linear flows. */
+let NODES = JSON.parse(document.getElementById('definition-json').value).nodes;
+const FIELDS = {{ fields|tojson }};
+const OPERATORS = {{ operators|tojson }};
+const ACTIONS = {{ action_keys|tojson }};
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+function nodeOptions(selected) {
+  let html = '<option value="">(end without END node — invalid)</option>'
+           + '<option value="end" ' + (selected === 'end' ? 'selected' : '') + '>END node</option>';
+  NODES.forEach(function (n, i) {
+    if (n.type === 'TRIGGER') return;
+    html += '<option value="' + esc(n.id) + '" ' + (selected === n.id ? 'selected' : '') + '>'
+         +  esc((i + 1) + '. ' + n.id + ' [' + n.type + ']') + '</option>';
+  });
+  return html;
+}
+
+function render() {
+  const list = document.getElementById('node-list');
+  list.innerHTML = '';
+  NODES.forEach(function (n, i) {
+    const card = document.createElement('div');
+    card.className = 'card node-card';
+    let body = '<div class="node-head"><strong>' + (i + 1) + '. ' + esc(n.type) + '</strong>'
+             + '<span class="muted small">id: ' + esc(n.id) + '</span>';
+    if (n.type !== 'TRIGGER' && n.type !== 'END') {
+      body += '<button type="button" class="btn btn-sm btn-ghost" onclick="removeNode(' + i + ')">Remove</button>';
+    }
+    body += '</div>';
+
+    if (n.type === 'TRIGGER') {
+      body += '<label class="field">Trigger type (set above)</label>';
+    } else if (n.type === 'ACTION') {
+      body += '<label class="field">Action</label><select class="input" data-i="' + i + '" data-k="action">'
+           +  ACTIONS.map(function (a) { return '<option ' + (n.action === a ? 'selected' : '') + '>' + a + '</option>'; }).join('')
+           +  '</select>'
+           + '<label class="field">Config (JSON)</label><textarea class="input" rows="3" data-i="' + i + '" data-k="config">'
+           + esc(JSON.stringify(n.config || {}, null, 1)) + '</textarea>'
+           + '<label class="field">Then go to</label><select class="input" data-i="' + i + '" data-k="next_node_id">'
+           + nodeOptions(n.next_node_id) + '</select>';
+    } else if (n.type === 'CONDITION') {
+      const c = n.condition || {};
+      body += '<label class="field">Field</label><select class="input" data-i="' + i + '" data-k="cond_field">'
+           +  FIELDS.map(function (f) { return '<option ' + (c.field === f ? 'selected' : '') + '>' + f + '</option>'; }).join('')
+           +  '</select>'
+           + '<label class="field">Operator</label><select class="input" data-i="' + i + '" data-k="cond_op">'
+           +  OPERATORS.map(function (o) { return '<option ' + (c.operator === o ? 'selected' : '') + '>' + o + '</option>'; }).join('')
+           +  '</select>'
+           + '<label class="field">Value (JSON)</label><input class="input" data-i="' + i + '" data-k="cond_value" value=\''
+           +  esc(JSON.stringify(c.value === undefined ? "" : c.value)) + '\'>'
+           + '<label class="field">YES →</label><select class="input" data-i="' + i + '" data-k="next_node_id">'
+           + nodeOptions(n.next_node_id) + '</select>'
+           + '<label class="field">NO →</label><select class="input" data-i="' + i + '" data-k="next_node_id_no">'
+           + nodeOptions(n.next_node_id_no) + '</select>';
+    } else if (n.type === 'WAIT') {
+      const d = (n.duration || {});
+      body += '<label class="field">Wait duration (JSON, e.g. {"hours": 1})</label>'
+           + '<input class="input" data-i="' + i + '" data-k="duration" value=\''
+           + esc(JSON.stringify(d)) + '\'>'
+           + '<label class="field">Then go to</label><select class="input" data-i="' + i + '" data-k="next_node_id">'
+           + nodeOptions(n.next_node_id) + '</select>';
+    } else if (n.type === 'END') {
+      body += '<p class="muted small">Execution completes here.</p>';
+    }
+    card.innerHTML = body;
+    list.appendChild(card);
+  });
+  document.getElementById('definition-json').value = JSON.stringify(serialize());
+}
+
+function serialize() {
+  const tt = document.getElementById('trigger-type').value;
+  const nodes = [{ id: 'trigger', type: 'TRIGGER',
+                   trigger_config: { type: tt }, next_node_id: NODES[1] ? NODES[1].id : 'end' }];
+  NODES.forEach(function (n, i) {
+    if (n.type === 'TRIGGER') return;
+    const out = { id: n.id, type: n.type };
+    if (n.type === 'ACTION') { out.action = n.action; out.config = n.config || {}; out.next_node_id = n.next_node_id; }
+    if (n.type === 'CONDITION') {
+      out.condition = { field: n.condition && n.condition.field || FIELDS[0],
+                        operator: n.condition && n.condition.operator || OPERATORS[0],
+                        value: n.condition ? n.condition.value : "" };
+      out.next_node_id = n.next_node_id || 'end';
+      out.next_node_id_no = n.next_node_id_no || 'end';
+    }
+    if (n.type === 'WAIT') { out.duration = n.duration || { hours: 1 }; out.next_node_id = n.next_node_id || 'end'; }
+    nodes.push(out);
+  });
+  return { nodes: nodes };
+}
+
+function bindEdits() {
+  document.getElementById('node-list').addEventListener('change', function (e) {
+    const t = e.target, i = t.getAttribute('data-i'), k = t.getAttribute('data-k');
+    if (i === null || !k) return;
+    const node = NODES[parseInt(i, 10)];
+    if (k === 'action') node.action = t.value;
+    else if (k === 'config') { try { node.config = JSON.parse(t.value); } catch (err) { /* saved as {} on error */ node.config = {}; } }
+    else if (k === 'cond_field' || k === 'cond_op' || k === 'cond_value') {
+      node.condition = node.condition || {};
+      if (k === 'cond_field') node.condition.field = t.value;
+      if (k === 'cond_op') node.condition.operator = t.value;
+      if (k === 'cond_value') { try { node.condition.value = JSON.parse(t.value); } catch (err) { node.condition.value = t.value; } }
+    } else if (k === 'duration') { try { node.duration = JSON.parse(t.value); } catch (err) { /* ignore */ } }
+    else if (k === 'next_node_id') node.next_node_id = t.value === 'end' ? 'end' : t.value;
+    else if (k === 'next_node_id_no') node.next_node_id_no = t.value === 'end' ? 'end' : t.value;
+    render();
+  });
+}
+
+function addNode() {
+  NODES.splice(NODES.length - 1, 0,
+    { id: 'step' + (Date.now() % 100000), type: 'ACTION', action: 'add_tag',
+      config: { tag: 'New tag' }, next_node_id: 'end' });
+  render();
+}
+function removeNode(i) { NODES.splice(i, 1); render(); }
+
+bindEdits();
+render();
+</script>
+<style>
+.node-list { display: flex; flex-direction: column; gap: 10px; }
+.node-card { padding: 14px 16px; }
+.node-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.node-head strong { min-width: 90px; }
+.node-head .btn { margin-left: auto; }
+.builder-actions { display: flex; gap: 10px; margin: 14px 0 40px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+.alert { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; border: 1px solid; }
+.alert-ok { color: var(--ok); border-color: var(--ok); background: rgba(46,168,111,.08); }
+.alert-error { color: var(--bad); border-color: var(--bad); background: rgba(224,82,82,.08); }
+.template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.template-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+</style>
+{% endblock %}

@@ -60,6 +60,11 @@ INBOX_TABLES = {
     "conversation_notes", "conversation_events", "inbox_outbox",
 }
 
+AUTOMATION_TABLES = {
+    "workflows", "workflow_versions", "workflow_events",
+    "workflow_executions", "workflow_execution_steps",
+}
+
 
 def _alembic_config(db_path: Path) -> Config:
     cfg = Config(str(ALEMBIC_INI))
@@ -151,7 +156,7 @@ def test_greenfield_repo_had_no_preexisting_schema(tmp_path: Path):
     # No "legacy" tables are part of the metadata beyond the approved sets.
     assert set(Base.metadata.tables) == (
         CORE_TABLES | SCRAPING_TABLES | LEAD_WORKSPACE_TABLES | MARKETING_TABLES
-        | MESSAGING_TABLES | EMAIL_TABLES | INBOX_TABLES
+        | MESSAGING_TABLES | EMAIL_TABLES | INBOX_TABLES | AUTOMATION_TABLES
     )
 
 

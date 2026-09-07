@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Execution timeline — QBIT Connect{% endblock %}
+{% block nav_automation %}active{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>EXECUTION TIMELINE</h1>
+    <p class="muted">{{ workflow.name if workflow else "Workflow" }}
+       · <span class="badge badge-{{ execution.status|lower }}">{{ execution.status }}</span>
+       · entity {{ execution.entity_type }}{% if execution.entity_id %} {{ execution.entity_id[:8] }}…{% endif %}</p>
+  </div>
+  <div class="page-actions">
+    {% if "automation.execute" in perms and execution.status in ("QUEUED", "RUNNING", "WAITING", "PAUSED") %}
+      <form method="post" action="/automation/executions/{{ execution.id }}/cancel" class="inline">
+        <button class="btn btn-ghost">Cancel execution</button>
+      </form>
+    {% endif %}
+    <a class="btn btn-ghost" href="/automation/executions">← All executions</a>
+  </div>
+</div>
+
+{% if execution.error %}
+  <div class="alert alert-error"><strong>{{ execution.error_class or "ERROR" }}:</strong> {{ execution.error }}</div>
+{% endif %}
+
+<div class="card">
+  <h2 class="section-title">Node timeline (§50)</h2>
+  <div class="timeline">
+    <div class="tl-item">
+      <span class="tl-dot tl-trigger"></span>
+      <div>
+        <strong>TRIGGER</strong> — event {{ execution.context.get("event_type", execution.trigger_event_id[:40]) }}
+        <div class="muted small">event_id: {{ execution.trigger_event_id[:60] }}</div>
+      </div>
+    </div>
+    {% for s in steps %}
+      <div class="tl-item">
+        <span class="tl-dot tl-{{ s.status|lower }}"></span>
+        <div>
+          <strong>{{ s.node_id }}</strong>
+          <span class="badge badge-{{ 'completed' if s.status == 'COMPLETED' else ('paused' if s.status == 'SKIPPED' else ('failed' if s.status == 'FAILED' else 'running')) }}">{{ s.status }}</span>
+          {% if s.input_snapshot and s.input_snapshot.node_type %}<span class="muted small">{{ s.input_snapshot.node_type }}</span>{% endif %}
+          {% if s.output_snapshot %}
+            <div class="muted small">
+              {%- if s.output_snapshot.get("reason") %}Reason: {{ s.output_snapshot.reason }}{% endif -%}
+              {%- if s.output_snapshot.get("skipped") %} (SKIPPED){% endif -%}
+              {%- if s.output_snapshot.get("result") is not none and s.output_snapshot.get("branch") %}Condition: {{ s.output_snapshot.result }} → {{ s.output_snapshot.branch }}{% endif -%}
+              {%- if s.output_snapshot.get("action") %} action={{ s.output_snapshot.action }}{% endif -%}
+              {%- if s.output_snapshot.get("queued") is not none %} queued={{ s.output_snapshot.queued }}{% endif -%}
+              {%- if s.output_snapshot.get("wake_at") %} resumes at {{ s.output_snapshot.wake_at[:19].replace("T", " ") }} UTC{% endif -%}
+            </div>
+          {% endif %}
+          {% if s.error %}<div class="tl-error">{{ s.error }}</div>{% endif %}
+        </div>
+      </div>
+    {% endfor %}
+    <div class="tl-item">
+      <span class="tl-dot tl-{{ 'completed' if execution.status == 'COMPLETED' else ('failed' if execution.status == 'FAILED' else 'pending') }}"></span>
+      <div><strong>{{ execution.status }}</strong>
+        <div class="muted small">
+          started {{ execution.started_at[:19].replace("T", " ") if execution.started_at else "—" }}
+          {% if execution.completed_at %}· finished {{ execution.completed_at[:19].replace("T", " ") }}{% endif %}
+          {% if execution.next_execution_at %}· resumes {{ execution.next_execution_at[:19].replace("T", " ") }} UTC{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.inline { display: inline; }
+.section-title { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; margin: 6px 0 12px; color: var(--muted); }
+.timeline { display: flex; flex-direction: column; gap: 14px; padding: 6px 0; }
+.tl-item { display: flex; gap: 12px; align-items: flex-start; }
+.tl-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; background: var(--muted); flex-shrink: 0; }
+.tl-trigger { background: var(--accent); }
+.tl-completed { background: var(--ok); }
+.tl-failed { background: var(--bad); }
+.tl-skipped { background: var(--warn); }
+.tl-pending { background: var(--muted); }
+.tl-error { color: var(--bad); font-size: 12px; margin-top: 2px; }
+.alert { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; border: 1px solid; }
+.alert-error { color: var(--bad); border-color: var(--bad); background: rgba(224,82,82,.08); }
+</style>
+{% endblock %}
