@@ -100,6 +100,7 @@ class ExportService:
         rows: Iterable[dict],
         base_name: str,
         created_by=None,
+        organization_id=None,
         metadata: dict | None = None,
     ):
         exporter_cls = EXPORTERS.get(format_name.lower())
@@ -124,6 +125,7 @@ class ExportService:
             mime_type=exporter.mime_type,
             category=FileCategory.EXPORT.value,
             created_by=created_by,
+            organization_id=organization_id,
             metadata={**(metadata or {}), "row_count": count, "format": exporter.format_name},
         )
         logger.info(

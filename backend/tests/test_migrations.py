@@ -50,6 +50,14 @@ MESSAGING_TABLES = {
     "provider_credentials", "provider_events", "conversations", "messages",
 }
 
+#: Phase 11 team/admin/enterprise tables (migration 0007) — additive only.
+ENTERPRISE_TABLES = {
+    "organizations", "organization_members", "teams", "team_members",
+    "invitations", "sessions", "api_keys", "notifications",
+    "user_preferences", "lead_assignment_history",
+    "conversation_assignment_history",
+}
+
 #: Phase 7 email provider tables (migration 0006) — additive only.
 EMAIL_TABLES = {
     "email_tracking_events", "email_unsubscribe_tokens",
@@ -146,8 +154,99 @@ def test_greenfield_repo_had_no_preexisting_schema(tmp_path: Path):
     # No "legacy" tables are part of the metadata beyond the approved sets.
     assert set(Base.metadata.tables) == (
         CORE_TABLES | SCRAPING_TABLES | LEAD_WORKSPACE_TABLES | MARKETING_TABLES
-        | MESSAGING_TABLES | EMAIL_TABLES
+        | MESSAGING_TABLES | EMAIL_TABLES | ENTERPRISE_TABLES
     )
+
+
+def test_0007_backfill_is_safe_and_preserves_ownership(migration_db: Path):
+    """Phase 11 §30: the enterprise migration must backfill a default org,
+    link EVERY existing user/record to it, preserve campaign ownership and
+    never delete or reset anything."""
+    import uuid as _uuid
+
+    command.upgrade(_alembic_config(migration_db), "0006_email_provider")
+
+    probe_id = _insert_probe_user(migration_db)
+
+    con = sqlite3.connect(migration_db)
+    # minimal legacy-shaped rows BEFORE the enterprise migration
+    lead_id = _uuid.uuid4().hex
+    con.execute(
+        "INSERT INTO leads (id, business_name, source, status, created_by, created_at, updated_at) "
+        "VALUES (?, 'Probe Co', 'test', 'NEW', ?, datetime('now'), datetime('now'))",
+        (lead_id, probe_id),
+    )
+    campaign_id = _uuid.uuid4().hex
+    con.execute(
+        "INSERT INTO campaigns (id, name, channel, status, created_by, audience_definition, "
+        "validation_report, campaign_metadata, created_at, updated_at) "
+        "VALUES (?, 'Probe Camp', 'WHATSAPP', 'DRAFT', ?, '{}', '{}', '{}', "
+        "datetime('now'), datetime('now'))",
+        (campaign_id, probe_id),
+    )
+    con.commit()
+    users_before = con.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    leads_before = con.execute("SELECT COUNT(*) FROM leads").fetchone()[0]
+    campaigns_before = con.execute("SELECT COUNT(*) FROM campaigns").fetchone()[0]
+    con.close()
+
+    command.upgrade(_alembic_config(migration_db), "head")
+
+    con = sqlite3.connect(migration_db)
+    try:
+        # nothing was destroyed
+        assert con.execute("SELECT COUNT(*) FROM users").fetchone()[0] == users_before
+        assert con.execute("SELECT COUNT(*) FROM leads").fetchone()[0] == leads_before
+        assert con.execute("SELECT COUNT(*) FROM campaigns").fetchone()[0] == campaigns_before
+        assert _user_exists(migration_db, probe_id)
+
+        # a single default organization exists and everything links to it
+        org = con.execute(
+            "SELECT id, slug, status FROM organizations WHERE slug = 'default'"
+        ).fetchone()
+        assert org is not None and org[2] == "ACTIVE"
+        org_id = org[0]
+
+        assert con.execute(
+            "SELECT 1 FROM organization_members WHERE user_id = ? AND organization_id = ?",
+            (probe_id, org_id),
+        ).fetchone()
+
+        lead_org = con.execute("SELECT organization_id FROM leads WHERE id = ?", (lead_id,)).fetchone()[0]
+        assert lead_org == org_id
+        camp_org, owner = con.execute(
+            "SELECT organization_id, owner_id FROM campaigns WHERE id = ?", (campaign_id,)
+        ).fetchone()
+        assert camp_org == org_id
+        assert owner == probe_id  # ownership preserved (owner_id backfilled)
+
+        # existing connections/sender accounts stay org-wide usable
+        assert con.execute(
+            "SELECT COUNT(*) FROM connections WHERE access_scope IS NOT NULL"
+        ).fetchone()[0] >= 0
+
+        # new Phase 11 permissions landed (audit.view predates this revision)
+        count = con.execute(
+            "SELECT COUNT(*) FROM permissions WHERE code IN "
+            "('teams.view','leads.assign','apikeys.create','notifications.view')"
+        ).fetchone()[0]
+        assert count == 4  # audit.view predates Phase 11 (seeded at runtime)
+
+        # downgrade removes ONLY what 0007 created (probe data still intact)
+    finally:
+        con.close()
+
+    command.downgrade(_alembic_config(migration_db), "0006_email_provider")
+    con = sqlite3.connect(migration_db)
+    try:
+        assert _user_exists(migration_db, probe_id)
+        assert con.execute("SELECT COUNT(*) FROM leads").fetchone()[0] == leads_before
+        assert con.execute("SELECT COUNT(*) FROM campaigns").fetchone()[0] == campaigns_before
+        # the revision's added columns/tables are gone; the pre-existing data
+        # columns (created_by etc.) survive untouched
+        assert "organizations" not in _tables(migration_db)
+    finally:
+        con.close()
 
 
 def test_seed_rbac_works_on_migrated_schema(migration_db: Path):

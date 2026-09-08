@@ -29,6 +29,7 @@ from app.models.lead import (
     SavedView,
 )
 from app.models.scrape import Lead
+from app.models.user import User
 from app.schemas.leads import (
     BulkActionRequest,
     DuplicateResolveRequest,
@@ -59,6 +60,27 @@ from app.services.leads.exporter import LeadExportService
 from app.services.leads.importer import LeadImportService
 
 logger = get_logger("qbit.api.leads")
+
+async def _ctx_for(session, user) -> "MemberContext":
+    """Resolve (or reuse) the Phase 11 member context for this request."""
+    from app.services import authorization as authz
+
+    perms = getattr(user, "_qbit_perms", None)
+    if perms is None:
+        from app.services import rbac as rbac_service
+
+        perms = await rbac_service.load_user_permissions(session, user.id)
+    return await authz.resolve_context(session, user, perms)
+
+
+async def _visible_lead(session, lead_id: uuid.UUID, user):
+    """IDOR-safe lead fetch: organization + visibility scope, 404 on foreign."""
+    from app.services import authorization as authz
+
+    ctx = await _ctx_for(session, user)
+    return await authz.get_visible_or_404(session, Lead, lead_id, ctx)
+
+
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -99,6 +121,7 @@ def _parse_filters(raw: str | None) -> dict | list | None:
 # ------------------------------------------------------------------ lead list
 @router.get("")
 async def list_leads(
+    request: Request,
     session: DbSession,
     _user=Depends(require_permission("leads.view")),
     page: int = Query(default=1, ge=1),
@@ -108,6 +131,7 @@ async def list_leads(
     sort: str = Query(default="", max_length=200),
     include_archived: bool = Query(default=False),
     view_id: uuid.UUID | None = Query(default=None),
+    assigned_to_me: bool = Query(default=False),
 ):
     filter_spec = _parse_filters(filters)
     if view_id is not None:
@@ -115,6 +139,14 @@ async def list_leads(
         if saved is None:
             raise NotFoundError("Saved view not found")
         filter_spec = saved.filters
+    # Phase 11: organization + visibility scope (backend-enforced)
+    from app.services import authorization as authz
+
+    ctx = await _ctx_for(session, _user)
+    extra = authz.visibility_clause(Lead, ctx)
+    if assigned_to_me:
+        mine = Lead.assigned_user_id == _user.id
+        extra = mine if extra is None else extra.__and__(mine)
     rows, total = await workspace.search(
         session,
         page=page,
@@ -123,6 +155,7 @@ async def list_leads(
         filters=filter_spec,
         sort=sort or None,
         include_archived=include_archived,
+        extra_filter=extra,
     )
     return _page_envelope([lead.to_public_dict() for lead in rows], total, page, page_size)
 
@@ -394,6 +427,7 @@ async def start_import(
         mime_type=file.content_type,
         category="IMPORT",
         created_by=user.id,
+        organization_id=(await _ctx_for(session, user)).organization_id,
         max_bytes=settings.QBIT_MAX_UPLOAD_MB * 1024 * 1024,
     )
     service = LeadImportService(request.app.state.storage, files)
@@ -517,6 +551,7 @@ async def create_export(
         page=payload.page,
         page_size=payload.page_size,
         created_by=user.id,
+        organization_id=(await _ctx_for(session, user)).organization_id,
     )
     settings = _settings(request)
     estimated = await service.count(session, record)
@@ -632,7 +667,7 @@ async def get_lead(
     session: DbSession,
     _user=Depends(require_permission("leads.view")),
 ):
-    lead = await workspace.get(session, lead_id)
+    lead = await _visible_lead(session, lead_id, _user)
     notes, _n = await workspace.list_notes(session, lead_id)
     data = lead.to_public_dict()
     data["notes"] = [note.to_public_dict() for note in notes]
@@ -647,7 +682,7 @@ async def update_lead(
     audit: AuditDep,
     user=Depends(require_permission("leads.edit")),
 ):
-    lead = await workspace.get(session, lead_id)
+    lead = await _visible_lead(session, lead_id, user)
     if lead.merged_into_id is not None:
         raise ValidationError("This lead has been merged and is read-only")
     data = payload.model_dump(exclude_none=True)
@@ -670,7 +705,7 @@ async def change_status(
     session: DbSession,
     user=Depends(require_permission("leads.edit")),
 ):
-    lead = await workspace.get(session, lead_id)
+    lead = await _visible_lead(session, lead_id, user)
     lead = await workspace.set_status(session, lead, payload.status, user_id=user.id)
     return {"success": True, "data": lead.to_public_dict()}
 
@@ -682,7 +717,7 @@ async def archive_lead(
     audit: AuditDep,
     user=Depends(require_permission("leads.archive")),
 ):
-    lead = await workspace.get(session, lead_id)
+    lead = await _visible_lead(session, lead_id, user)
     lead = await workspace.archive(session, lead, user_id=user.id)
     await audit.log(session, action="lead.archived", resource_type="lead",
                     resource_id=str(lead.id), actor_user_id=user.id)
@@ -696,7 +731,7 @@ async def restore_lead(
     audit: AuditDep,
     user=Depends(require_permission("leads.archive")),
 ):
-    lead = await workspace.get(session, lead_id)
+    lead = await _visible_lead(session, lead_id, user)
     lead = await workspace.restore(session, lead, user_id=user.id)
     await audit.log(session, action="lead.restored", resource_type="lead",
                     resource_id=str(lead.id), actor_user_id=user.id)
@@ -710,14 +745,14 @@ async def assign_tags(
     session: DbSession,
     user=Depends(require_permission("leads.edit")),
 ):
-    lead = await workspace.get(session, lead_id)
+    lead = await _visible_lead(session, lead_id, user)
     for name in payload.tags:
         tag, _created = await tag_service.assign(session, lead.id, name, user_id=user.id, commit=False)
         await activities.log(
             session, lead.id, "tag_added", message=f"Tag '{tag.name}' added", user_id=user.id
         )
     await session.commit()
-    lead = await workspace.get(session, lead_id)
+    lead = await _visible_lead(session, lead_id, user)
     return {"success": True, "data": lead.to_public_dict()}
 
 
@@ -728,7 +763,7 @@ async def remove_tag(
     session: DbSession,
     user=Depends(require_permission("leads.edit")),
 ):
-    lead = await workspace.get(session, lead_id)
+    lead = await _visible_lead(session, lead_id, user)
     tag = await session.get(LeadTag, tag_id)
     if tag is None:
         raise NotFoundError("Tag not found")
@@ -738,7 +773,7 @@ async def remove_tag(
             session, lead.id, "tag_removed", message=f"Tag '{tag.name}' removed", user_id=user.id
         )
     await session.commit()
-    lead = await workspace.get(session, lead_id)
+    lead = await _visible_lead(session, lead_id, user)
     return {"success": True, "data": lead.to_public_dict()}
 
 
@@ -761,6 +796,173 @@ async def lead_activity(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
 ):
-    await workspace.get(session, lead_id)  # 404 when missing
+    await _visible_lead(session, lead_id, _user)  # 404 when missing
     rows, total = await activities.list_for_lead(session, lead_id, page=page, page_size=page_size)
     return _page_envelope([a.to_public_dict() for a in rows], total, page, page_size)
+
+
+# ------------------------------------------------- Phase 11: lead assignment
+
+
+@router.get("/{lead_id}/assignment-history")
+async def lead_assignment_history(
+    lead_id: uuid.UUID,
+    session: DbSession,
+    _user=Depends(require_permission("leads.view")),
+):
+    await _visible_lead(session, lead_id, _user)  # 404 when missing/invisible
+    from app.models.enterprise import LeadAssignmentHistory
+
+    rows = (
+        await session.execute(
+            select(LeadAssignmentHistory)
+            .where(LeadAssignmentHistory.lead_id == lead_id)
+            .order_by(LeadAssignmentHistory.created_at.desc())
+            .limit(200)
+        )
+    ).scalars().all()
+    return {"success": True, "data": [h.to_public_dict() for h in rows]}
+
+
+@router.post("/{lead_id}/assignment")
+async def assign_lead(
+    lead_id: uuid.UUID,
+    payload: dict,
+    request: Request,
+    session: DbSession,
+    user=Depends(require_permission("leads.assign")),
+):
+    """Assign/reassign/unassign a lead to a user and/or team (history-kept)."""
+    from app.models.enterprise import LeadAssignmentHistory
+    from app.services import notifications as notification_service
+
+    lead = await _visible_lead(session, lead_id, user)
+    ctx = await _ctx_for(session, user)
+
+    raw_user = payload.get("assigned_user_id")
+    raw_team = payload.get("assigned_team_id")
+    reason = payload.get("reason")
+    new_user_id = uuid.UUID(raw_user) if raw_user else None
+    new_team_id = uuid.UUID(raw_team) if raw_team else None
+
+    if new_user_id is not None:
+        from app.services import authorization as _authz
+
+        target = await session.get(User, new_user_id)
+        if target is None or await _authz.get_membership(
+            session, new_user_id, ctx.organization_id
+        ) is None:
+            raise NotFoundError("Target user not found")
+    if new_team_id is not None:
+        from app.models.enterprise import Team
+
+        team = await session.get(Team, new_team_id)
+        if team is None or team.organization_id != ctx.organization_id:
+            raise NotFoundError("Target team not found")
+
+    prev_user, prev_team = lead.assigned_user_id, lead.assigned_team_id
+    lead.assigned_user_id = new_user_id
+    lead.assigned_team_id = new_team_id
+    session.add(
+        LeadAssignmentHistory(
+            lead_id=lead.id,
+            organization_id=lead.organization_id or ctx.organization_id,
+            previous_user_id=prev_user,
+            previous_team_id=prev_team,
+            assigned_user_id=new_user_id,
+            assigned_team_id=new_team_id,
+            changed_by=user.id,
+            reason=reason,
+        )
+    )
+    await session.commit()
+
+    if new_user_id is not None and new_user_id != user.id:
+        await notification_service.emit(
+            session,
+            user_id=new_user_id,
+            organization_id=ctx.organization_id,
+            type="ASSIGNMENT",
+            title="A lead was assigned to you",
+            resource_type="lead",
+            resource_id=str(lead.id),
+        )
+    await request.app.state.audit.log(
+        session,
+        action="lead.assigned",
+        actor_user_id=user.id,
+        resource_type="lead",
+        resource_id=str(lead.id),
+        ip_address=None,
+        metadata={
+            "previous_user_id": str(prev_user) if prev_user else None,
+            "assigned_user_id": str(new_user_id) if new_user_id else None,
+            "assigned_team_id": str(new_team_id) if new_team_id else None,
+            "reason": reason,
+        },
+    )
+    return {"success": True, "data": lead.to_public_dict()}
+
+
+@router.post("/bulk-assignment")
+async def bulk_assign_leads(
+    payload: dict,
+    request: Request,
+    session: DbSession,
+    user=Depends(require_permission("leads.assign")),
+):
+    """Idempotent bulk assignment (max 5000 ids; same-target = no-op)."""
+    from app.models.enterprise import LeadAssignmentHistory
+
+    ctx = await _ctx_for(session, user)
+    raw_ids = payload.get("ids") or []
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise ValidationError("ids must be a non-empty list")
+    raw_user = payload.get("assigned_user_id")
+    raw_team = payload.get("assigned_team_id")
+    new_user_id = uuid.UUID(raw_user) if raw_user else None
+    new_team_id = uuid.UUID(raw_team) if raw_team else None
+    reason = payload.get("reason") or "BULK_ASSIGNMENT"
+
+    updated = skipped = 0
+    for raw_id in raw_ids[:5000]:
+        try:
+            lid = uuid.UUID(str(raw_id))
+        except (ValueError, AttributeError):
+            skipped += 1
+            continue
+        lead = await session.get(Lead, lid)
+        if lead is None:
+            skipped += 1
+            continue
+        if lead.organization_id is not None and lead.organization_id != ctx.organization_id:
+            skipped += 1  # cross-tenant id: silently skip, never leak
+            continue
+        if lead.assigned_user_id == new_user_id and lead.assigned_team_id == new_team_id:
+            skipped += 1
+            continue
+        session.add(
+            LeadAssignmentHistory(
+                lead_id=lead.id,
+                organization_id=lead.organization_id or ctx.organization_id,
+                previous_user_id=lead.assigned_user_id,
+                previous_team_id=lead.assigned_team_id,
+                assigned_user_id=new_user_id,
+                assigned_team_id=new_team_id,
+                changed_by=user.id,
+                reason=reason,
+            )
+        )
+        lead.assigned_user_id = new_user_id
+        lead.assigned_team_id = new_team_id
+        updated += 1
+    await session.commit()
+    await request.app.state.audit.log(
+        session,
+        action="lead.bulk_assigned",
+        actor_user_id=user.id,
+        resource_type="lead",
+        resource_id=None,
+        metadata={"updated": updated, "skipped": skipped},
+    )
+    return {"success": True, "data": {"updated": updated, "skipped": skipped}}

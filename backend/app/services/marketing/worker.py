@@ -140,6 +140,20 @@ class CampaignWorker:
                 )
                 campaign.status = CampaignStatus.FAILED
                 campaign.completed_at = datetime.now(timezone.utc)
+                # Phase 11 §25/§27: tenant-aware notification (worker context)
+                if campaign.created_by:
+                    from app.services import notifications as notify
+
+                    await notify.emit(
+                        session,
+                        user_id=campaign.created_by,
+                        organization_id=campaign.organization_id,
+                        type="CAMPAIGN",
+                        title=f"Campaign failed: {campaign.name}",
+                        body=(exc.message or "Launch failed")[:300],
+                        resource_type="campaign",
+                        resource_id=str(campaign.id),
+                    )
                 await session.commit()
                 await self.events.record(
                     session, campaign_id=campaign.id,
@@ -445,6 +459,19 @@ class CampaignWorker:
                 continue  # never launched any work — leave for launch pipeline
             campaign.status = CampaignStatus.COMPLETED
             campaign.completed_at = datetime.now(timezone.utc)
+            # Phase 11 §25/§27: tenant-aware notification (worker context)
+            if campaign.created_by:
+                from app.services import notifications as notify
+
+                await notify.emit(
+                    session,
+                    user_id=campaign.created_by,
+                    organization_id=campaign.organization_id,
+                    type="CAMPAIGN",
+                    title=f"Campaign completed: {campaign.name}",
+                    resource_type="campaign",
+                    resource_id=str(campaign.id),
+                )
             await session.commit()
             await self.events.record(
                 session, campaign_id=campaign.id,

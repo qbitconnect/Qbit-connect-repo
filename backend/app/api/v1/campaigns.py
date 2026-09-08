@@ -22,6 +22,27 @@ from app.services.marketing.providers import MarketingProviderRegistry
 
 logger = __import__("app.core.logging", fromlist=["get_logger"]).get_logger("qbit.api.campaigns")
 
+
+# --- Phase 11: organization + visibility helpers ---------------------------------
+
+async def _ctx(session, user):
+    from app.services import authorization as authz
+    from app.services import rbac as rbac_service
+
+    perms = await rbac_service.load_user_permissions(session, user.id)
+    return await authz.resolve_context(session, user, perms)
+
+
+async def _visible_campaign(session, campaign_id, user, permission=None):
+    """IDOR-safe campaign fetch: organization + visibility scope → 404."""
+    from app.models.marketing import Campaign
+    from app.services import authorization as authz
+
+    ctx = await _ctx(session, user)
+    return await authz.get_visible_or_404(
+        session, Campaign, campaign_id, ctx, permission=permission
+    )
+
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
 campaigns_service = CampaignService()
@@ -64,9 +85,15 @@ async def list_campaigns(
     channel: str | None = Query(default=None, max_length=20),
     search: str = Query(default="", max_length=200),
 ):
+    # Phase 11: organization + visibility scope (backend-enforced)
+    from app.models.marketing import Campaign
+    from app.services import authorization as authz
+
+    ctx = await _ctx(session, _user)
+    extra = authz.visibility_clause(Campaign, ctx)
     rows, total = await campaigns_service.list(
         session, status=status, channel=channel, search=search or None,
-        page=page, page_size=page_size,
+        page=page, page_size=page_size, extra_filter=extra,
     )
     return _page([c.to_public_dict() for c in rows], total, page, page_size)
 
@@ -91,6 +118,11 @@ async def create_campaign(
         campaign_metadata=payload.campaign_metadata,
         created_by=user.id,
     )
+    # Phase 11: organization boundary + ownership
+    _c11 = await _ctx(session, user)
+    campaign.organization_id = _c11.organization_id
+    campaign.owner_id = user.id
+    await session.flush()
     await audit.log(session, action="campaign.created", resource_type="campaign",
                     resource_id=str(campaign.id), actor_user_id=user.id,
                     metadata={"channel": campaign.channel, "name": campaign.name})
@@ -111,7 +143,7 @@ async def get_campaign(
     session: DbSession,
     _user=Depends(require_permission("campaigns.view")),
 ):
-    campaign = await campaigns_service.get(session, campaign_id)
+    campaign = await _visible_campaign(session, campaign_id, _user)
     return {"success": True, "data": campaign.to_public_dict()}
 
 
@@ -170,7 +202,7 @@ async def launch_campaign(
 ):
     # Phase 6 §37: WhatsApp launches additionally require the channel-scoped
     # permission, enforced server-side (never frontend-only)
-    campaign = await campaigns_service.get(session, campaign_id)
+    campaign = await _visible_campaign(session, campaign_id, user)
     channel = (campaign.channel or "").upper()
     if channel == "WHATSAPP":
         from app.api.deps import require_permission as _rp
@@ -179,6 +211,23 @@ async def launch_campaign(
     if channel == "EMAIL":
         from app.api.deps import require_permission as _rp
         await _rp("campaigns.email.launch")(request, session, user)
+    # Phase 11 §16: connection access control BEFORE any queueing — a user may
+    # never send through a connection their organization/team/scope forbids
+    if campaign.sending_account_id:
+        from app.models.marketing import SendingAccount
+        from app.services import authorization as authz
+
+        account = await session.get(SendingAccount, campaign.sending_account_id)
+        if account is None:
+            from app.core.errors import NotFoundError
+            raise NotFoundError("Sending account not found")
+        _c11 = await _ctx(session, user)
+        if account.organization_id is not None and account.organization_id != _c11.organization_id:
+            from app.core.errors import NotFoundError
+            raise NotFoundError("Sending account not found")
+        if not await authz.can_use_connection(session, _c11, account):
+            from app.core.errors import PermissionDeniedError
+            raise PermissionDeniedError("You do not have access to this sending account")
     campaign = await campaigns_service.request_launch(
         session, campaign_id, actor_id=user.id, provider_registry=_registry(request),
         settings=request.app.state.settings,
@@ -255,7 +304,7 @@ async def list_recipients(
 
     from app.models.marketing import CampaignRecipient
 
-    await campaigns_service.get(session, campaign_id)
+    await _visible_campaign(session, campaign_id, _user)
     query = select(CampaignRecipient).where(CampaignRecipient.campaign_id == campaign_id)
     count_q = select(func.count()).select_from(CampaignRecipient).where(
         CampaignRecipient.campaign_id == campaign_id
@@ -284,7 +333,7 @@ async def get_recipient(
 
     from app.models.marketing import CampaignQueueItem
 
-    await campaigns_service.get(session, campaign_id)
+    await _visible_campaign(session, campaign_id, _user)
     from app.models.marketing import CampaignRecipient
 
     recipient = await session.get(CampaignRecipient, recipient_id)
@@ -336,7 +385,7 @@ async def list_events(
     page_size: int = Query(default=100, ge=1, le=500),
     event_type: str | None = Query(default=None, max_length=50),
 ):
-    await campaigns_service.get(session, campaign_id)
+    await _visible_campaign(session, campaign_id, _user)
     rows, total = await events_service.list_events(
         session, campaign_id=campaign_id, event_type=event_type,
         page=page, page_size=page_size,
@@ -380,7 +429,7 @@ async def email_campaign_analytics(
 
         raise NotFoundError("Campaign not found")
     if (data.get("email") or {}).get("channel") != "EMAIL":
-        campaign = await campaigns_service.get(session, campaign_id)
+        campaign = await _visible_campaign(session, campaign_id, _user)
         from app.core.errors import ValidationError as _VE
 
         raise _VE(

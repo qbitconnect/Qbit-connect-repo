@@ -1,6 +1,19 @@
-"""SQLAlchemy models — Phase 2 core + Phase 3 scraping + Phase 4 leads + Phase 5 marketing + Phase 6 messaging + Phase 7 email."""
+"""SQLAlchemy models — Phase 2 core + Phase 3 scraping + Phase 4 leads + Phase 5 marketing + Phase 6 messaging + Phase 7 email + Phase 11 enterprise."""
 
 from app.models.audit import AuditLog
+from app.models.enterprise import (
+    ApiKey,
+    ConversationAssignmentHistory,
+    Invitation,
+    LeadAssignmentHistory,
+    Notification,
+    Organization,
+    OrganizationMember,
+    Team,
+    TeamMember,
+    UserPreference,
+    UserSession,
+)
 from app.models.connection import Connection
 from app.models.email import EmailTrackingEvent, EmailUnsubscribeToken
 from app.models.file import FileRecord
@@ -37,8 +50,10 @@ from app.models.setting import SystemSetting
 from app.models.user import User
 
 __all__ = [
+    "ApiKey",
     "AuditLog",
     "Campaign",
+    "ConversationAssignmentHistory",
     "CampaignEvent",
     "CampaignQueueItem",
     "CampaignRecipient",
@@ -49,8 +64,10 @@ __all__ = [
     "EmailUnsubscribeToken",
     "FileRecord",
     "ImportBatch",
+    "Invitation",
     "Lead",
     "LeadActivity",
+    "LeadAssignmentHistory",
     "LeadDuplicateCandidate",
     "LeadExportRecord",
     "LeadMergeHistory",
@@ -58,7 +75,10 @@ __all__ = [
     "LeadTag",
     "LeadTagAssignment",
     "Message",
+    "Notification",
     "OptOutRecord",
+    "Organization",
+    "OrganizationMember",
     "Permission",
     "ProviderCredentials",
     "ProviderEvent",
@@ -70,5 +90,9 @@ __all__ = [
     "SendingAccount",
     "SuppressionEntry",
     "SystemSetting",
+    "Team",
+    "TeamMember",
     "User",
+    "UserPreference",
+    "UserSession",
 ]

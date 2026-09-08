@@ -105,6 +105,26 @@ PERMISSIONS: list[tuple[str, str]] = [
     ("users.manage", "Create/modify users and roles"),
     ("roles.view", "View roles and permission matrix"),
     ("audit.view", "View audit log"),
+    # --- Phase 11: team / admin / enterprise ---------------------------------
+    ("teams.view", "View teams (Phase 11)"),
+    ("teams.create", "Create teams (Phase 11)"),
+    ("teams.edit", "Rename/deactivate teams (Phase 11)"),
+    ("teams.manage_members", "Add/remove team members and leads (Phase 11)"),
+    ("invitations.view", "View invitations (Phase 11)"),
+    ("invitations.create", "Invite users (Phase 11)"),
+    ("invitations.revoke", "Revoke pending invitations (Phase 11)"),
+    ("inbox.view", "View unified inbox conversations (Phase 11)"),
+    ("inbox.reply", "Reply in conversations (Phase 11)"),
+    ("inbox.assign", "Assign/reassign conversations (Phase 11)"),
+    ("leads.assign", "Assign/reassign leads, single and bulk (Phase 11)"),
+    ("apikeys.view", "View API keys (Phase 11)"),
+    ("apikeys.create", "Create API keys (Phase 11)"),
+    ("apikeys.revoke", "Revoke API keys (Phase 11)"),
+    ("sessions.view", "View active sessions (Phase 11)"),
+    ("sessions.revoke", "Revoke sessions (Phase 11)"),
+    ("security.view", "View security settings (Phase 11)"),
+    ("security.manage", "Modify security settings (Phase 11)"),
+    ("notifications.view", "View own in-app notifications (Phase 11)"),
 ]
 
 ROLE_PERMISSIONS: dict[str, list[str]] = {
@@ -136,6 +156,15 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "exports.view", "exports.download",
         "files.view", "files.create", "files.delete",
         "settings.view", "users.view", "users.manage", "roles.view", "audit.view",
+        # Phase 11 additions
+        "teams.view", "teams.create", "teams.edit", "teams.manage_members",
+        "invitations.view", "invitations.create", "invitations.revoke",
+        "inbox.view", "inbox.reply", "inbox.assign",
+        "leads.assign",
+        "apikeys.view", "apikeys.create", "apikeys.revoke",
+        "sessions.view", "sessions.revoke",
+        "security.view", "security.manage",
+        "notifications.view",
     ],
     ROLE_MANAGER: [
         "dashboard.view", "scraping.view",
@@ -159,6 +188,12 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "suppression.email.view", "suppression.email.manage",
         "exports.view", "exports.download",
         "files.view", "files.create", "files.delete",
+        # Phase 11 additions
+        "teams.view", "teams.manage_members",
+        "invitations.view",
+        "inbox.view", "inbox.reply", "inbox.assign",
+        "leads.assign",
+        "notifications.view",
     ],
     ROLE_OPERATOR: [
         "dashboard.view", "scraping.view", "scraping.run",
@@ -172,6 +207,9 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "campaigns.email.analytics", "suppression.email.view",
         "exports.view", "exports.download",
         "files.view", "files.create", "files.delete",
+        # Phase 11 additions
+        "inbox.view", "inbox.reply",
+        "notifications.view",
     ],
     ROLE_VIEWER: [
         "dashboard.view", "scraping.view", "leads.view",
@@ -183,6 +221,9 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "campaigns.email.analytics", "suppression.email.view",
         "exports.view", "files.view",
         "roles.view",
+        # Phase 11 additions
+        "inbox.view",
+        "notifications.view",
     ],
 }
 

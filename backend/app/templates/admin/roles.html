@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Roles &amp; Permissions — Admin — QBIT Connect{% endblock %}
+{% block nav_admin_roles %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>ROLES &amp; PERMISSIONS</h1>
+    <p class="muted">The enforced capability matrix. This view is read-only by design — the matrix ships with the platform and is validated by tests on every release.</p>
+  </div>
+</div>
+
+<div class="card table-card">
+  <div class="table-scroll">
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th style="text-align:left">Permission</th>
+          {% for r in role_list %}
+          <th title="{{ user_counts.get(r, 0) }} user(s)">{{ r }}<div class="muted small">{{ user_counts.get(r, 0) }}u</div></th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in all_permissions %}
+        <tr>
+          <td>{{ p }}</td>
+          {% for r in role_list %}
+          <td>
+            {% if p in perms_by_role.get(r, []) %}
+            <span class="perm-yes">&#10003;</span>
+            {% else %}
+            <span class="perm-no">&#183;</span>
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

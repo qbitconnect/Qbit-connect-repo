@@ -143,8 +143,11 @@ class CampaignService:
         self, session: AsyncSession, *, status: str | None = None,
         channel: str | None = None, search: str | None = None,
         page: int = 1, page_size: int = 25,
+        extra_filter=None,  # Phase 11: visibility clause
     ) -> tuple[list[Campaign], int]:
         query = select(Campaign)
+        if extra_filter is not None:
+            query = query.where(extra_filter)
         if status:
             query = query.where(Campaign.status == status.upper())
         if channel:

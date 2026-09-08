@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Teams — Admin — QBIT Connect{% endblock %}
+{% block nav_admin_teams %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>TEAMS</h1>
+    <p class="muted">Group people for visibility scopes and lead assignment. Names are examples — create the teams your org needs.</p>
+  </div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+{% if can_create %}
+<div class="card">
+  <h2 style="margin:0 0 12px">Create team</h2>
+  <form method="post" action="/admin/teams" class="toolbar" style="align-items:flex-end">
+    <label style="display:grid;gap:4px"><span class="muted small">NAME</span>
+      <input type="text" name="name" required maxlength="200" placeholder="e.g. Sales Outreach">
+    </label>
+    <label style="display:grid;gap:4px"><span class="muted small">DESCRIPTION</span>
+      <input type="text" name="description" maxlength="500" placeholder="Optional">
+    </label>
+    <button class="btn btn-primary" type="submit">Create</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="card table-card" style="margin-top:18px">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Team</th><th>Slug</th><th>Status</th><th>Members</th><th></th></tr></thead>
+      <tbody>
+        {% for t in teams %}
+        <tr>
+          <td><a href="/admin/teams/{{ t.id }}"><strong>{{ t.name }}</strong></a>
+            {% if t.description %}<div class="muted small">{{ t.description }}</div>{% endif %}
+          </td>
+          <td class="mono muted">{{ t.slug }}</td>
+          <td><span class="badge badge-{{ 'active' if t.is_active else 'inactive' }}">{{ 'ACTIVE' if t.is_active else 'INACTIVE' }}</span></td>
+          <td class="mono">{{ t.members }}</td>
+          <td><a class="btn btn-sm btn-ghost" href="/admin/teams/{{ t.id }}">Open</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="center muted" style="padding:32px">No teams yet.{% if can_create %} Create your first team above.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}API key created — Admin — QBIT Connect{% endblock %}
+{% block nav_admin_keys %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>API KEY CREATED</h1>
+    <p class="muted">“{{ key_name }}” with scopes: {{ key_scopes | join(', ') }}</p>
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 10px">Copy your key — shown ONLY now</h2>
+  <div class="link-once">{{ key_plain }}</div>
+  <p class="muted small">
+    Use it as a Bearer token: <span class="mono">Authorization: Bearer {{ key_plain[:12] }}…</span>.
+    Only a SHA-256 hash of the secret is stored — this value can never be recovered.
+    Keys are limited to their selected scopes and never inherit admin capabilities.
+  </p>
+  <div class="head-actions" style="margin-top:14px">
+    <a class="btn btn-primary" href="/admin/api-keys">Back to API keys</a>
+  </div>
+</div>
+{% endblock %}

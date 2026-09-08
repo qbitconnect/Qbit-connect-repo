@@ -263,6 +263,7 @@ class LeadWorkspaceService:
         include_archived: bool = False,
         include_merged: bool = False,
         ids: list[uuid.UUID] | None = None,
+        extra_filter=None,  # Phase 11: visibility clause from AuthorizationService
     ) -> tuple[list[Lead], int]:
         query = select(Lead)
         if not include_merged:
@@ -279,6 +280,8 @@ class LeadWorkspaceService:
                 query = query.where(condition)
         if filters:
             query = query.where(_filters.build_filter_condition(filters))
+        if extra_filter is not None:
+            query = query.where(extra_filter)
 
         total = await session.scalar(select(func.count()).select_from(query.subquery()))
         order = _filters.build_order_by(sort)

@@ -102,6 +102,7 @@ class ScrapeJob(Base):
     lease_owner: Mapped[str | None] = mapped_column(String(100), nullable=True)
     deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = timestamp_columns()[0]
     updated_at: Mapped[datetime] = timestamp_columns()[1]
 
@@ -208,6 +209,10 @@ class Lead(Base):
         Index("ix_leads_updated_at", "updated_at"),
         Index("ix_leads_import_batch", "import_batch_id"),
         Index("ix_leads_merged_into", "merged_into_id"),
+        # --- Phase 11: tenancy + assignment ---------------------------------
+        Index("ix_leads_organization", "organization_id"),
+        Index("ix_leads_assigned_user", "assigned_user_id"),
+        Index("ix_leads_assigned_team", "assigned_team_id"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -265,6 +270,10 @@ class Lead(Base):
     merged_into_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    # --- Phase 11: tenancy + assignment ------------------------------------------
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    assigned_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    assigned_team_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = timestamp_columns()[0]
     updated_at: Mapped[datetime] = timestamp_columns()[1]
 
@@ -310,6 +319,9 @@ class Lead(Base):
             "merged_into_id": str(self.merged_into_id) if self.merged_into_id else None,
             "archived_at": self.archived_at.isoformat() if self.archived_at else None,
             "last_seen_at": self.last_seen_at.isoformat() if self.last_seen_at else None,
+            "assigned_user_id": str(self.assigned_user_id) if self.assigned_user_id else None,
+            "assigned_team_id": str(self.assigned_team_id) if self.assigned_team_id else None,
+            "organization_id": str(self.organization_id) if self.organization_id else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

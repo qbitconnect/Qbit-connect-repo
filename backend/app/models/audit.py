@@ -21,10 +21,14 @@ class AuditLog(Base):
     __table_args__ = (
         Index("ix_audit_logs_created_at", "created_at"),
         Index("ix_audit_logs_actor_action", "actor_user_id", "action"),
+        # --- Phase 11: audit center search ----------------------------------
+        Index("ix_audit_logs_organization", "organization_id"),
+        Index("ix_audit_logs_resource", "resource_type", "resource_id"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     action: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     resource_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -42,6 +46,7 @@ class AuditLog(Base):
         return {
             "id": str(self.id),
             "actor_user_id": str(self.actor_user_id) if self.actor_user_id else None,
+            "organization_id": str(self.organization_id) if self.organization_id else None,
             "action": self.action,
             "resource_type": self.resource_type,
             "resource_id": self.resource_id,

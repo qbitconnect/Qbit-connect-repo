@@ -43,6 +43,27 @@ def generate_password(length: int = 16) -> str:
     return secrets.token_urlsafe(max(length, 12))
 
 
+def new_api_key_secret() -> tuple[str, str, str]:
+    """Generate (full_key, prefix, secret). Only the SHA-256 of the secret is
+    stored server-side; the full key is shown exactly once at creation."""
+    secret = secrets.token_urlsafe(24)
+    prefix8 = secrets.token_hex(4)  # 8 hex chars for prefix lookup
+    prefix = f"qbit_{prefix8}"
+    full_key = f"{prefix}_{secret}"
+    return full_key, prefix, secret
+
+
+def hash_token_secret(secret: str) -> str:
+    """SHA-256 for high-entropy random token secrets (API keys / invitations).
+
+    Constant-time comparison happens on the DB-looked-up row; plaintext secrets
+    are never stored. (argon2 is reserved for human passwords.)
+    """
+    import hashlib
+
+    return hashlib.sha256(secret.encode("utf-8")).hexdigest()
+
+
 def _secret(secret_key: str) -> str:
     if not secret_key:
         raise AuthFailedError("Server signing key is not configured")

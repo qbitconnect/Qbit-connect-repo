@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}API Keys — Admin — QBIT Connect{% endblock %}
+{% block nav_admin_keys %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>API KEYS</h1>
+    <p class="muted">Scoped machine access. Keys are stored hashed, never grant admin powers and can be revoked instantly.</p>
+  </div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+{% if can_create %}
+<div class="card">
+  <h2 style="margin:0 0 12px">Create API key</h2>
+  <form method="post" action="/admin/api-keys" class="toolbar" style="align-items:flex-end">
+    <label style="display:grid;gap:4px"><span class="muted small">NAME</span>
+      <input type="text" name="name" required maxlength="120" placeholder="e.g. CRM sync (read-only)">
+    </label>
+    <label style="display:grid;gap:4px"><span class="muted small">SCOPES</span>
+      <select name="scopes" multiple size="5" style="min-width:220px" required>
+        {% for s in all_scopes %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+      </select>
+    </label>
+    <button class="btn btn-primary" type="submit">Create</button>
+  </form>
+  <p class="muted small" style="margin-top:8px">Hold Ctrl/Cmd for multiple scopes. The plaintext key is shown exactly once at creation.</p>
+</div>
+{% endif %}
+
+<div class="card table-card" style="margin-top:18px">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Name</th><th>Prefix</th><th>Scopes</th><th>Status</th><th>Last used</th><th>Owner</th><th>Created</th>{% if can_revoke %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+        {% for k in keys %}
+        <tr>
+          <td><strong>{{ k.name }}</strong></td>
+          <td class="mono">{{ k.prefix }}…</td>
+          <td>{% for s in k.scopes %}<span class="badge">{{ s }}</span> {% endfor %}</td>
+          <td><span class="badge badge-{{ k.status | lower }}">{{ k.status }}</span></td>
+          <td class="muted small">{{ k.last_used }}</td>
+          <td class="muted small">{{ k.owner }}</td>
+          <td class="muted small">{{ k.created }}</td>
+          {% if can_revoke %}
+          <td>
+            {% if k.status == 'ACTIVE' %}
+            <form method="post" action="/admin/api-keys/{{ k.id }}/revoke">
+              <button class="btn btn-sm btn-ghost" type="submit">Revoke</button>
+            </form>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="center muted" style="padding:32px">No API keys yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

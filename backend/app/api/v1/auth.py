@@ -1,8 +1,9 @@
 """Auth endpoints — foundation (Brief §9, §10).
 
 Login issues short-lived HS256 bearer tokens signed with QBIT_SECRET_KEY.
-Server-side sessions/revocation arrive in the dedicated auth phase (documented
-in docs/25 — no fake functionality).
+Phase 11: every login now registers a revocable server-side session (jti-keyed);
+logout revokes it. Pre-Phase-11 tokens stay valid unless explicitly revoked via
+users.tokens_revoked_before (backward compatibility).
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from app.api.deps import (
     get_client_ip,
     get_user_agent,
 )
+from app.core import security as jwt_utils
 from app.core.errors import AuthFailedError, PermissionDeniedError, RateLimitedError
 from app.core.logging import get_logger, log_with
 from app.core.security import (
@@ -25,6 +27,7 @@ from app.core.security import (
     password_needs_rehash,
     verify_password,
 )
+from app.models.enterprise import UserSession, UserStatus
 from app.models.user import User
 from app.schemas.auth import LoginRequest, LogoutResponse, TokenResponse
 from app.services import rbac as rbac_service
@@ -77,6 +80,13 @@ async def login(
 
     if not user.is_active:
         raise PermissionDeniedError("Account is deactivated")
+    if user.effective_status in (
+        UserStatus.SUSPENDED.value,
+        UserStatus.DEACTIVATED.value,
+    ):
+        raise PermissionDeniedError("Account is suspended or deactivated")
+    if user.effective_status == UserStatus.INVITED.value:
+        raise PermissionDeniedError("Invitation not accepted yet")
 
     token, expires_at = create_access_token(
         subject=str(user.id),
@@ -88,6 +98,20 @@ async def login(
         from app.core.security import hash_password
 
         user.password_hash = hash_password(payload.password)
+
+    # Phase 11: register a revocable server-side session keyed by the token jti
+    jti = jwt_utils.decode_access_token(token, secret_key=settings.QBIT_SECRET_KEY).get("jti")
+    if jti:
+        session.add(
+            UserSession(
+                user_id=user.id,
+                jti=jti,
+                ip_address=ip,
+                user_agent=get_user_agent(request),
+                expires_at=expires_at,
+                last_seen_at=datetime.now(timezone.utc),
+            )
+        )
     await session.commit()
 
     await request.app.state.audit.log(
@@ -125,8 +149,24 @@ async def logout(
     user: CurrentUser,
     session: DbSession,
 ):
-    """Audit-only logout: stateless tokens are discarded client-side.
-    Token revocation arrives with server-side sessions (docs/25 — honest scope)."""
+    """Revoke the current server-side session (Phase 11) and audit the logout.
+    Pre-Phase-11 stateless tokens are discarded client-side as before."""
+    credentials = request.headers.get("authorization", "")
+    token = credentials[7:] if credentials.lower().startswith("bearer ") else ""
+    if token and not token.startswith("qbit_"):
+        try:
+            payload = jwt_utils.decode_access_token(
+                token, secret_key=request.app.state.settings.QBIT_SECRET_KEY
+            )
+            jti = payload.get("jti")
+            if jti:
+                row = await session.scalar(select(UserSession).where(UserSession.jti == jti))
+                if row is not None and row.revoked_at is None:
+                    row.revoked_at = datetime.now(timezone.utc)
+                    row.revoked_reason = "LOGOUT"
+        except Exception:  # noqa: BLE001 — logout must never fail on token issues
+            pass
+    await session.commit()
     await request.app.state.audit.log(
         session,
         action="user.logout",
@@ -136,4 +176,4 @@ async def logout(
         ip_address=get_client_ip(request),
         user_agent=get_user_agent(request),
     )
-    return LogoutResponse(message="Token discarded client-side; logout audited")
+    return LogoutResponse(message="Session revoked; logout audited")

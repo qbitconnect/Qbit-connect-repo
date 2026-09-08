@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Security — Admin — QBIT Connect{% endblock %}
+{% block nav_admin_sec %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>SECURITY</h1>
+    <p class="muted">Sessions and platform security settings. Revoking a session blocks its token immediately.</p>
+  </div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+{% if can_manage %}
+<div class="card">
+  <h2 style="margin:0 0 12px">Security settings</h2>
+  <form method="post" action="/admin/security" class="toolbar" style="align-items:flex-end">
+    <label style="display:grid;gap:4px"><span class="muted small">INVITATION EXPIRY (HOURS)</span>
+      <input type="number" name="invitation_expiry_hours" min="1" max="720" value="{{ settings.invitation_expiry_hours }}">
+    </label>
+    <label style="display:grid;gap:4px"><span class="muted small">SESSION TTL (MINUTES)</span>
+      <input type="number" name="session_ttl_minutes" min="5" value="{{ settings.session_ttl_minutes }}">
+    </label>
+    <button class="btn btn-primary" type="submit">Save</button>
+  </form>
+  <div class="kv-grid" style="margin-top:14px">
+    <div class="kv"><span class="k">PASSWORD MIN LENGTH</span><span class="v">{{ settings.password_min_length }}</span></div>
+    <div class="kv"><span class="k">LOGIN RATE LIMIT</span><span class="v">{{ settings.login_rate_limit_per_min }}/min</span></div>
+  </div>
+  <p class="muted small" style="margin-top:8px">Password policy and login rate limits are environment-managed (QBIT_ settings) — shown here for visibility.</p>
+</div>
+{% endif %}
+
+<div class="card table-card" style="margin-top:18px">
+  <h2 style="margin:12px 16px">Recent sessions</h2>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>User</th><th>IP</th><th>Status</th><th>Created</th><th>Last seen</th><th>Expires</th>{% if can_revoke %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+        {% for s in sessions %}
+        <tr>
+          <td>
+            <a href="/admin/users/{{ s.user_id }}">{{ s.user }}</a>
+            {% if s.is_mine %}<span class="muted small">(you)</span>{% endif %}
+          </td>
+          <td class="mono small">{{ s.ip }}</td>
+          <td><span class="badge badge-{{ s.status | lower }}">{{ s.status }}</span></td>
+          <td class="muted small">{{ s.created }}</td>
+          <td class="muted small">{{ s.last_seen }}</td>
+          <td class="muted small">{{ s.expires }}</td>
+          {% if can_revoke %}
+          <td>
+            {% if s.status == 'ACTIVE' %}
+            <form method="post" action="/admin/sessions/{{ s.id }}/revoke">
+              <button class="btn btn-sm btn-ghost" type="submit">Revoke</button>
+            </form>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="center muted" style="padding:28px">No sessions recorded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

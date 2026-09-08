@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{{ target.email }} — Admin — QBIT Connect{% endblock %}
+{% block nav_admin_users %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ target.full_name or target.email }}</h1>
+    <p class="muted">{{ target.email }} · <span class="badge badge-{{ target_status | lower }}">{{ target_status }}</span></p>
+  </div>
+  <div class="head-actions"><a class="btn btn-ghost" href="/admin/users">Back to users</a></div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+<div class="kv-grid">
+  <div class="kv"><span class="k">USER ID</span><span class="v mono">{{ target.id }}</span></div>
+  <div class="kv"><span class="k">CREATED</span><span class="v">{{ fmt(target.created_at) }}</span></div>
+  <div class="kv"><span class="k">ACTIVE SESSIONS</span><span class="v">{{ active_sessions }}</span></div>
+  <div class="kv"><span class="k">ASSIGNED LEADS</span><span class="v">{{ assigned_leads }}</span></div>
+  <div class="kv"><span class="k">TEAMS</span><span class="v">
+    {% for t in teams %}{{ t.name }}{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}
+  </span></div>
+  <div class="kv"><span class="k">ORGANIZATION</span><span class="v">{{ org.name }}</span></div>
+</div>
+
+{% if can_manage %}
+<div class="card" style="margin-top:18px">
+  <h2 style="margin:0 0 12px">Roles</h2>
+  {% if is_self %}
+  <p class="muted small">You cannot change your own roles (self-approval protection).</p>
+  {% else %}
+  <form method="post" action="/admin/users/{{ target.id }}/roles">
+    <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px">
+      {% for r in all_roles %}
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" name="roles" value="{{ r.code }}" {% if r.code in role_codes %}checked{% endif %}>
+        <strong>{{ r.code }}</strong>
+        <span class="muted small">{{ r.description }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {% if 'SUPER_ADMIN' in role_codes and total_super_admins <= 1 %}
+    <p class="muted small">This is the last SUPER_ADMIN — demoting is blocked by the platform guard.</p>
+    {% endif %}
+    <button class="btn btn-primary" type="submit"
+            {% if 'SUPER_ADMIN' in role_codes %}onclick="return confirm('Changing SUPER_ADMIN roles can affect platform access. Continue?')"{% endif %}>
+      Save roles
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="card" style="margin-top:18px">
+  <h2 style="margin:0 0 12px">Account status</h2>
+  {% if is_self %}
+  <p class="muted small">You cannot disable your own account.</p>
+  {% else %}
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <form method="post" action="/admin/users/{{ target.id }}/status">
+      <input type="hidden" name="status" value="ACTIVE">
+      <button class="btn btn-sm" type="submit">Activate</button>
+    </form>
+    <form method="post" action="/admin/users/{{ target.id }}/status">
+      <input type="hidden" name="status" value="SUSPENDED">
+      <button class="btn btn-sm btn-ghost" type="submit">Suspend</button>
+    </form>
+    <form method="post" action="/admin/users/{{ target.id }}/status"
+          {% if 'SUPER_ADMIN' in role_codes and total_super_admins <= 1 %}title="Blocked — last SUPER_ADMIN"{% endif %}>
+      <input type="hidden" name="status" value="DEACTIVATED">
+      <button class="btn btn-sm btn-ghost" type="submit"
+              onclick="return confirm('Deactivate this account and revoke all sessions?')"
+              {% if 'SUPER_ADMIN' in role_codes and total_super_admins <= 1 %}disabled{% endif %}>
+        Deactivate
+      </button>
+    </form>
+  </div>
+  <p class="muted small" style="margin-top:10px">Deactivation revokes all sessions immediately and blocks login. Operational history is preserved — accounts are never hard-deleted.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

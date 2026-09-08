@@ -93,6 +93,16 @@ def _perms(request: Request) -> set[str]:
     return getattr(request.state, "ui_permissions", None) or set()
 
 
+async def _authz_resolve(session, user):
+    """Phase 11: resolve the member context for UI handlers (org stamping)."""
+    from app.services import authorization as _authz
+    from app.services import rbac as _rbac
+
+    return await _authz.resolve_context(
+        session, user, await _rbac.load_user_permissions(session, user.id)
+    )
+
+
 def _filters_from_query(
     *, status: str, city: str, state: str, country: str, tag: str,
     has_email: str, has_phone: str, has_website: str,
@@ -482,9 +492,17 @@ async def import_upload_submit(
             url="/leads/import?err=Unsupported+format+(CSV,+XLSX,+JSON,+JSONL)", status_code=303
         )
     try:
+        # Phase 11 §24: imports are stamped with the caller's organization
+        from app.services import authorization as _authz
+        from app.services import rbac as _rbac
+
+        _ctx = await _authz.resolve_context(
+            session, user, await _rbac.load_user_permissions(session, user.id)
+        )
         record = await files.store(
             session, content=file.file, filename=file.filename,
             mime_type=file.content_type, category="IMPORT", created_by=user.id,
+            organization_id=_ctx.organization_id,
             max_bytes=settings.QBIT_MAX_UPLOAD_MB * 1024 * 1024,
         )
         batch = await service.create_batch(
@@ -855,6 +873,9 @@ async def export_submit(
             session, format_name=format_name, scope=scope,
             filters=filter_spec, search=search or None,
             ids=selected_ids, lead_id=single_lead_id, fields=field_list, created_by=user.id,
+            organization_id=(
+                await _authz_resolve(session, user)
+            ).organization_id,
         )
         estimated = await service.count(session, record)
         if estimated <= request.app.state.settings.QBIT_LEADS_INLINE_EXPORT_MAX_ROWS:

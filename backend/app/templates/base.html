@@ -40,7 +40,63 @@
       </a>
       <span class="nav-item nav-disabled" title="Planned for a later phase">Inbox</span>
       <span class="nav-item nav-disabled" title="Planned for a later phase">Analytics</span>
-      <span class="nav-item nav-disabled" title="Planned for a later phase">Settings</span>
+      {% set admin_nav = ['users.view','teams.view','roles.view','invitations.view','connections.view','apikeys.view','security.view','audit.view','settings.view'] %}
+      {% if perms and admin_nav | select('in', perms) | list %}
+      <div class="nav-section">ADMIN</div>
+      {% if 'users.view' in perms %}
+      <a href="/admin" class="nav-item {% block nav_admin %}{% endblock %}">
+        <span class="nav-ico">&#9873;</span> Overview
+      </a>
+      <a href="/admin/users" class="nav-item {% block nav_admin_users %}{% endblock %}">
+        <span class="nav-ico">&#9786;</span> Users
+      </a>
+      {% endif %}
+      {% if 'teams.view' in perms %}
+      <a href="/admin/teams" class="nav-item {% block nav_admin_teams %}{% endblock %}">
+        <span class="nav-ico">&#9975;</span> Teams
+      </a>
+      {% endif %}
+      {% if 'roles.view' in perms %}
+      <a href="/admin/roles" class="nav-item {% block nav_admin_roles %}{% endblock %}">
+        <span class="nav-ico">&#9919;</span> Roles
+      </a>
+      {% endif %}
+      {% if 'invitations.view' in perms %}
+      <a href="/admin/invitations" class="nav-item {% block nav_admin_inv %}{% endblock %}">
+        <span class="nav-ico">&#9997;</span> Invitations
+      </a>
+      {% endif %}
+      {% if 'connections.view' in perms %}
+      <a href="/admin/connections" class="nav-item {% block nav_admin_conn %}{% endblock %}">
+        <span class="nav-ico">&#8646;</span> Access
+      </a>
+      {% endif %}
+      {% if 'apikeys.view' in perms %}
+      <a href="/admin/api-keys" class="nav-item {% block nav_admin_keys %}{% endblock %}">
+        <span class="nav-ico">&#128273;</span> API Keys
+      </a>
+      {% endif %}
+      {% if 'security.view' in perms %}
+      <a href="/admin/security" class="nav-item {% block nav_admin_sec %}{% endblock %}">
+        <span class="nav-ico">&#9965;</span> Security
+      </a>
+      {% endif %}
+      {% if 'audit.view' in perms %}
+      <a href="/admin/audit" class="nav-item {% block nav_admin_audit %}{% endblock %}">
+        <span class="nav-ico">&#9998;</span> Audit Logs
+      </a>
+      {% endif %}
+      {% if 'settings.view' in perms %}
+      <a href="/admin/settings" class="nav-item {% block nav_admin_settings %}{% endblock %}">
+        <span class="nav-ico">&#9881;</span> Org Settings
+      </a>
+      {% endif %}
+      {% endif %}
+      {% if user %}
+      <a href="/notifications" class="nav-item {% block nav_notifications %}{% endblock %}">
+        <span class="nav-ico">&#9993;</span> Notifications
+      </a>
+      {% endif %}
     </nav>
     <div class="sidebar-foot">
       {% if user %}

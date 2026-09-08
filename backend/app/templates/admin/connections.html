@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Access — Admin — QBIT Connect{% endblock %}
+{% block nav_admin_conn %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>CONNECTION ACCESS</h1>
+    <p class="muted">Who may USE each connection or sender account. Credentials are write-only — they can never be viewed or exported here.</p>
+  </div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+<div class="card table-card">
+  <h2 style="margin:12px 16px">Provider connections</h2>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Name</th><th>Provider</th><th>Status</th><th>Access scope</th>{% if can_edit %}<th>Change</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for c in conns %}
+        <tr>
+          <td><strong>{{ c.display_name }}</strong></td>
+          <td class="mono">{{ c.provider_id }}</td>
+          <td><span class="badge badge-{{ c.status | lower }}">{{ c.status }}</span></td>
+          <td><span class="badge">{{ (c.access_scope or 'ORGANIZATION') }}</span>
+            {% if c.team_id %}<div class="muted small">team-bound</div>{% endif %}</td>
+          {% if can_edit %}
+          <td>
+            <form method="post" action="/admin/connections/connection/{{ c.id }}/scope" class="toolbar" style="gap:6px">
+              <select name="access_scope">
+                {% for s in scopes %}<option value="{{ s }}" {% if (c.access_scope or 'ORGANIZATION') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+              </select>
+              <select name="team_id">
+                <option value="">(team for TEAM scope)</option>
+                {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+              </select>
+              <button class="btn btn-sm" type="submit">Set</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="center muted" style="padding:24px">No provider connections.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card table-card" style="margin-top:18px">
+  <h2 style="margin:12px 16px">Sender accounts</h2>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Name</th><th>Channel</th><th>Identifier</th><th>Health</th><th>Access scope</th>{% if can_edit %}<th>Change</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for a in accounts %}
+        <tr>
+          <td><strong>{{ a.name }}</strong></td>
+          <td>{{ a.channel }}</td>
+          <td class="mono muted small">{{ a.display_identifier or a.identifier }}</td>
+          <td><span class="badge badge-{{ a.health_status | lower }}">{{ a.health_status }}</span></td>
+          <td><span class="badge">{{ (a.access_scope or 'ORGANIZATION') }}</span>
+            {% if a.team_id %}<div class="muted small">team-bound</div>{% endif %}</td>
+          {% if can_edit %}
+          <td>
+            <form method="post" action="/admin/connections/account/{{ a.id }}/scope" class="toolbar" style="gap:6px">
+              <select name="access_scope">
+                {% for s in scopes %}<option value="{{ s }}" {% if (a.access_scope or 'ORGANIZATION') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+              </select>
+              <select name="team_id">
+                <option value="">(team for TEAM scope)</option>
+                {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+              </select>
+              <button class="btn btn-sm" type="submit">Set</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="center muted" style="padding:24px">No sender accounts.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

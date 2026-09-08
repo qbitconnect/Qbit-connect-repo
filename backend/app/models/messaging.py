@@ -171,6 +171,10 @@ class Conversation(Base):
         Index("ix_conversations_account_phone", "sending_account_id", "contact_phone"),
         Index("ix_conversations_lead", "lead_id"),
         Index("ix_conversations_last_message", "last_message_at"),
+        # --- Phase 11: tenancy + assignment ---------------------------------
+        Index("ix_conversations_organization", "organization_id"),
+        Index("ix_conversations_assigned_user", "assigned_user_id"),
+        Index("ix_conversations_assigned_team", "assigned_team_id"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -189,6 +193,10 @@ class Conversation(Base):
     #: normalized email address used for lead matching on the EMAIL channel
     contact_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=ConversationStatus.PENDING)
+    # --- Phase 11: tenancy + assignment ------------------------------------------
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    assigned_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    assigned_team_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = timestamp_columns()[0]
     updated_at: Mapped[datetime] = timestamp_columns()[1]
@@ -203,6 +211,9 @@ class Conversation(Base):
             "contact_phone": self.contact_phone,
             "contact_email": self.contact_email,
             "status": self.status,
+            "assigned_user_id": str(self.assigned_user_id) if self.assigned_user_id else None,
+            "assigned_team_id": str(self.assigned_team_id) if self.assigned_team_id else None,
+            "organization_id": str(self.organization_id) if self.organization_id else None,
             "last_message_at": self.last_message_at.isoformat() if self.last_message_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,

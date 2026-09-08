@@ -1,11 +1,12 @@
 # QBIT — Self-Hosted Enterprise Data & Marketing Operations Platform
 
-> **Status: PHASE 7 COMPLETE — Email Marketing Provider Integration on the
-> Phase 2/3/4/5/6 foundation. 536 tests passing. Real SMTP (TLS/STARTTLS) + generic
-> transactional Email API adapters + multi-sender accounts + encrypted credential vault +
-> email templates (sanitized HTML + plain text + real unsubscribe) + signed idempotent
-> email webhooks + bounce/complaint suppression + opt-in open/click tracking +
-> reply-tracking foundation + email analytics + /connections/email UI.**
+> **Status: PHASE 11 COMPLETE — Team / Admin / Enterprise engine on Phases 0–8.
+> 565 tests passing. Multi-user organizations + teams + invitations (hashed one-time
+> tokens) + centralized AuthorizationService with 4-level visibility scopes (backend-
+> enforced) + lead/conversation assignment with immutable history + connection access
+> scopes + API keys (hashed, scoped, one-time display) + revocable server-side sessions +
+> immutable audit center + admin console UI — on top of the Phase 0–7 stack (scraper
+> actor engine, lead workspace, marketing engine, WhatsApp + Email providers).**
 
 QBIT is a self-hosted **admin/operations portal** — not a marketing website — for
 managing: Data Scraping · Lead/Data Management · Multi-channel Marketing ·
@@ -23,11 +24,11 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 |---|---|
 | Repo | `qbitconnect/Qbit-connect-repo` (private) |
 | Audit result | Empty repository — greenfield build (see `docs/01-repository-audit.md`) |
-| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) + Phase 5 (marketing engine foundation) + Phase 6 (WhatsApp Business provider integration) + Phase 7 (email marketing provider integration) complete — see `docs/25`–`29` completion/architecture reports + `docs/whatsapp-*.md` + `docs/email-*.md` |
+| Phase | Phases 0–8 complete (architecture, core DB, scraper engine, lead workspace, marketing engine, WhatsApp, Email, deploy kit) + Phase 11 (team/admin/enterprise engine) — see `docs/25`–`27`, `docs/28-team-admin-enterprise.md`, `PHASE11_AUDIT.md` |
 | Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine + lead data workspace + marketing engine — `backend/` |
-| Version | `0.7.0` (backend/app/__init__.py) |
-| Tests | 536 passing (`backend/tests`, isolated per-test database) |
-| Next step | Later phases — SMS provider, full inbound-mailbox inbox UI, analytics dashboards |
+| Version | `0.11.0` (backend/app/__init__.py) |
+| Tests | 565 passing (`backend/tests`, isolated per-test database) |
+| Next step | Later phases — SMS provider, full inbox UI, analytics dashboards, Phase 12 production hardening |
 
 ## Documentation Index
 
