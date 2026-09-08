@@ -58,6 +58,13 @@ class DataJobWorker:
             (ImportBatch, ImportStatus.FAILED.value, "import"),
             (LeadExportRecord, ExportStatus.FAILED.value, "export"),
         ):
+            # ImportBatch has NO `error` column (only error_summary/error_file_id);
+            # LeadExportRecord does. Setting a non-existent column raises
+            # CompileError("Unconsumed column names: error") and killed the whole
+            # sweep every worker cycle — only set it where the column exists.
+            values: dict = {"status": failed, "completed_at": datetime.now(timezone.utc)}
+            if hasattr(model, "error"):
+                values["error"] = f"{label} worker lease expired (crash?)"
             await session.execute(
                 update(model)
                 .where(
@@ -65,7 +72,6 @@ class DataJobWorker:
                     model.leased_at.isnot(None),
                     model.leased_at < cutoff,
                 )
-                .values(status=failed, error=f"{label} worker lease expired (crash?)",
-                        completed_at=datetime.now(timezone.utc))
+                .values(**values)
             )
         await session.commit()
