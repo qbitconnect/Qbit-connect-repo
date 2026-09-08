@@ -40,6 +40,24 @@ from app.services.scraping.engine import JobEngine
 router = APIRouter(prefix="/scrape-jobs", tags=["scrape-jobs"])
 
 
+async def _ctx_for(session, user):
+    """Resolve (or reuse) the Phase 11 member context for this request."""
+    from app.services import authorization as authz
+    from app.services import rbac as rbac_service
+
+    perms = await rbac_service.load_user_permissions(session, user.id)
+    return await authz.resolve_context(session, user, perms)
+
+
+async def _visible_job(session, job_id: uuid.UUID, user):
+    """IDOR-safe job fetch: organization + visibility scope, 404 on foreign."""
+    from app.services import authorization as authz
+    from app.models.scrape import ScrapeJob
+
+    ctx = await _ctx_for(session, user)
+    return await authz.get_visible_or_404(session, ScrapeJob, job_id, ctx)
+
+
 def _engine(request: Request, session) -> JobEngine:
     return JobEngine(session, request.app.state.queue)
 
@@ -70,8 +88,20 @@ async def list_jobs(
         page=page,
         page_size=page_size,
     )
+    # Phase 11 §9: organization + visibility scope, enforced backend-side
+    from app.services import authorization as authz
+
+    ctx = await _ctx_for(session, _)
+
+    def _in_tenant(job) -> bool:
+        org = getattr(job, "organization_id", None)
+        if org is not None and org != ctx.organization_id:
+            return False
+        return authz._passes_scope(job, ctx)
+
+    visible = [j for j in jobs if _in_tenant(j)]
     return ScrapeJobListOut(
-        data=[ScrapeJobOut(**job.to_public_dict()) for job in jobs],
+        data=[ScrapeJobOut(**job.to_public_dict()) for job in visible],
         meta=PageMeta(page=page, page_size=page_size, total=total).model_dump(),
     )
 
@@ -81,10 +111,9 @@ async def get_job(
     job_id: uuid.UUID,
     request: Request,
     session: DbSession,
-    _: Annotated[User, Depends(require_permission("scraping.view"))],
+    user: Annotated[User, Depends(require_permission("scraping.view"))],
 ) -> ScrapeJobActionOut:
-    engine = _engine(request, session)
-    job = await _job_or_404(engine, job_id)
+    job = await _visible_job(session, job_id, user)
     return ScrapeJobActionOut(data=ScrapeJobOut(**job.to_public_dict()))
 
 
@@ -96,8 +125,8 @@ async def _control_action(
     action: str,
     permission: str,
 ):
+    job = await _visible_job(session, job_id, user)
     engine = _engine(request, session)
-    job = await _job_or_404(engine, job_id)
     method = getattr(engine, action)
     updated = await method(job)
     audit: AuditService = request.app.state.audit
@@ -165,8 +194,7 @@ async def job_logs(
 ) -> ScrapeJobEventsOut:
     from datetime import datetime
 
-    engine = _engine(request, session)
-    await _job_or_404(engine, job_id)
+    job = await _visible_job(session, job_id, _)
     query = (
         ScrapeJobEvent.__table__.select()
         .where(ScrapeJobEvent.job_id == job_id)
@@ -207,8 +235,7 @@ async def job_results(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
 ) -> LeadListOut:
-    engine = _engine(request, session)
-    job = await _job_or_404(engine, job_id)
+    job = await _visible_job(session, job_id, _)
     leads_service = LeadService()
     leads, total = await leads_service.list_for_job(
         session, job.id, page=page, page_size=page_size
@@ -230,8 +257,7 @@ async def export_results(
     """Export handoff to the Phase 2 ExportService (brief §37 — no duplicate
     export implementation). Renders the job's leads and stores the file in
     the EXPORT category; clients download via the Phase 2 files API."""
-    engine = _engine(request, session)
-    job = await _job_or_404(engine, job_id)
+    job = await _visible_job(session, job_id, user)
     if job.status not in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED):
         raise ValidationError("Job has not finished; results are not final yet")
 
@@ -269,12 +295,14 @@ async def export_results(
 
     files_service = request.app.state.files
     exporter = ExportService(files_service)
+    _ctx11 = await _ctx_for(session, user)
     record = await exporter.export(
         session,
         format_name=format,
         rows=rows,
         base_name=f"scrape-job-{str(job.id)[:8]}-results",
         created_by=user.id,
+        organization_id=_ctx11.organization_id,
         metadata={"job_id": str(job.id), "actor_id": job.actor_id},
     )
 

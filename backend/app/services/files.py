@@ -39,6 +39,7 @@ class FileService:
         mime_type: str | None,
         category: str = FileCategory.OTHER.value,
         created_by: uuid.UUID | None = None,
+        organization_id: uuid.UUID | None = None,
         metadata: dict | None = None,
         max_bytes: int | None = None,
     ) -> FileRecord:
@@ -65,6 +66,7 @@ class FileService:
             storage_backend=self.storage.backend_name,
             category=category,
             created_by=created_by,
+            organization_id=organization_id,
             checksum_sha256=meta.checksum_sha256,
             metadata_json={**(metadata or {}), "original_name": filename},
         )
@@ -96,12 +98,15 @@ class FileService:
         page: int = 1,
         page_size: int = 25,
         include_deleted: bool = False,
+        extra_filter=None,
     ) -> tuple[list[FileRecord], int]:
         query = select(FileRecord)
         if not include_deleted:
             query = query.where(FileRecord.deleted_at.is_(None))
         if category:
             query = query.where(FileRecord.category == category)
+        if extra_filter is not None:
+            query = query.where(extra_filter)
         total = await session.scalar(select(func.count()).select_from(query.subquery()))
         rows = await session.execute(
             query.order_by(FileRecord.created_at.desc())

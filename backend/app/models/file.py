@@ -35,6 +35,7 @@ class FileRecord(Base):
     __tablename__ = "files"
     __table_args__ = (
         Index("ix_files_category_created", "category", "created_at"),
+        Index("ix_files_organization", "organization_id"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -48,6 +49,7 @@ class FileRecord(Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), nullable=True
     )  # nullable until auth exists; set from authenticated user
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = timestamp_columns()[0]
     updated_at: Mapped[datetime] = timestamp_columns()[1]
     metadata_json: Mapped[dict] = mapped_column(PortableJSON, nullable=False, default=dict)

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Audit Logs — Admin — QBIT Connect{% endblock %}
+{% block nav_admin_audit %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>AUDIT LOGS</h1>
+    <p class="muted">Append-only and immutable. Historical records can be searched but never edited or deleted from here.</p>
+  </div>
+</div>
+
+<form method="get" action="/admin/audit" class="toolbar">
+  <input type="text" name="action" value="{{ action }}" placeholder="Action contains… (e.g. login)" maxlength="200">
+  <input type="text" name="resource_type" value="{{ resource_type }}" placeholder="Resource type (e.g. lead)" maxlength="60">
+  <input type="text" name="actor" value="{{ actor }}" placeholder="Actor (email or name)" maxlength="320">
+  <select name="success">
+    <option value="">Any outcome</option>
+    <option value="ok" {% if success == 'ok' %}selected{% endif %}>Success</option>
+    <option value="failed" {% if success == 'failed' %}selected{% endif %}>Failures</option>
+  </select>
+  <button class="btn btn-primary" type="submit">Search</button>
+  <a class="btn btn-ghost" href="/admin/audit">Reset</a>
+</form>
+
+<div class="card table-card">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Time</th><th>Action</th><th>Resource</th><th>Resource ID</th><th>Actor</th><th>IP</th></tr></thead>
+      <tbody>
+        {% for e in logs %}
+        <tr>
+          <td class="muted small">{{ e.created }}</td>
+          <td class="mono {% if e.failed %}badge-error{% endif %}">{{ e.action }}</td>
+          <td>{{ e.resource_type or '—' }}</td>
+          <td class="mono muted">{{ e.resource_id }}</td>
+          <td class="mono muted small">{{ e.actor | string | truncate(8, true, '…') if e.actor else 'system' }}</td>
+          <td class="mono muted small">{{ e.ip }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="center muted" style="padding:32px">No audit entries match the filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if total > page_size %}
+<div class="pager">
+  {% for p in range(1, ((total + page_size - 1) // page_size) + 1) %}
+    {% if p <= page + 2 and p >= page - 2 %}
+      <a class="pager-item {% if p == page %}active{% endif %}"
+         href="/admin/audit?action={{ action }}&resource_type={{ resource_type }}&actor={{ actor }}&success={{ success }}&page={{ p }}">{{ p }}</a>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

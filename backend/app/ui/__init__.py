@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db
 from app.core.errors import QBITError
 from app.core.security import create_access_token, decode_access_token, verify_password
+from app.models.enterprise import Invitation
 from app.models.scrape import JobStatus
 from app.models.user import User
 from app.services.export import ExportService
@@ -122,6 +123,8 @@ def _ctx(request: Request, user: User | None, **extra) -> dict:
         "request": request,
         "user": user,
         "year": datetime.now(timezone.utc).year,
+        # Phase 11: nav gating (UI-only concern; the API enforces for real)
+        "perms": getattr(request.state, "ui_permissions", None) or set(),
         **extra,
     }
 
@@ -576,10 +579,17 @@ async def job_export(
         page += 1
 
     exporter = ExportService(request.app.state.files)
+    # Phase 11 §24: export files carry the caller's organization
+    from app.services import authorization as authz
+    from app.services import rbac as rbac_service
+
+    _perms = await rbac_service.load_user_permissions(session, user.id)
+    _ctx = await authz.resolve_context(session, user, _perms)
     record = await exporter.export(
         session, format_name=format, rows=rows,
         base_name=f"scrape-job-{str(job.id)[:8]}-results",
-        created_by=user.id, metadata={"job_id": str(job.id)},
+        created_by=user.id, organization_id=_ctx.organization_id,
+        metadata={"job_id": str(job.id)},
     )
     root = request.app.state.storage.root_for("EXPORT")
     from app.core.path_safety import validate_storage_key
@@ -601,3 +611,144 @@ _MEDIA = {
     "json": "application/json",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
+
+
+# ------------------------------------------- Phase 11: invite + notifications
+@router.get("/invite", response_class=HTMLResponse)
+async def invite_page(request: Request, token: str = Query(default="")):
+    """Public invitation acceptance page (§5). No auth — the token is the secret."""
+    return templates.TemplateResponse(
+        request, "invite_accept.html",
+        {"request": request, "token": token, "user": None, "perms": set(),
+         "year": datetime.now(timezone.utc).year, "ok": None, "err": None},
+    )
+
+
+@router.post("/invite")
+async def invite_accept(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    token: Annotated[str, Form()],
+    password: Annotated[str, Form(min_length=8)],
+    full_name: Annotated[str, Form(max_length=200)] = "",
+):
+    from app.core.security import hash_token_secret
+    from app.models.enterprise import Organization, OrganizationMember, Team, TeamMember, utc_aware
+    from app.models.rbac import Role, user_roles
+    from datetime import datetime as _dt
+
+    inv = await session.scalar(
+        select(Invitation).where(Invitation.token_hash == hash_token_secret(token.strip()))
+    )
+    if inv is None:
+        return templates.TemplateResponse(
+            request, "invite_accept.html",
+            {"request": request, "token": "", "user": None, "perms": set(),
+             "year": datetime.now(timezone.utc).year, "ok": None,
+             "err": "Invitation not found"},
+            status_code=400,
+        )
+    now = _dt.now(timezone.utc)
+    err = None
+    if inv.revoked_at is not None:
+        err = "This invitation has been revoked"
+    elif inv.accepted_at is not None:
+        err = "This invitation has already been used"
+    elif inv.expires_at is not None and utc_aware(inv.expires_at) <= now:
+        err = "This invitation has expired"
+    else:
+        organization = await session.get(Organization, inv.organization_id)
+        if organization is None or organization.status != "ACTIVE":
+            err = "This organization is not active"
+    if err is not None:
+        return templates.TemplateResponse(
+            request, "invite_accept.html",
+            {"request": request, "token": token, "user": None, "perms": set(),
+             "year": datetime.now(timezone.utc).year, "ok": None, "err": err},
+            status_code=400,
+        )
+    # reuse the API accept endpoint logic by calling the service-level flow
+    from app.api.deps import get_client_ip
+    from app.schemas.enterprise import InvitationAcceptIn
+
+    payload = InvitationAcceptIn(token=token, password=password, full_name=full_name or None)
+
+    class _Req:
+        """Minimal shim exposing what the accept endpoint reads from Request."""
+        app = request.app
+        headers = request.headers
+        base_url = request.base_url
+        client = request.client
+
+    from app.api.v1 import invitations as invitations_api
+
+    try:
+        await invitations_api.accept_invitation(
+            payload, _Req(), session
+        )
+    except QBITError as exc:
+        return templates.TemplateResponse(
+            request, "invite_accept.html",
+            {"request": request, "token": token, "user": None, "perms": set(),
+             "year": datetime.now(timezone.utc).year, "ok": None, "err": exc.message},
+            status_code=400,
+        )
+    return templates.TemplateResponse(
+        request, "invite_accept.html",
+        {"request": request, "token": "", "user": None, "perms": set(),
+         "year": datetime.now(timezone.utc).year,
+         "ok": "Invitation accepted — you can now sign in with your new password.",
+         "err": None},
+    )
+
+
+@router.get("/notifications", response_class=HTMLResponse)
+async def notifications_page(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(require_ui_permission("notifications.view"))],
+):
+    from app.models.enterprise import Notification
+
+    rows = (
+        (await session.execute(
+            select(Notification)
+            .where(Notification.user_id == user.id)
+            .order_by(Notification.created_at.desc())
+            .limit(100)
+        )).scalars().all()
+    )
+    return templates.TemplateResponse(
+        request, "notifications.html",
+        _ctx(
+            request, user,
+            notifications=[
+                {
+                    "id": n.id,
+                    "type": n.type,
+                    "title": n.title,
+                    "body": n.body,
+                    "read": n.read_at is not None,
+                    "created": str(n.created_at)[:16].replace("T", " "),
+                }
+                for n in rows
+            ],
+        ),
+    )
+
+
+@router.post("/notifications/{notification_id}/read")
+async def notification_mark_read(
+    notification_id: uuid.UUID,
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(require_ui_permission("notifications.view"))],
+):
+    from app.models.enterprise import Notification
+    from datetime import datetime as _dt
+
+    row = await session.get(Notification, notification_id)
+    if row is not None and row.user_id == user.id and row.read_at is None:
+        row.read_at = _dt.now(timezone.utc)
+        await session.commit()
+    return RedirectResponse(url="/notifications", status_code=303)

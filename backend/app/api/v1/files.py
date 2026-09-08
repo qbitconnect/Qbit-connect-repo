@@ -24,10 +24,20 @@ from app.models.file import FileCategory, FileRecord
 from app.models.user import User
 from app.schemas.file import FileActionOut, FileListOut, FileOut, FileStatsOut
 from app.services.audit import AuditService
+from app.services.authorization import MemberContext, get_visible_or_404, visibility_clause
 
 router = APIRouter(prefix="/files", tags=["files"])
 
 ALLOWED_CATEGORIES = {c.value for c in FileCategory}
+
+
+async def _ctx_for(session, user) -> MemberContext:
+    """Resolve (or reuse) the Phase 11 member context for this request."""
+    from app.services import authorization as authz
+    from app.services import rbac as rbac_service
+
+    perms = await rbac_service.load_user_permissions(session, user.id)
+    return await authz.resolve_context(session, user, perms)
 
 
 def _to_out(record: FileRecord) -> FileOut:
@@ -51,6 +61,9 @@ async def upload_file(
         from starlette.exceptions import HTTPException
 
         raise HTTPException(status_code=413, detail="Uploaded file exceeds the size limit")
+    # Phase 11 §24: uploads are stamped with the caller's organization so every
+    # later download/delete can enforce the org boundary
+    ctx = await _ctx_for(session, actor)
     record = await files.store(
         session,
         content=upload.file,
@@ -58,6 +71,7 @@ async def upload_file(
         mime_type=upload.content_type,
         category=category,
         created_by=actor.id,
+        organization_id=ctx.organization_id,
         max_bytes=max_bytes,
     )
     return FileActionOut(data=_to_out(record))
@@ -72,8 +86,14 @@ async def list_files(
     page_size: int = Query(default=25, ge=1, le=100),
     category: str | None = Query(default=None),
 ):
+    # Phase 11 §9: file lists honor organization + visibility scope
+    ctx = await _ctx_for(session, actor)
     rows, total = await files.list(
-        session, category=category, page=page, page_size=page_size
+        session,
+        category=category,
+        page=page,
+        page_size=page_size,
+        extra_filter=visibility_clause(FileRecord, ctx),
     )
     return FileListOut(
         data=[_to_out(r) for r in rows],
@@ -100,7 +120,11 @@ async def download_file(
     files: FileServiceDep,
     actor: Annotated[User, Depends(require_permission("exports.download"))],
 ):
-    record = await files.get(session, file_id)
+    # Phase 11 §24 access chain: file_id → authentication (deps) → organization
+    # check → permission (deps) → resource visibility check → stream download.
+    # Foreign-org files answer 404 so IDs are never confirmed to strangers.
+    ctx = await _ctx_for(session, actor)
+    record = await get_visible_or_404(session, FileRecord, file_id, ctx)
 
     # EXPORT-category downloads additionally require exports.view (implied by role
     # matrix); audit every download (Brief §24).
@@ -138,4 +162,7 @@ async def delete_file(
     actor: Annotated[User, Depends(require_permission("files.delete"))],
 ):
     """Explicit, permissioned, audited deletion (Brief §26 — no hidden cleanup)."""
+    # Phase 11 §24: deletion is also organization/visibility bounded
+    ctx = await _ctx_for(session, actor)
+    await get_visible_or_404(session, FileRecord, file_id, ctx)
     await files.delete(session, file_id, actor_user_id=actor.id)

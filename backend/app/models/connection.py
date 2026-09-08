@@ -6,7 +6,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Uuid
+from sqlalchemy import DateTime, Index, String, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import JSON
@@ -35,6 +35,9 @@ class ConnectionStatus(str, enum.Enum):
 
 class Connection(Base):
     __tablename__ = "connections"
+    __table_args__ = (
+        Index("ix_connections_organization", "organization_id"),
+    )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     display_name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -50,6 +53,13 @@ class Connection(Base):
     #: vault reference (key id), never the secret itself
     secret_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    # --- Phase 11: tenancy + access control --------------------------------------
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    team_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    #: ORGANIZATION | TEAM | RESTRICTED — who may USE this connection to send
+    access_scope: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = timestamp_columns()[0]

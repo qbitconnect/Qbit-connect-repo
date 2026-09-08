@@ -311,6 +311,22 @@ class JobRunner:
                     "records_updated": getattr(fresh, "records_updated", 0),
                 },
             )
+            # Phase 11 §25/§27: background tasks carry tenant context — the
+            # notification is org-scoped and emitted with the same transaction
+            if fresh.created_by:
+                from app.services import notifications as notify
+
+                await notify.emit(
+                    session,
+                    user_id=fresh.created_by,
+                    organization_id=fresh.organization_id,
+                    type="SCRAPE_JOB",
+                    title=f"Scrape job completed: {fresh.name}",
+                    body=f"Found {fresh.records_found}, saved {fresh.records_saved}, "
+                         f"duplicates {fresh.records_duplicate}, failed {fresh.records_failed}",
+                    resource_type="scrape_job",
+                    resource_id=str(job.id),
+                )
             await session.commit()
 
     async def _finish_failed(self, job: ScrapeJob, exc: Exception) -> None:
@@ -324,6 +340,19 @@ class JobRunner:
             fresh.error = message
             fresh.error_code = code
             session.add(_event_row(job.id, "JOB_FAILED", message, {"code": code}))
+            if fresh.created_by:
+                from app.services import notifications as notify
+
+                await notify.emit(
+                    session,
+                    user_id=fresh.created_by,
+                    organization_id=fresh.organization_id,
+                    type="SCRAPE_JOB",
+                    title=f"Scrape job failed: {fresh.name}",
+                    body=message[:300],
+                    resource_type="scrape_job",
+                    resource_id=str(job.id),
+                )
             await session.commit()
 
     async def _finish_paused(

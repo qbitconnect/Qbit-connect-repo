@@ -1,13 +1,13 @@
 # QBIT — Self-Hosted Enterprise Data & Marketing Operations Platform
 
-> **Status: PHASE 8 COMPLETE — Unified Inbox + Conversations on the
-> Phase 2/3/4/5/6/7 foundation. 579 tests passing. One workspace for WhatsApp + Email
-> conversations: unified inbound pipeline (normalizer → conversation engine → lead matching) →
-> thread/lead MATCH_REVIEW handling, unread/read-state, status/priority/assignment with
-> full activity history, internal notes, link/create-lead, campaign↔conversation linkage,
-> idempotent outbound replies through the same provider abstraction (WhatsApp 24h window
-> honored — template fallback outside it), signed idempotent email-inbound webhook,
-> /inbox three-pane UI with lead context + sidebar unread badge.**
+> **Status: PHASE 11 COMPLETE — Team / Admin / Enterprise engine on the
+> Phase 0–10 foundation. Multi-user organizations + teams + invitations (hashed one-time
+> tokens) + centralized AuthorizationService with 4-level visibility scopes (backend-
+> enforced) + lead/conversation assignment with immutable history + connection access
+> scopes + API keys (hashed, scoped, one-time display) + revocable server-side sessions +
+> immutable audit center + admin console UI — on top of the full stack: scraper actor
+> engine, lead workspace, marketing engine, WhatsApp + Email providers, unified inbox
+> + conversations, workflow automation, analytics & reporting.**
 
 QBIT is a self-hosted **admin/operations portal** — not a marketing website — for
 managing: Data Scraping · Lead/Data Management · Multi-channel Marketing ·
@@ -25,11 +25,11 @@ Primary surface: **Login → Authentication → Admin Dashboard → QBIT Control
 |---|---|
 | Repo | `qbitconnect/Qbit-connect-repo` (private) |
 | Audit result | Empty repository — greenfield build (see `docs/01-repository-audit.md`) |
-| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) + Phase 5 (marketing engine foundation) + Phase 6 (WhatsApp Business provider integration) + Phase 7 (email marketing provider integration) + Phase 8 (unified inbox + conversations) + Phase 9 (automation & workflow engine) + Phase 10 (analytics & reporting engine) complete — see `docs/25`–`29` completion/architecture reports + `docs/whatsapp-*.md` + `docs/email-*.md` + `docs/unified-inbox.md` + `docs/conversations.md` + `docs/message-processing.md` + `docs/inbox-rbac.md` + `docs/inbox-webhooks.md` + `docs/automation*.md` + `docs/workflow-*.md` + `docs/analytics.md` + `docs/metric-definitions.md` + `docs/report-builder.md` |
-| Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + scraper actor engine + lead data workspace + marketing engine + workflow automation + analytics & reporting — `backend/` |
-| Version | `0.10.0` (backend/app/__init__.py) |
-| Tests | 748 passing (`backend/tests`, isolated per-test database) |
-| Next step | Phase 11 — team / admin / enterprise engine |
+| Phase | Phase 0 (architecture) + Phase 2 (core foundation) + Phase 3 (scraper/actor engine) + Phase 4 (lead workspace) + Phase 5 (marketing engine foundation) + Phase 6 (WhatsApp Business provider integration) + Phase 7 (email marketing provider integration) + Phase 8 (unified inbox + conversations) + Phase 9 (automation & workflow engine) + Phase 10 (analytics & reporting engine) + Phase 11 (team / admin / enterprise engine) complete — see `docs/25`–`29` completion/architecture reports + `docs/whatsapp-*.md` + `docs/email-*.md` + `docs/unified-inbox.md` + `docs/conversations.md` + `docs/message-processing.md` + `docs/inbox-rbac.md` + `docs/inbox-webhooks.md` + `docs/automation*.md` + `docs/workflow-*.md` + `docs/analytics.md` + `docs/metric-definitions.md` + `docs/report-builder.md` + `docs/28-team-admin-enterprise.md` + `PHASE11_AUDIT.md` |
+| Backend | FastAPI + SQLAlchemy 2 async + Alembic + Argon2 + RBAC + centralized AuthorizationService + scraper actor engine + lead data workspace + marketing engine + workflow automation + analytics & reporting — `backend/` |
+| Version | `0.11.0` (backend/app/__init__.py) |
+| Tests | 777 passing (`backend/tests`, isolated per-test database) |
+| Next step | Phase 12 — production deployment hardening |
 
 ## Documentation Index
 

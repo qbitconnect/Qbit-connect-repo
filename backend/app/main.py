@@ -136,6 +136,13 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     app.state.login_limiter = SlidingWindowRateLimiter(
         max_events=settings.QBIT_RATE_LIMIT_LOGIN_PER_MIN, per_seconds=60.0
     )
+    # Phase 11: abuse protection for invitations / api key creation
+    app.state.invite_limiter = SlidingWindowRateLimiter(
+        max_events=settings.QBIT_RATE_LIMIT_INVITE_PER_HOUR, per_seconds=3600.0
+    )
+    app.state.apikey_limiter = SlidingWindowRateLimiter(
+        max_events=settings.QBIT_RATE_LIMIT_APIKEY_PER_HOUR, per_seconds=3600.0
+    )
     # Phase 7: abuse protection for the public unsubscribe page (§48)
     from app.api.v1.email_public import _UNSUB_RATE_LIMIT_PER_MIN
 
@@ -176,19 +183,26 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     # --- routers ----------------------------------------------------------------
     from app.api.v1 import auth, files, leads, roles, users
     from app.api.v1 import health as health_routes
+    from app.api.v1 import admin as admin_routes
     from app.api.v1 import analytics as analytics_routes
+    from app.api.v1 import api_keys as api_keys_routes
     from app.api.v1 import automation as automation_routes
     from app.api.v1 import campaigns as campaigns_routes
     from app.api.v1 import connections as connections_routes
     from app.api.v1 import connections_email as connections_email_routes
+    from app.api.v1 import conversations as conversations_routes
     from app.api.v1 import email_public as email_public_routes
     from app.api.v1 import inbox as inbox_routes
+    from app.api.v1 import invitations as invitations_routes
+    from app.api.v1 import notifications as notifications_routes
     from app.api.v1 import reports as reports_routes
     from app.api.v1 import scrape_jobs as scrape_jobs_routes
     from app.api.v1 import scrapers as scrapers_routes
     from app.api.v1 import sending_accounts as sending_accounts_routes
+    from app.api.v1 import sessions as sessions_routes
     from app.api.v1 import settings as settings_routes
     from app.api.v1 import suppression as suppression_routes
+    from app.api.v1 import teams as teams_routes
     from app.api.v1 import templates as templates_routes
     from app.api.v1 import webhooks as webhooks_routes
     from app.api.v1 import webhooks_email as webhooks_email_routes
@@ -218,6 +232,14 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     # Phase 10: analytics + saved reports API
     app.include_router(analytics_routes.router, prefix=api_v1_prefix)
     app.include_router(reports_routes.router, prefix=api_v1_prefix)
+    # Phase 11: enterprise routers
+    app.include_router(teams_routes.router, prefix=api_v1_prefix)
+    app.include_router(invitations_routes.router, prefix=api_v1_prefix)
+    app.include_router(api_keys_routes.router, prefix=api_v1_prefix)
+    app.include_router(sessions_routes.router, prefix=api_v1_prefix)
+    app.include_router(notifications_routes.router, prefix=api_v1_prefix)
+    app.include_router(conversations_routes.router, prefix=api_v1_prefix)
+    app.include_router(admin_routes.router, prefix=api_v1_prefix)
     # Phase 7: public unsubscribe page (site root) + tracking endpoints
     app.include_router(email_public_routes.router)
     app.include_router(email_public_routes.tracking_router)
@@ -227,6 +249,8 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     from fastapi.responses import RedirectResponse
 
     from app.ui import UiRedirect, router as ui_router
+    from app.ui.admin import router as admin_ui_router
+    from app.ui.admin_security import router as admin_security_ui_router
     from app.ui.analytics import router as analytics_ui_router
     from app.ui.automation import router as automation_ui_router
     from app.ui.campaigns import router as campaigns_ui_router
@@ -246,6 +270,9 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     app.include_router(automation_ui_router)
     # Phase 10: analytics dashboard + report builder workspace
     app.include_router(analytics_ui_router)
+    # Phase 11: admin console UI
+    app.include_router(admin_ui_router)
+    app.include_router(admin_security_ui_router)
 
     async def _ui_redirect_handler(request: Request, exc: UiRedirect):
         return RedirectResponse(url=exc.url, status_code=303)

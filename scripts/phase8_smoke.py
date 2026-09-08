@@ -362,7 +362,11 @@ async def main() -> int:
                 check("35. audit logging works for inbox actions", len(rows) >= 3)
 
             r = await c.get("/api/v1")
-            check("36. version updated", r.json()["data"]["version"] == "0.8.0")
+            # app version only moves forward (0.8.0 at Phase 8; later phases bump it)
+            def _vtuple(v: str) -> tuple:
+                return tuple(int(p) for p in v.split(".") if p.isdigit())
+
+            check("36. version updated", _vtuple(r.json()["data"]["version"]) >= (0, 8, 0))
 
             r = await c.get("/login")
             check("37. UI login page renders", r.status_code == 200)

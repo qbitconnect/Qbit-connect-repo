@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Admin — QBIT Connect{% endblock %}
+{% block nav_admin %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>ADMIN OVERVIEW</h1>
+    <p class="muted">{{ org.name }} — live platform state (real counts, no estimates).</p>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat"><span class="stat-label">ACTIVE USERS</span><span class="stat-value">{{ stats.active_users }}</span></div>
+  <div class="stat"><span class="stat-label">ORG MEMBERS</span><span class="stat-value">{{ stats.members }}</span></div>
+  <div class="stat"><span class="stat-label">TEAMS</span><span class="stat-value">{{ stats.teams }}</span></div>
+  <div class="stat"><span class="stat-label">CONNECTIONS</span><span class="stat-value">{{ stats.connections }}</span></div>
+  <div class="stat"><span class="stat-label">ACTIVE CAMPAIGNS</span><span class="stat-value">{{ stats.campaigns }}</span></div>
+  <div class="stat"><span class="stat-label">OPEN CONVERSATIONS</span><span class="stat-value">{{ stats.conversations }}</span></div>
+  <div class="stat"><span class="stat-label">ACTIVE SCRAPE JOBS</span><span class="stat-value">{{ stats.jobs }}</span></div>
+  <div class="stat"><span class="stat-label">LEADS</span><span class="stat-value">{{ stats.leads }}</span></div>
+  <div class="stat"><span class="stat-label">PENDING INVITATIONS</span><span class="stat-value">{{ stats.invitations }}</span></div>
+  <div class="stat"><span class="stat-label">ACTIVE WORKFLOWS</span><span class="stat-value">{{ stats.workflows if stats.workflows is not none else 'N/A' }}</span></div>
+</div>
+
+<div class="card table-card">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Time</th><th>Action</th><th>Resource</th><th>Resource ID</th></tr></thead>
+      <tbody>
+        {% for e in recent %}
+        <tr>
+          <td class="muted small">{{ fmt(e.created_at) }}</td>
+          <td class="mono">{{ e.action }}</td>
+          <td>{{ e.resource_type or '—' }}</td>
+          <td class="mono muted">{{ (e.resource_id or '—')[:12] }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="center muted" style="padding:24px">No activity in the last 7 days.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

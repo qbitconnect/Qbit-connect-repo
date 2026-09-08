@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Invitations — Admin — QBIT Connect{% endblock %}
+{% block nav_admin_inv %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>INVITATIONS</h1>
+    <p class="muted">Single-use, expiring invite links. Tokens are stored hashed and can be revoked at any time.</p>
+  </div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+{% if can_create %}
+<div class="card">
+  <h2 style="margin:0 0 12px">Invite someone</h2>
+  <form method="post" action="/admin/invitations" class="toolbar" style="align-items:flex-end">
+    <label style="display:grid;gap:4px"><span class="muted small">EMAIL</span>
+      <input type="email" name="email" required maxlength="320" placeholder="name@company.com">
+    </label>
+    <label style="display:grid;gap:4px"><span class="muted small">ROLE(S)</span>
+      <select name="roles" multiple size="4" style="min-width:180px">
+        {% for r in all_roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
+      </select>
+    </label>
+    <label style="display:grid;gap:4px"><span class="muted small">TEAM (OPTIONAL)</span>
+      <select name="team_id">
+        <option value="">— none —</option>
+        {% for t in teams %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <button class="btn btn-primary" type="submit">Create invitation</button>
+  </form>
+  <p class="muted small" style="margin-top:8px">Hold Ctrl/Cmd to select multiple roles. SUPER_ADMIN can never be granted via invitation.</p>
+</div>
+{% endif %}
+
+<div class="card table-card" style="margin-top:18px">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Email</th><th>Roles</th><th>Status</th><th>Created</th><th>Expires</th><th>Accepted</th>{% if can_revoke %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+        {% for inv in invitations %}
+        <tr>
+          <td><strong>{{ inv.email }}</strong></td>
+          <td>{% for r in inv.roles %}<span class="badge">{{ r }}</span> {% endfor %}{% if not inv.roles %}<span class="muted">—</span>{% endif %}</td>
+          <td><span class="badge badge-{{ inv.status | lower }}">{{ inv.status }}</span></td>
+          <td class="muted small">{{ inv.created }}</td>
+          <td class="muted small">{{ inv.expires }}</td>
+          <td class="muted small">{{ inv.accepted }}</td>
+          {% if can_revoke %}
+          <td>
+            {% if inv.status == 'PENDING' %}
+            <form method="post" action="/admin/invitations/{{ inv.id }}/revoke">
+              <button class="btn btn-sm btn-ghost" type="submit">Revoke</button>
+            </form>
+            {% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="center muted" style="padding:32px">No invitations yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{{ team.name }} — Admin — QBIT Connect{% endblock %}
+{% block nav_admin_teams %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ team.name }}</h1>
+    <p class="muted">{{ team.description or 'No description' }} · {{ members | length }} member(s) · {{ team_leads }} assigned lead(s)</p>
+  </div>
+  <div class="head-actions"><a class="btn btn-ghost" href="/admin/teams">Back to teams</a></div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+<div class="card table-card">
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Member</th><th>Role in team</th><th>Since</th>{% if can_manage %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+        {% for m in members %}
+        <tr>
+          <td>
+            <a href="/admin/users/{{ m.id }}"><strong>{{ m.full_name or m.email }}</strong></a>
+            {% if m.full_name %}<div class="muted small">{{ m.email }}</div>{% endif %}
+          </td>
+          <td>{% if m.is_lead %}<span class="badge badge-active">TEAM LEAD</span>{% else %}<span class="muted">member</span>{% endif %}</td>
+          <td class="muted small">{{ m.since }}</td>
+          {% if can_manage %}
+          <td>
+            <form method="post" action="/admin/teams/{{ team.id }}/members/remove">
+              <input type="hidden" name="user_id" value="{{ m.id }}">
+              <button class="btn btn-sm btn-ghost" type="submit">Remove</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="center muted" style="padding:28px">No members yet.{% if can_manage %} Add one below.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if can_manage %}
+<div class="card" style="margin-top:18px">
+  <h2 style="margin:0 0 12px">Add member</h2>
+  {% if candidates %}
+  <form method="post" action="/admin/teams/{{ team.id }}/members" class="toolbar">
+    <select name="user_id" required>
+      <option value="">Choose an organization member…</option>
+      {% for c in candidates %}
+      <option value="{{ c.id }}">{{ c.full_name or c.email }} ({{ c.email }})</option>
+      {% endfor %}
+    </select>
+    <label style="display:flex;align-items:center;gap:6px">
+      <input type="checkbox" name="is_lead"> <span>Team lead</span>
+    </label>
+    <button class="btn btn-primary" type="submit">Add</button>
+  </form>
+  {% else %}
+  <p class="muted small">All organization members are already in this team (or there are no other members).</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if can_edit %}
+<div class="card" style="margin-top:18px">
+  <h2 style="margin:0 0 12px">Team settings</h2>
+  <form method="post" action="/admin/teams/{{ team.id }}/update" class="toolbar" style="align-items:flex-end">
+    <label style="display:grid;gap:4px"><span class="muted small">NAME</span>
+      <input type="text" name="name" value="{{ team.name }}" maxlength="200">
+    </label>
+    <label style="display:grid;gap:4px"><span class="muted small">DESCRIPTION</span>
+      <input type="text" name="description" value="{{ team.description or '' }}" maxlength="500">
+    </label>
+    <label style="display:flex;align-items:center;gap:6px">
+      <input type="checkbox" name="is_active" {% if team.is_active %}checked{% endif %}> <span>Active</span>
+    </label>
+    <button class="btn btn-primary" type="submit">Save</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

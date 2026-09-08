@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accept invitation — QBIT Connect</title>
+  <link rel="stylesheet" href="/static/css/qbit.css">
+</head>
+<body>
+<div class="shell">
+  <main class="content" style="max-width:520px;margin:0 auto;padding:48px 24px">
+    <div class="brand" style="margin-bottom:24px">
+      <span class="brand-mark">Q</span>
+      <span class="brand-name">QBIT <em>CONNECT</em></span>
+    </div>
+
+    {% if ok %}
+      <div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>
+      <a class="btn btn-primary" href="/login">Sign in</a>
+    {% else %}
+
+    {% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+    <div class="card">
+      <h1 style="margin-top:0">Accept your invitation</h1>
+      <p class="muted">Choose a password to activate your account and join the organization.</p>
+      <form method="post" action="/invite">
+        <input type="hidden" name="token" value="{{ token }}">
+        <label style="display:grid;gap:4px;margin-bottom:12px"><span class="muted small">FULL NAME (OPTIONAL)</span>
+          <input type="text" name="full_name" maxlength="200" autocomplete="name">
+        </label>
+        <label style="display:grid;gap:4px;margin-bottom:14px"><span class="muted small">PASSWORD (MIN 8 CHARS)</span>
+          <input type="password" name="password" required minlength="8" autocomplete="new-password">
+        </label>
+        <button class="btn btn-primary" type="submit">Activate account</button>
+      </form>
+    </div>
+    {% endif %}
+  </main>
+</div>
+</body>
+</html>

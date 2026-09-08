@@ -85,6 +85,7 @@ class LeadImportService:
         filename: str,
         created_by: uuid.UUID | None,
         options: dict | None = None,
+        organization_id: uuid.UUID | None = None,
     ) -> ImportBatch:
         format_name = (format_name or "").lower()
         if format_name not in ("csv", "xlsx", "json", "jsonl"):
@@ -96,6 +97,7 @@ class LeadImportService:
             status=ImportStatus.QUEUED.value,
             options=options or {},
             created_by=created_by,
+            organization_id=organization_id or getattr(file_record, "organization_id", None),
         )
         session.add(batch)
         await session.commit()
@@ -427,6 +429,7 @@ class LeadImportService:
                         mime_type="text/csv",
                         category="IMPORT",
                         created_by=batch.created_by,
+                        organization_id=batch.organization_id,
                         metadata={"import_batch_id": str(batch.id), "kind": "rejected_rows"},
                     )
                 batch.error_file_id = report.id
@@ -529,6 +532,7 @@ class LeadImportService:
             first_seen_at=now,
             last_seen_at=now,
             created_by=batch.created_by,
+            organization_id=batch.organization_id,
         )
         lead.quality_score = compute_quality_score(lead.to_public_dict())
         session.add(lead)

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Invitation created — Admin — QBIT Connect{% endblock %}
+{% block nav_admin_inv %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>INVITATION CREATED</h1>
+    <p class="muted">For <strong>{{ email }}</strong>{% if roles %} with role(s) {{ roles | join(', ') }}{% endif %}.</p>
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 10px">Share this link — it is shown ONLY now</h2>
+  <div class="link-once">{{ invite_url }}</div>
+  <p class="muted small">
+    The link is single-use and expires automatically. Only a hash of the token is stored —
+    this exact URL can never be recovered. If it is lost, revoke the invitation and create a new one.
+  </p>
+  <div class="head-actions" style="margin-top:14px">
+    <a class="btn btn-primary" href="/admin/invitations">Back to invitations</a>
+  </div>
+</div>
+{% endblock %}

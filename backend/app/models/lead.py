@@ -285,6 +285,7 @@ class ImportBatch(Base):
     __table_args__ = (
         Index("ix_import_batches_status_created", "status", "created_at"),
         Index("ix_import_batches_created_by", "created_by"),
+        Index("ix_import_batches_organization", "organization_id"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -308,6 +309,8 @@ class ImportBatch(Base):
     error_summary: Mapped[list] = mapped_column(PortableJSON, nullable=False, default=list)
     error_file_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    # --- Phase 11: tenancy -------------------------------------------------------
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     leased_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -345,6 +348,7 @@ class LeadExportRecord(Base):
     __table_args__ = (
         Index("ix_lead_exports_status_created", "status", "created_at"),
         Index("ix_lead_exports_created_by", "created_by"),
+        Index("ix_lead_exports_organization", "organization_id"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -359,6 +363,8 @@ class LeadExportRecord(Base):
     file_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    # --- Phase 11: tenancy -------------------------------------------------------
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     leased_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

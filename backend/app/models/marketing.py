@@ -180,6 +180,7 @@ class CampaignTemplate(Base):
     __tablename__ = "campaign_templates"
     __table_args__ = (
         Index("ix_campaign_templates_channel_status", "channel", "status"),
+        Index("ix_campaign_templates_organization", "organization_id"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -209,6 +210,7 @@ class CampaignTemplate(Base):
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     rejected_reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = timestamp_columns()[0]
     updated_at: Mapped[datetime] = timestamp_columns()[1]
 
@@ -253,6 +255,9 @@ class SendingAccount(Base):
     """
 
     __tablename__ = "sending_accounts"
+    __table_args__ = (
+        Index("ix_sending_accounts_organization", "organization_id"),
+    )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     name: Mapped[str] = mapped_column(String(150), nullable=False)
@@ -271,6 +276,14 @@ class SendingAccount(Base):
     config_metadata: Mapped[dict] = mapped_column(PortableJSON, nullable=False, default=dict)
     health_status: Mapped[str] = mapped_column(String(20), nullable=False, default=AccountHealth.UNKNOWN)
     last_health_check: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # --- Phase 11: tenancy + ownership ------------------------------------------
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    #: Phase 11 §16 — access control for credential-bearing senders:
+    #: ORGANIZATION (default) | TEAM | RESTRICTED — mirrored from connections
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    team_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    access_scope: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = timestamp_columns()[0]
     updated_at: Mapped[datetime] = timestamp_columns()[1]
 
@@ -289,6 +302,7 @@ class SendingAccount(Base):
             "capabilities": self.capabilities or {},
             "health_status": self.health_status,
             "last_health_check": self.last_health_check.isoformat() if self.last_health_check else None,
+            "created_by": str(self.created_by) if self.created_by else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -300,6 +314,10 @@ class Campaign(Base):
         Index("ix_campaigns_status_created", "status", "created_at"),
         Index("ix_campaigns_channel", "channel"),
         Index("ix_campaigns_scheduled_at", "scheduled_at"),
+        # --- Phase 11: tenancy + ownership ----------------------------------
+        Index("ix_campaigns_organization", "organization_id"),
+        Index("ix_campaigns_owner", "owner_id"),
+        Index("ix_campaigns_team", "team_id"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -324,6 +342,11 @@ class Campaign(Base):
     #: track_opens / track_clicks / append_unsubscribe_footer / company fields
     campaign_metadata: Mapped[dict] = mapped_column(PortableJSON, nullable=False, default=dict)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    # --- Phase 11: tenancy + ownership ------------------------------------------
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    team_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = timestamp_columns()[0]
@@ -344,6 +367,10 @@ class Campaign(Base):
             "timezone": self.timezone,
             "validation_report": self.validation_report or {},
             "created_by": str(self.created_by) if self.created_by else None,
+            "organization_id": str(self.organization_id) if self.organization_id else None,
+            "owner_id": str(self.owner_id) if self.owner_id else None,
+            "team_id": str(self.team_id) if self.team_id else None,
+            "updated_by": str(self.updated_by) if self.updated_by else None,
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
@@ -478,6 +505,7 @@ class SuppressionEntry(Base):
         Uuid(as_uuid=True), ForeignKey("leads.id", ondelete="SET NULL"), nullable=True
     )
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = timestamp_columns()[0]
 
     def to_public_dict(self) -> dict:

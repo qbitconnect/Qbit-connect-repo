@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Users — Admin — QBIT Connect{% endblock %}
+{% block nav_admin_users %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>USERS</h1>
+    <p class="muted">Accounts, roles and lifecycle. Deactivation keeps all history — users are never hard-deleted.</p>
+  </div>
+  <div class="head-actions">{% if can_manage %}<a class="btn btn-ghost" href="/admin/invitations">Invite via invitations</a>{% endif %}</div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+<form method="get" action="/admin/users" class="toolbar">
+  <input type="text" name="search" value="{{ search }}" placeholder="Search email or name" maxlength="200">
+  <select name="status">
+    <option value="">Status: any</option>
+    {% for s in ['ACTIVE','INVITED','SUSPENDED','DEACTIVATED'] %}
+    <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn btn-primary" type="submit">Filter</button>
+  <a class="btn btn-ghost" href="/admin/users">Reset</a>
+</form>
+
+<div class="card table-card">
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>User</th><th>Status</th><th>Roles</th><th>Created</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>
+            <a href="/admin/users/{{ u.id }}"><strong>{{ u.full_name or u.email }}</strong></a>
+            {% if u.full_name %}<div class="muted small">{{ u.email }}</div>{% endif %}
+          </td>
+          <td><span class="badge badge-{{ u.status | lower }}">{{ u.status }}</span></td>
+          <td>
+            {% for r in u.roles %}<span class="badge">{{ r }}</span> {% endfor %}
+            {% if u.is_super and total_super_admins <= 1 %}<span class="muted small" title="Cannot be removed — last SUPER_ADMIN">last admin</span>{% endif %}
+          </td>
+          <td class="muted small">{{ u.created }}</td>
+          <td><a class="btn btn-sm btn-ghost" href="/admin/users/{{ u.id }}">Manage</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="center muted" style="padding:32px">No users match the filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if total > page_size %}
+<div class="pager">
+  {% for p in range(1, ((total + page_size - 1) // page_size) + 1) %}
+    {% if p <= page + 2 and p >= page - 2 %}
+      <a class="pager-item {% if p == page %}active{% endif %}" href="/admin/users?search={{ search }}&status={{ status }}&page={{ p }}">{{ p }}</a>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

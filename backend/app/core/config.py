@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     QBIT_CORS_ORIGINS: str = ""  # comma-separated; empty = same-origin only
     QBIT_RATE_LIMIT_LOGIN_PER_MIN: int = Field(default=10, ge=1)
     QBIT_MAX_UPLOAD_MB: int = Field(default=100, ge=1)
+    # --- Phase 11: enterprise ------------------------------------------------
+    QBIT_INVITATION_EXPIRY_HOURS: int = Field(default=168, ge=1, le=720)
+    QBIT_RATE_LIMIT_INVITE_PER_HOUR: int = Field(default=30, ge=1)
+    QBIT_RATE_LIMIT_APIKEY_PER_HOUR: int = Field(default=10, ge=1)
 
     # --- API behaviour ----------------------------------------------------
     QBIT_DEFAULT_PAGE_SIZE: int = Field(default=25, ge=1, le=100)

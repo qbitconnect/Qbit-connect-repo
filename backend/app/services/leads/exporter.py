@@ -191,6 +191,7 @@ class LeadExportService:
         page: int = 1,
         page_size: int = 100,
         created_by: uuid.UUID | None = None,
+        organization_id: uuid.UUID | None = None,
     ) -> LeadExportRecord:
         format_name = (format_name or "").lower()
         if format_name not in FORMATS:
@@ -222,6 +223,7 @@ class LeadExportService:
             fields=fields,
             status=ExportStatus.QUEUED.value,
             created_by=created_by,
+            organization_id=organization_id,
         )
         session.add(record)
         await session.commit()
@@ -322,6 +324,7 @@ class LeadExportService:
                     mime_type=writer_cls.mime_type,
                     category="EXPORT",
                     created_by=record.created_by,
+                    organization_id=record.organization_id,
                     metadata={"lead_export_id": str(record.id), "scope": record.scope, "row_count": writer.count},
                 )
             record.file_id = file_record.id

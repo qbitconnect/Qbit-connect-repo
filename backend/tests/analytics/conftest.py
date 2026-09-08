@@ -301,8 +301,13 @@ async def analytics_data(app):
                          recipient_id=e1.id, provider="smtp")
 
         # --- conversations -------------------------------------------------------
+        # NOTE: the second inbound must land in the deterministic past. The old
+        # default ((0,5),(2,30)) put it at "today 12:30", which is AFTER the
+        # analytics window end (now) whenever the suite runs before 12:30 UTC —
+        # a time-of-day flake. (1, 30) = yesterday 12:30, always in-window.
         await make_conversation_with_messages(
             session, status="OPEN", created_at=days_ago(2),
+            inbound_at_offsets=((0, 5), (1, 30)),
             assigned_user=operator.id, lead=fresh,
         )
         await make_conversation_with_messages(

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Organization Settings — Admin — QBIT Connect{% endblock %}
+{% block nav_admin_settings %}active{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>ORGANIZATION SETTINGS</h1>
+    <p class="muted">{{ org.name }} · slug <span class="mono">{{ org.slug }}</span> · status <span class="badge badge-{{ org.status | lower }}">{{ org.status }}</span></p>
+  </div>
+</div>
+
+{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+
+{% if can_manage %}
+<div class="card">
+  <h2 style="margin:0 0 12px">Profile</h2>
+  <form method="post" action="/admin/settings" class="toolbar" style="align-items:flex-end">
+    <label style="display:grid;gap:4px"><span class="muted small">NAME</span>
+      <input type="text" name="name" value="{{ org.name }}" maxlength="200" required>
+    </label>
+    <label style="display:grid;gap:4px"><span class="muted small">TIMEZONE</span>
+      <input type="text" name="timezone" value="{{ org.timezone }}" maxlength="64">
+    </label>
+    <label style="display:grid;gap:4px"><span class="muted small">LOCALE</span>
+      <input type="text" name="locale" value="{{ org.locale }}" maxlength="20">
+    </label>
+    <button class="btn btn-primary" type="submit">Save</button>
+  </form>
+</div>
+
+<div class="card" style="margin-top:18px">
+  <h2 style="margin:0 0 12px">Default visibility per role</h2>
+  <p class="muted small" style="margin-top:0">
+    Applies to users without an individual override. TEAM shows own + team + unassigned work;
+    ASSIGNED_ONLY shows own/assigned only; OWNED_ONLY strictly own records.
+  </p>
+  <form method="post" action="/admin/settings/visibility" class="toolbar" style="align-items:flex-end">
+    {% for r in role_list %}
+    <label style="display:grid;gap:4px"><span class="muted small">{{ r }}</span>
+      <select name="scope_{{ r }}">
+        {% for s in scope_list %}
+        <option value="{{ s }}" {% if visibility_defaults.get(r, 'ALL') == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endfor %}
+    <button class="btn btn-primary" type="submit">Apply</button>
+  </form>
+</div>
+{% else %}
+<div class="kv-grid">
+  <div class="kv"><span class="k">NAME</span><span class="v">{{ org.name }}</span></div>
+  <div class="kv"><span class="k">TIMEZONE</span><span class="v">{{ org.timezone }}</span></div>
+  <div class="kv"><span class="k">LOCALE</span><span class="v">{{ org.locale }}</span></div>
+</div>
+{% endif %}
+{% endblock %}

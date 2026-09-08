@@ -20,8 +20,9 @@ async def test_seed_rbac_is_idempotent(seeded_session: AsyncSession):
     counts1 = await rbac_service.seed_rbac(seeded_session)
     counts2 = await rbac_service.seed_rbac(seeded_session)
     # 34 Phase 1–4 + 18 Phase 5 + 10 Phase 6 + 12 Phase 7 + 11 Phase 8
-    # + 9 Phase 9 (automation.*) + 17 Phase 10 (analytics.*/reports.*) permissions
-    assert counts1 == counts2 == {"roles": 5, "permissions": 111}
+    # + 9 Phase 9 (automation.*) + 17 Phase 10 (analytics.*/reports.*)
+    # + 16 Phase 11 (enterprise; inbox.* reused, not redefined) permissions
+    assert counts1 == counts2 == {"roles": 5, "permissions": 127}
 
 
 async def test_all_five_roles_exist(seeded_session: AsyncSession):
