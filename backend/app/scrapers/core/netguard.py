@@ -60,6 +60,11 @@ class UrlPolicy:
 
 
 def _ip_is_forbidden(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    # Phase 12 (audit M10): explicitly unwrap IPv4-mapped IPv6 literals
+    # (e.g. ::ffff:127.0.0.1, ::ffff:169.254.169.254) and judge them by the
+    # EMBEDDED IPv4 address instead of relying on ipaddress version behavior.
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
     return (
         ip.is_private
         or ip.is_loopback

@@ -106,6 +106,14 @@
 
 {% block scripts %}
 <script>
+  // Phase 12 (audit H5): escape untrusted text before ANY innerHTML use.
+  // Event messages embed attacker-controlled URLs from scraped pages
+  // (redirect targets, hrefs) — injecting them raw was a stored-XSS sink.
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
   const jobId = '{{ job.id }}';
   let lastCount = -1;
   async function refresh() {
@@ -125,9 +133,9 @@
       if (j.stage) document.getElementById('job-stage').textContent = j.stage;
       const box = document.getElementById('log-box');
       box.innerHTML = data.events.map(e =>
-        `<div class="log-line"><span class="log-time">${e.at}</span>` +
-        `<span class="log-type t-${e.type.toLowerCase().replace('_','-')}">${e.type}</span>` +
-        `<span>${e.message}</span></div>`).join('') ||
+        `<div class="log-line"><span class="log-time">${esc(e.at)}</span>` +
+        `<span class="log-type t-${esc(String(e.type).toLowerCase().replace('_','-'))}">${esc(e.type)}</span>` +
+        `<span>${esc(e.message)}</span></div>`).join('') ||
         '<div class="muted center">No events yet.</div>';
       if (['COMPLETED','FAILED','CANCELLED'].includes(j.status) &&
           !document.querySelector('.results-card')) {

@@ -72,6 +72,10 @@ async def email_webhook_receive(
     if provider_id not in PROVIDER_IDS:
         raise ValidationError(f"Unknown email provider '{provider}'")
     settings: Settings = request.app.state.settings
+    if provider_id == "email_mock" and settings.is_production:
+        # Phase 12 (audit H6): the test provider's webhook is never exposed
+        # in production, regardless of registry configuration.
+        raise ValidationError("Unknown email provider 'email_mock'")
     service = EmailWebhookService(settings)
 
     raw_body = await request.body()
@@ -116,6 +120,8 @@ async def email_inbound_webhook_receive(
     if provider_id not in PROVIDER_IDS:
         raise ValidationError(f"Unknown email provider '{provider}'")
     settings: Settings = request.app.state.settings
+    if provider_id == "email_mock" and settings.is_production:
+        raise ValidationError("Unknown email provider 'email_mock'")
     service = EmailInboundWebhookService(settings)
 
     raw_body = await request.body()

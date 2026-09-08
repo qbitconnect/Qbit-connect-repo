@@ -237,9 +237,11 @@ def _signed_headers(secret: str, body: bytes) -> dict:
 
 async def _post_event(client, app, event: dict):
     body = json.dumps({"events": [event]}).encode()
+    # Phase 12: the test-only "mock-webhook-secret" fallback was removed —
+    # tests configure EMAIL_WEBHOOK_SECRET explicitly via email_settings.
     secret = app.state.settings.EMAIL_WEBHOOK_SECRET
     if not secret:
-        secret = "mock-webhook-secret"  # test-env default for the mock provider
+        app.state.settings.EMAIL_WEBHOOK_SECRET = secret = "test-email-webhook-secret"
     headers = _signed_headers(secret, body)
     return await client.post("/api/v1/webhooks/email/email_mock", content=body,
                              headers=headers)

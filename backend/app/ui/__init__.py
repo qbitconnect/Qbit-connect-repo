@@ -28,12 +28,13 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db
+from app.api.deps import get_client_ip, get_db, get_user_agent
 from app.core.errors import QBITError
 from app.core.security import create_access_token, decode_access_token, verify_password
-from app.models.enterprise import Invitation
+from app.models.enterprise import Invitation, UserSession
 from app.models.scrape import JobStatus
 from app.models.user import User
+from app.services import login_guard
 from app.services.export import ExportService
 from app.services.leads import LeadService
 from app.services.scraping.engine import JobEngine, sanitize_job_config
@@ -54,8 +55,9 @@ async def _resolve_user(request: Request, session: AsyncSession) -> User | None:
     token = request.cookies.get(COOKIE_NAME)
     if not token:
         return None
+    settings = request.app.state.settings
     try:
-        payload = decode_access_token(token, secret_key=request.app.state.settings.QBIT_SECRET_KEY)
+        payload = decode_access_token(token, secret_key=settings.QBIT_SECRET_KEY)
     except Exception:  # noqa: BLE001 — expired/invalid cookie = anonymous
         return None
     try:
@@ -65,6 +67,36 @@ async def _resolve_user(request: Request, session: AsyncSession) -> User | None:
     user = await session.get(User, uid)
     if user is None or not user.is_active:
         return None
+    # Phase 12 (audit M4): UI logins are now first-class revocable sessions —
+    # the same server-side checks the API enforces in deps.py. An admin who
+    # revokes a session (or forces logout) evicts the UI cookie holder too.
+    revoked_before = user.tokens_revoked_before
+    if revoked_before is not None:
+        issued = payload.get("iat")
+        if isinstance(issued, (int, float)):
+            from datetime import datetime as _dt, timezone as _tz
+
+            issued_dt = _dt.fromtimestamp(issued, tz=_tz.utc)
+            rb = revoked_before if revoked_before.tzinfo else revoked_before.replace(tzinfo=_tz.utc)
+            if issued_dt < rb:
+                return None
+    jti = payload.get("jti")
+    if jti:
+        from datetime import datetime as _dt, timezone as _tz
+
+        row = await session.scalar(
+            select(UserSession).where(UserSession.jti == jti)
+        )
+        if row is not None and not row.is_live:
+            return None
+        if row is not None:
+            now = _dt.now(_tz.utc)
+            last = row.last_seen_at
+            if last is not None and last.tzinfo is None:
+                last = last.replace(tzinfo=_tz.utc)
+            if last is None or (now - last).total_seconds() >= 60:
+                row.last_seen_at = now
+                await session.commit()
     return user
 
 
@@ -147,45 +179,108 @@ async def login_submit(
 ):
     from app.services import rbac as rbac_service
 
+    settings = request.app.state.settings
     safe_next = next if next.startswith("/") and not next.startswith("//") else "/scraping"
+
+    # Phase 12 (audit H7): the UI form route is rate limited EXACTLY like the
+    # API login (per-IP sliding window) — it used to be an unthrottled bypass.
+    limiter = request.app.state.login_limiter
+    if not limiter.check(get_client_ip(request)):
+        retry_after = int(round(limiter.retry_after_seconds(get_client_ip(request)))) or 60
+        response = templates.TemplateResponse(
+            request, "login.html",
+            _ctx(request, None, next=safe_next, error="Too many login attempts. Try again shortly."),
+            status_code=429,
+        )
+        response.headers["Retry-After"] = str(retry_after)
+        return response
+
+    def _deny(message: str, status: int = 401):
+        return templates.TemplateResponse(
+            request, "login.html",
+            _ctx(request, None, next=safe_next, error=message),
+            status_code=status,
+        )
+
     user = await session.scalar(
         select(User).where(User.email == email.strip().lower())
     )
-    if user is None or not verify_password(password, user.password_hash):
-        return templates.TemplateResponse(
-            request, "login.html",
-            _ctx(request, None, next=safe_next, error="Invalid email or password"),
-            status_code=401,
-        )
-    if not user.is_active:
-        return templates.TemplateResponse(
-            request, "login.html",
-            _ctx(request, None, next=safe_next, error="Account is deactivated"),
-            status_code=403,
-        )
+    # Constant-shape for wrong credentials AND locked accounts (audit M11):
+    # lockout must not become a password-confirmation oracle.
+    if user is None:
+        verify_password(password, "$argon2id$invalidplaceholderhashvalue")
+        return _deny("Invalid email or password")
+    if not verify_password(password, user.password_hash):
+        await login_guard.register_failure(session, user, settings)
+        return _deny("Invalid email or password")
+    if login_guard.is_locked(user):
+        return _deny("Invalid email or password")
+    await login_guard.register_success(session, user)
+
+    if not user.is_active or user.effective_status in ("SUSPENDED", "DEACTIVATED"):
+        # only reachable WITH the correct password — no enumeration channel
+        return _deny("This account cannot sign in", status=403)
     perms = await rbac_service.load_user_permissions(session, user.id)
     if "scraping.view" not in perms:
-        return templates.TemplateResponse(
-            request, "login.html",
-            _ctx(request, None, next=safe_next, error="No scraping permission"),
-            status_code=403,
-        )
-    token, _exp = create_access_token(
+        return _deny("This account cannot sign in", status=403)
+
+    token, expires_at = create_access_token(
         subject=str(user.id),
-        secret_key=request.app.state.settings.QBIT_SECRET_KEY,
-        ttl_minutes=request.app.state.settings.QBIT_SESSION_TTL_MINUTES,
+        secret_key=settings.QBIT_SECRET_KEY,
+        ttl_minutes=settings.QBIT_SESSION_TTL_MINUTES,
     )
+    # Phase 12 (audit M4): register a revocable server-side session for the
+    # UI login (previously UI sessions were invisible to the Sessions admin).
+    try:
+        jti = decode_access_token(token, secret_key=settings.QBIT_SECRET_KEY).get("jti")
+        if jti:
+            session.add(
+                UserSession(
+                    user_id=user.id,
+                    jti=jti,
+                    ip_address=get_client_ip(request),
+                    user_agent=get_user_agent(request),
+                    expires_at=expires_at,
+                    last_seen_at=datetime.now(timezone.utc),
+                )
+            )
+            user.last_login_at = datetime.now(timezone.utc)
+            await session.commit()
+    except Exception:  # noqa: BLE001 — session bookkeeping must not block login
+        await session.rollback()
     response = RedirectResponse(url=safe_next, status_code=303)
     response.set_cookie(
         COOKIE_NAME, token, httponly=True, samesite="lax",
-        max_age=request.app.state.settings.QBIT_SESSION_TTL_MINUTES * 60,
+        secure=settings.cookie_secure,  # Phase 12 (audit M4)
+        max_age=settings.QBIT_SESSION_TTL_MINUTES * 60,
         path="/",
     )
     return response
 
 
 @router.post("/logout")
-async def logout():
+async def logout(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Phase 12 (audit M4): revoke the server-side session, not just the cookie."""
+    token = request.cookies.get(COOKIE_NAME)
+    if token:
+        try:
+            payload = decode_access_token(
+                token, secret_key=request.app.state.settings.QBIT_SECRET_KEY
+            )
+            jti = payload.get("jti")
+            if jti:
+                row = await session.scalar(
+                    select(UserSession).where(UserSession.jti == jti)
+                )
+                if row is not None and row.revoked_at is None:
+                    row.revoked_at = datetime.now(timezone.utc)
+                    row.revoked_reason = "LOGOUT"
+                    await session.commit()
+        except Exception:  # noqa: BLE001 — logout must never fail
+            pass
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie(COOKIE_NAME, path="/")
     return response

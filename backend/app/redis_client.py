@@ -29,11 +29,17 @@ class RedisManager:
         if self._client is None and self.enabled:
             import redis.asyncio as aioredis
 
+            # Phase 12 (audit M1): production-safe socket behavior — keepalive
+            # + retry on timeout + periodic internal health checks so a brief
+            # network blip no longer poisons every pooled connection.
             self._client = aioredis.from_url(
                 self.settings.REDIS_URL,
                 decode_responses=True,
                 socket_connect_timeout=3,
                 socket_timeout=3,
+                socket_keepalive=True,
+                retry_on_timeout=True,
+                health_check_interval=30,
             )
         return self._client
 

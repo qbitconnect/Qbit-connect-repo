@@ -379,3 +379,119 @@ async def update_security_settings(
         metadata={"changes": changed},
     )
     return await get_security_settings(request, session, ctx)
+
+
+# --- Phase 12 §34/§36/§41: operations snapshot ---------------------------------
+
+
+@router.get("/ops")
+async def ops_snapshot(
+    request: Request,
+    session: DbSession,
+    ctx: MemberContext = Depends(require_context("settings.view")),
+):
+    """Production ops snapshot (real measurements only — never fabricated).
+
+    Exposes: queue depth, scrape-job counts by status, worker heartbeat age,
+    disk usage with warning threshold, backup manifest summary, uptime.
+    Permission-gated (`settings.view`); deliberately contains NO filesystem
+    paths, credentials or provider configuration.
+    """
+    from app import __version__
+    from app.models.scrape import JobStatus
+    from app.services.backup import BackupService
+
+    settings = request.app.state.settings
+    now = datetime.now(timezone.utc)
+
+    # --- queue depth (Phase 12 audit H4: pending_count was dead code) ---
+    try:
+        queue_depth = int(await request.app.state.queue.pending_count())
+        queue_backend = request.app.state.queue.name
+    except Exception:  # noqa: BLE001 — metrics must never 500
+        queue_depth, queue_backend = None, "unavailable"
+
+    # --- scrape jobs by status ---
+    job_counts: dict[str, int] = {}
+    rows = await session.execute(
+        select(ScrapeJob.status, func.count()).group_by(ScrapeJob.status)
+    )
+    for status_value, count in rows.all():
+        key = status_value.value if hasattr(status_value, "value") else str(status_value)
+        job_counts[key] = int(count or 0)
+    for status_value in JobStatus:
+        job_counts.setdefault(status_value.value, 0)
+
+    # --- worker liveness (heartbeat file shared via the data volume) ---
+    heartbeat_path = settings.data_dir / "cache" / "worker-heartbeat.json"
+    worker: dict = {"status": "unknown", "heartbeat_age_seconds": None}
+    try:
+        import json as _json
+        import time as _time
+
+        if heartbeat_path.exists():
+            raw = _json.loads(heartbeat_path.read_text())
+            age = max(0.0, _time.time() - float(raw.get("ts", 0)))
+            worker = {
+                "status": "alive" if age < 180 else "stale",
+                "heartbeat_age_seconds": round(age, 1),
+                "worker_id": str(raw.get("worker_id", ""))[:40],
+                "active_jobs": raw.get("active_jobs"),
+            }
+        else:
+            worker = {"status": "no_heartbeat", "heartbeat_age_seconds": None}
+    except Exception:  # noqa: BLE001
+        worker = {"status": "unknown", "heartbeat_age_seconds": None}
+
+    # --- disk usage (whitelisted fields only; no paths — audit M7) ---
+    storage = request.app.state.storage
+    usage = storage.backend.usage_summary()
+    disk_used_percent = usage.get("disk_used_percent")
+    disk = {
+        "total_bytes": usage.get("disk_total_bytes"),
+        "free_bytes": usage.get("disk_free_bytes"),
+        "used_percent": disk_used_percent,
+        "data_total_bytes": usage.get("total_bytes"),
+        "data_total_files": usage.get("total_files"),
+        "warn_percent": settings.QBIT_DISK_WARN_PERCENT,
+        "warning": bool(
+            disk_used_percent is not None
+            and disk_used_percent >= settings.QBIT_DISK_WARN_PERCENT
+        ),
+    }
+
+    # --- backup summary (latest entries from the append-only manifest) ---
+    backups: dict = {"latest": None, "count": 0}
+    try:
+        manifest = BackupService(settings).manifest_path
+        if manifest.exists():
+            lines = [
+                line
+                for line in manifest.read_text().splitlines()
+                if line.strip()
+            ]
+            backups["count"] = len(lines)
+            if lines:
+                backups["latest"] = _json.loads(lines[-1])
+    except Exception:  # noqa: BLE001
+        pass
+
+    started_at = getattr(request.app.state, "started_at", None)
+    uptime_seconds = (
+        round((now - started_at).total_seconds(), 1) if started_at else None
+    )
+
+    return {
+        "success": True,
+        "data": {
+            "version": __version__,
+            "env": settings.QBIT_ENV,
+            "uptime_seconds": uptime_seconds,
+            "timestamp": now.isoformat(),
+            "queue": {"backend": queue_backend, "depth": queue_depth},
+            "scrape_jobs": job_counts,
+            "worker": worker,
+            "disk": disk,
+            "backups": backups,
+        },
+    }

@@ -91,6 +91,11 @@ class RateLimitedError(QBITError):
     code = "TOO_MANY_REQUESTS"
     message = "Too many requests. Please slow down."
 
+    def __init__(self, message: str | None = None, *, retry_after: int | None = None):
+        super().__init__(message or self.message)
+        # Phase 12 (audit L3): honest retry guidance instead of blind retries
+        self.retry_after = retry_after
+
 
 class MaintenanceError(QBITError):
     status_code = 503
@@ -125,9 +130,14 @@ def register_error_handlers(app) -> None:  # noqa: ANN001 - FastAPI app
             path=request.url.path,
             method=request.method,
         )
+        headers = {}
+        retry_after = getattr(exc, "retry_after", None)
+        if exc.status_code == 429 and retry_after:
+            headers["Retry-After"] = str(int(retry_after))
         return JSONResponse(
             status_code=exc.status_code,
             content=error_envelope(exc.code, exc.message, exc.details or None),
+            headers=headers or None,
         )
 
     @app.exception_handler(RequestValidationError)

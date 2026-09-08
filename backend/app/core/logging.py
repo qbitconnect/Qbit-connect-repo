@@ -22,6 +22,9 @@ from app.core.config import Settings
 SERVICE_NAME = "qbit-api"
 
 #: keys whose values must never be persisted in logs or audit metadata.
+#: Phase 12 (audit M6): extended with common credential-variant key names —
+#: exact-match on the lowercased key, checked recursively on every structured
+#: log field and audit metadata payload.
 SECRET_KEYS = {
     "password",
     "password_hash",
@@ -38,6 +41,23 @@ SECRET_KEYS = {
     "secret_key",
     "vault_key",
     "credentials",
+    # --- Phase 12 additions (variant key names seen in provider payloads) ---
+    "app_secret",
+    "client_secret",
+    "verify_token",
+    "webhook_secret",
+    "shared_secret",
+    "smtp_password",
+    "email_api_key",
+    "maps_provider_api_key",
+    "bearer",
+    "credential",
+    "app_secret_proof",
+    "private_key",
+    "secret_token",
+    "auth_token",
+    "session_token",
+    "invitation_token",
 }
 
 

@@ -24,7 +24,7 @@ import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 
 from app.core.config import Settings
 from app.core.logging import get_logger, log_with
@@ -75,32 +75,38 @@ class JobRunner:
     async def claim(self, job_id: uuid.UUID) -> ScrapeJob | None:
         """Atomically claim a startable job: QUEUED/PAUSED → RUNNING + lease.
 
-        Single guarded UPDATE semantics via SELECT-then-flush inside one
-        transaction on the status predicate, so two workers can never
-        double-claim (brief §14). PAUSED jobs are claimed only for operator
-        resumes (stop_requested cleared by engine.resume()).
+        Phase 12 (audit H1): a SINGLE guarded UPDATE with the status predicate
+        in the WHERE clause — the row is claimed iff the UPDATE reports
+        rowcount 1. Two workers racing on the same QUEUED row can never both
+        win (SELECT-then-flush allowed a double-claim window). PAUSED jobs are
+        claimed only for operator resumes (stop_requested cleared by
+        engine.resume()).
         """
         now = datetime.now(timezone.utc)
         deadline = now + timedelta(seconds=self._deadline_for(None))
         async with self.session_factory() as session:
-            row = await session.execute(
-                select(ScrapeJob).where(
+            result = await session.execute(
+                update(ScrapeJob)
+                .where(
                     ScrapeJob.id == job_id,
                     ScrapeJob.status.in_([JobStatus.QUEUED, JobStatus.PAUSED]),
                 )
+                .values(
+                    status=JobStatus.RUNNING,
+                    started_at=func.coalesce(ScrapeJob.started_at, now),
+                    paused_at=None,
+                    leased_at=now,
+                    lease_owner=self.owner,
+                    attempt=func.coalesce(ScrapeJob.attempt, 0) + 1,
+                    deadline_at=deadline,
+                    stop_requested="NONE",
+                    updated_at=now,
+                )
             )
-            job = row.scalar_one_or_none()
-            if job is None:
+            if result.rowcount != 1:
+                # lost the race (another worker claimed it) or not claimable
                 return None
-            job.status = JobStatus.RUNNING
-            job.started_at = job.started_at or now
-            job.paused_at = None
-            job.leased_at = now
-            job.lease_owner = self.owner
-            job.attempt = (job.attempt or 0) + 1
-            job.deadline_at = deadline
-            job.stop_requested = "NONE"
-            job.updated_at = now
+            job = await session.get(ScrapeJob, job_id)
             session.add(
                 _event_row(
                     job.id,
@@ -110,7 +116,6 @@ class JobRunner:
             )
             await session.commit()
             await self.queue.renew_lease(str(job.id), self.owner, self.lease_seconds)
-            await session.refresh(job)
             return job
 
     # ---------------------------------------------------------------- execute
@@ -426,8 +431,38 @@ class JobRunner:
             while True:
                 await asyncio.sleep(max(self.lease_seconds / 3, 5))
                 await self.queue.renew_lease(str(job_id), self.owner, self.lease_seconds)
+                await self._renew_db_lease(job_id)
         except asyncio.CancelledError:
             return
+
+    async def _renew_db_lease(self, job_id: uuid.UUID) -> None:
+        """Phase 12 (audit C1): keep the DB lease fresh while the job runs.
+
+        The recovery sweep (`engine.recover_stalled`) judges a crashed worker
+        by the DB `leased_at` column. It used to be written once at claim
+        time, so every job outliving QBIT_WORKER_LEASE_SECONDS was re-queued
+        WHILE STILL RUNNING (duplicate concurrent execution). The heartbeat
+        now renews the DB lease with the same owner+RUNNING guard, so an
+        expired lease genuinely means a dead worker.
+        """
+        now = datetime.now(timezone.utc)
+        try:
+            async with self.session_factory() as session:
+                await session.execute(
+                    update(ScrapeJob)
+                    .where(
+                        ScrapeJob.id == job_id,
+                        ScrapeJob.status == JobStatus.RUNNING,
+                        ScrapeJob.lease_owner == self.owner,
+                    )
+                    .values(leased_at=now, updated_at=now)
+                )
+                await session.commit()
+        except Exception:  # noqa: BLE001 — a failed renewal must never kill the job
+            log_with(
+                logger, 30, "DB lease renewal failed",
+                job_id=str(job_id),
+            )
 
     def _limits_for(self, job: ScrapeJob) -> JobLimits:
         cfg = job.config or {}

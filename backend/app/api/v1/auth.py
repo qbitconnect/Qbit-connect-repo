@@ -30,6 +30,7 @@ from app.core.security import (
 from app.models.enterprise import UserSession, UserStatus
 from app.models.user import User
 from app.schemas.auth import LoginRequest, LogoutResponse, TokenResponse
+from app.services import login_guard
 from app.services import rbac as rbac_service
 
 logger = get_logger("qbit.auth")
@@ -47,7 +48,11 @@ async def login(
     ip = get_client_ip(request)
     limiter = request.app.state.login_limiter
     if not limiter.check(ip):
-        raise RateLimitedError("Too many login attempts. Try again shortly.")
+        # Phase 12 (audit L3): surface honest retry guidance
+        retry_after = int(round(limiter.retry_after_seconds(ip))) or 60
+        raise RateLimitedError(
+            "Too many login attempts. Try again shortly.", retry_after=retry_after
+        )
 
     email = payload.email.lower()
     user = await session.scalar(select(User).where(User.email == email))
@@ -67,6 +72,8 @@ async def login(
         raise AuthFailedError()
 
     if not verify_password(payload.password, user.password_hash):
+        # Phase 12 (audit M11): per-account brute-force lockout
+        await login_guard.register_failure(session, user, settings)
         await request.app.state.audit.log(
             session,
             action="user.login_failed",
@@ -77,6 +84,22 @@ async def login(
             metadata={"reason": "bad_password"},
         )
         raise AuthFailedError()
+
+    if login_guard.is_locked(user):
+        # constant-shape: a locked account is indistinguishable from a wrong
+        # password so lockout cannot be used as a password-confirmation oracle
+        await request.app.state.audit.log(
+            session,
+            action="user.login_failed",
+            resource_type="user",
+            resource_id=str(user.id),
+            ip_address=ip,
+            user_agent=get_user_agent(request),
+            metadata={"reason": "account_locked"},
+        )
+        raise AuthFailedError()
+
+    await login_guard.register_success(session, user)
 
     if not user.is_active:
         raise PermissionDeniedError("Account is deactivated")

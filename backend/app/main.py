@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,10 +28,28 @@ logger = get_logger("qbit.app")
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
-    """Generates/propagates X-Request-ID; binds it to logs (Brief §19)."""
+    """Generates/propagates X-Request-ID; binds it to logs (Brief §19).
+
+    Phase 12 (audit L2): a client-supplied request id is SANITIZED before it
+    is echoed into response headers and log lines — max 128 chars, restricted
+    to a safe alphabet (no control characters, quotes or whitespace).
+    """
+
+    _REQUEST_ID_ALPHABET = set(
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+    )
+
+    def _sanitize(self, raw: str | None) -> str | None:
+        if not raw:
+            return None
+        candidate = raw.strip()[:128]
+        if not candidate or not set(candidate) <= self._REQUEST_ID_ALPHABET:
+            return None
+        return candidate
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
-        request_id = request.headers.get("x-request-id") or request_context.new_request_id()
+        request_id = self._sanitize(request.headers.get("x-request-id")) \
+            or request_context.new_request_id()
         request_context.set_request_id(request_id)
         request.state.request_id = request_id
         try:
@@ -42,13 +61,34 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Baseline hardening headers (Brief §25 / architecture doc 17)."""
+    """Baseline hardening headers (Brief §25 / architecture doc 17).
+
+    Phase 12 (audit M8, brief §7): adds a Content-Security-Policy. The policy
+    is deliberately NOT maximally restrictive: the server-rendered UI uses
+    inline scripts/styles, so 'unsafe-inline' remains within script/style
+    sources (documented residual). The CSP still blocks ALL external
+    content (default-src 'self' — no CDN/telemetry), plugins, framing,
+    form hijacking and base-tag injection; combined with the template-side
+    escaping fix (audit H5) it closes the practical XSS paths.
+    """
 
     HEADERS = {
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "DENY",
         "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        "Content-Security-Policy": (
+            "default-src 'self'; "
+            "img-src 'self' data:; "
+            "style-src 'self' 'unsafe-inline'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "connect-src 'self'; "
+            "font-src 'self' data:; "
+            "object-src 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'; "
+            "frame-ancestors 'none'"
+        ),
     }
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
@@ -101,6 +141,7 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         ensure_storage_dirs(settings)
+        app.state.started_at = datetime.now(timezone.utc)
         # Initial actor health snapshot (non-fatal; /scrapers/health refreshes)
         try:
             await app.state.scraper_registry.health_check()

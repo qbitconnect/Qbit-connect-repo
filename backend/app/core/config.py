@@ -81,6 +81,14 @@ class Settings(BaseSettings):
     QBIT_CORS_ORIGINS: str = ""  # comma-separated; empty = same-origin only
     QBIT_RATE_LIMIT_LOGIN_PER_MIN: int = Field(default=10, ge=1)
     QBIT_MAX_UPLOAD_MB: int = Field(default=100, ge=1)
+    # --- Phase 12: authentication hardening -----------------------------------
+    #: failed login attempts per account before a temporary lockout (0 = off);
+    #: counters reset on success; lockout applies to BOTH api and ui logins
+    QBIT_LOGIN_MAX_FAILED_ATTEMPTS: int = Field(default=10, ge=0, le=100)
+    QBIT_LOGIN_LOCKOUT_MINUTES: int = Field(default=15, ge=1, le=1440)
+    #: force the `secure` attribute on the UI session cookie. Default (None)
+    #: means auto: secure=True in production, False elsewhere.
+    QBIT_COOKIE_SECURE: bool | None = None
     # --- Phase 11: enterprise ------------------------------------------------
     QBIT_INVITATION_EXPIRY_HOURS: int = Field(default=168, ge=1, le=720)
     QBIT_RATE_LIMIT_INVITE_PER_HOUR: int = Field(default=30, ge=1)
@@ -126,6 +134,12 @@ class Settings(BaseSettings):
     QBIT_WORKER_LEASE_SECONDS: int = Field(default=120, ge=30)
     QBIT_WORKER_POLL_SECONDS: float = Field(default=2.0, ge=0.5)
     QBIT_WORKER_MAX_CONCURRENT_JOBS: int = Field(default=2, ge=1)
+    # --- Phase 12: graceful shutdown + ops ---------------------------------------
+    #: grace period before in-flight jobs are cancelled (checkpoint+PAUSED)
+    #: on shutdown; must stay BELOW the container stop timeout to be effective
+    QBIT_WORKER_DRAIN_SECONDS: float = Field(default=30.0, ge=1, le=600)
+    #: disk usage warning threshold (percent) surfaced in /admin ops + logs
+    QBIT_DISK_WARN_PERCENT: float = Field(default=85.0, ge=50.0, le=99.9)
 
     # --- Leads workspace (Phase 4) ---------------------------------------------
     #: rows above which an import batch is processed by the background worker
@@ -166,8 +180,11 @@ class Settings(BaseSettings):
     WHATSAPP_API_VERSION: str = "v21.0"
     #: webhook verification challenge token (Meta app level; never logged)
     WHATSAPP_WEBHOOK_VERIFY_TOKEN: str | None = None
-    #: app secret for X-Hub-Signature-256 validation (app-level fallback;
-    #: per-account app secrets in the vault take precedence)
+    #: app secret for X-Hub-Signature-256 validation. WEBHOOK verification
+    #: uses THIS app-level env secret (Meta signs at app level); per-account
+    #: vault app secrets are used for SENDING credentials only, not webhook
+    #: verification (corrected Phase 12 audit M9 — previous comment claimed
+    #: vault precedence for webhooks, which the implementation never did).
     WHATSAPP_APP_SECRET: str | None = None
     #: dev / single-account bootstrap fallbacks — per-account ENCRYPTED vault
     #: credentials always take precedence; never returned by any API
@@ -260,10 +277,27 @@ class Settings(BaseSettings):
     #: rows above which a report snapshot spills to a StorageService export file
     QBIT_ANALYTICS_MAX_SNAPSHOT_ROWS: int = Field(default=10_000, ge=100)
 
+    # --- Phase 12: backup scheduling + retention (docs/21 GFS policy) --------
+    #: hours between scheduled backups executed by the worker (0 = disabled);
+    #: each cycle backs up the database AND the important file data dirs
+    QBIT_BACKUP_SCHEDULE_HOURS: int = Field(default=24, ge=0, le=8760)
+    QBIT_BACKUP_RETENTION_DAILY: int = Field(default=14, ge=1, le=365)
+    QBIT_BACKUP_RETENTION_WEEKLY: int = Field(default=8, ge=1, le=104)
+    QBIT_BACKUP_RETENTION_MONTHLY: int = Field(default=6, ge=1, le=60)
+
     # --- Derived helpers ----------------------------------------------------
     @property
     def is_production(self) -> bool:
         return self.QBIT_ENV == "production"
+
+    @property
+    def cookie_secure(self) -> bool:
+        """`secure` attribute for the UI session cookie (Phase 12 audit M4).
+        Auto: True in production (HTTPS assumed, brief §9), False elsewhere.
+        QBIT_COOKIE_SECURE overrides explicitly for staging proxies."""
+        if self.QBIT_COOKIE_SECURE is None:
+            return self.is_production
+        return self.QBIT_COOKIE_SECURE
 
     @property
     def data_dir(self) -> Path:
@@ -345,6 +379,12 @@ class Settings(BaseSettings):
             problems.append(
                 "WHATSAPP_WEBHOOK_VERIFY_TOKEN must be set in production to validate "
                 "WhatsApp webhook subscription requests."
+            )
+        if self.is_production and not self.EMAIL_WEBHOOK_SECRET:
+            problems.append(
+                "EMAIL_WEBHOOK_SECRET must be set in production: email provider "
+                "webhooks are machine endpoints and are never processed unverified "
+                "(Phase 12 audit H6)."
             )
         return problems
 

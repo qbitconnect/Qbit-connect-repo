@@ -174,9 +174,12 @@ class TestWebhookSecurityEndpoints:
         assert resp.status_code == 401
 
     async def test_replayed_timestamp_rejected(self, app, client):
-        secret = app.state.settings.EMAIL_WEBHOOK_SECRET or "mock-webhook-secret"
-        if app.state.settings.QBIT_ENV != "test":
-            pytest.skip("mock secret only in test envs")
+        # Phase 12: the mock fallback secret no longer exists; ensure the
+        # test settings carry an explicit secret, then prove stale timestamps
+        # are rejected by the replay window.
+        if not app.state.settings.EMAIL_WEBHOOK_SECRET:
+            app.state.settings.EMAIL_WEBHOOK_SECRET = "test-email-webhook-secret"
+        secret = app.state.settings.EMAIL_WEBHOOK_SECRET
         body = json.dumps({"events": [{"event": "delivered", "message_id": "m"}]}).encode()
         stale_ts = int(time.time()) - app.state.settings.QBIT_WEBHOOK_MAX_AGE_SECONDS - 60
         headers = dict(_sign(secret, body, ts=stale_ts))

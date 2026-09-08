@@ -85,11 +85,14 @@ class EmailWebhookService:
     def resolve_secret(self, provider_id: str) -> str | None:
         """Shared secret for webhook validation (§28). Env-level secret only —
         per-account secrets would require trusting unauthenticated account
-        routing, which the contract deliberately avoids."""
-        if provider_id == "email_mock":
-            # the mock accepts the env secret OR a test-only default so tests
-            # can exercise the full pipeline; production never registers it
-            return self.settings.EMAIL_WEBHOOK_SECRET or "mock-webhook-secret"
+        routing, which the contract deliberately avoids.
+
+        Phase 12 (audit H6): the test-only `"mock-webhook-secret"` fallback is
+        REMOVED. Without EMAIL_WEBHOOK_SECRET set, email webhooks — including
+        the mock provider — are rejected as unconfigured (never processed
+        unverified). The mock webhook routes are additionally blocked in
+        production at the API layer.
+        """
         return self.settings.EMAIL_WEBHOOK_SECRET or None
 
     def verify_signature(
@@ -108,16 +111,18 @@ class EmailWebhookService:
         expected = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
         if not hmac.compare_digest(expected, provided):
             return False
-        # replay protection (§28): reject stale timestamps
-        if timestamp_header:
-            try:
-                ts = int(str(timestamp_header).strip())
-            except ValueError:
-                return False
-            age = abs(time.time() - ts)
-            if age > self.settings.QBIT_WEBHOOK_MAX_AGE_SECONDS:
-                return False
-        return True
+        # replay protection (§28): reject stale timestamps.
+        # Phase 12 (audit M5): the timestamp header is now MANDATORY — a
+        # request that omits X-QBIT-Timestamp no longer bypasses the replay
+        # window (the module contract is signature AND timestamp).
+        if not timestamp_header:
+            return False
+        try:
+            ts = int(str(timestamp_header).strip())
+        except ValueError:
+            return False
+        age = abs(time.time() - ts)
+        return age <= self.settings.QBIT_WEBHOOK_MAX_AGE_SECONDS
 
     # ------------------------------------------------------------- processing
     async def process_payload(

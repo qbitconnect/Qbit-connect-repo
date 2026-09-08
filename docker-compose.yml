@@ -64,11 +64,20 @@ services:
       QBIT_MAPS_PROVIDER_URL: ${QBIT_MAPS_PROVIDER_URL:-}
       # QBIT_MAPS_PROVIDER_API_KEY is intentionally NOT plumbed from compose
       # env: set it with `docker compose run -e` or a secrets manager.
+      # --- Phase 12 hardening knobs ---------------------------------------
+      QBIT_COOKIE_SECURE: ${QBIT_COOKIE_SECURE:-true}
+      EMAIL_WEBHOOK_SECRET: ${EMAIL_WEBHOOK_SECRET:?set EMAIL_WEBHOOK_SECRET in .env}
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
+      QBIT_RATE_LIMIT_LOGIN_PER_MIN: ${QBIT_RATE_LIMIT_LOGIN_PER_MIN:-10}
     volumes:
       # Persistent QBIT data on the host (bind mount) — survives container replacement.
       - ${QBIT_DATA_HOST_PATH:-./qbit-data}:/qbit-data
     ports:
-      - "${QBIT_API_PORT:-8000}:8000"
+      # Phase 12 (§10): the API binds to LOOPBACK by default — production
+      # traffic enters through the reverse proxy (deploy/nginx-qbit.conf),
+      # never directly. Override QBIT_API_BIND_HOST=0.0.0.0 for proxy-less
+      # development deployments only.
+      - "${QBIT_API_BIND_HOST:-127.0.0.1}:${QBIT_API_PORT:-8000}:8000"
     networks:
       - qbit-internal
 
@@ -78,6 +87,10 @@ services:
     image: qbit-connect-api:0.2.0
     container_name: qbit-worker
     restart: unless-stopped
+    # Phase 12 (§18): the worker drains in-flight jobs on SIGTERM — grace
+    # period QBIT_WORKER_DRAIN_SECONDS (default 30s) must fit inside this
+    # stop timeout, otherwise Docker SIGKILLs mid-job.
+    stop_grace_period: 90s
     # Same image, different entrypoint (brief §15: API and worker are isolated
     # processes — a crashing scraper never takes the API down).
     command: ["python", "-m", "app.worker"]
@@ -97,14 +110,22 @@ services:
       QBIT_SCRAPER_ALLOW_PRIVATE_TARGETS: "false"  # SSRF guard always on in compose
       QBIT_MAPS_PROVIDER: ${QBIT_MAPS_PROVIDER:-none}
       QBIT_MAPS_PROVIDER_URL: ${QBIT_MAPS_PROVIDER_URL:-}
+      # --- Phase 12 hardening knobs ---------------------------------------
+      QBIT_COOKIE_SECURE: ${QBIT_COOKIE_SECURE:-true}
+      EMAIL_WEBHOOK_SECRET: ${EMAIL_WEBHOOK_SECRET:?set EMAIL_WEBHOOK_SECRET in .env}
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
+      QBIT_BACKUP_SCHEDULE_HOURS: ${QBIT_BACKUP_SCHEDULE_HOURS:-24}
     volumes:
       # Shares the same data root: raw/normalized JSONL job results land here.
       - ${QBIT_DATA_HOST_PATH:-./qbit-data}:/qbit-data
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import app.worker' || exit 1"]
+      # Phase 12 (audit M12): real liveness — the worker writes a heartbeat
+      # file every ≤30s; this fails when the loop is hung or dead.
+      test: ["CMD-SHELL", "python -c 'import json,time,sys; p=\"/qbit-data/cache/worker-heartbeat.json\"; sys.exit(0 if __import__(\"os\").path.exists(p) and time.time()-json.load(open(p)).get(\"ts\",0) < 180 else 1)'"]
       interval: 60s
       timeout: 10s
       retries: 3
+      start_period: 30s
     networks:
       - qbit-internal
 

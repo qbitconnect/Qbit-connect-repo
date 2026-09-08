@@ -91,9 +91,23 @@ FileServiceDep = Annotated[FileService, Depends(get_file_service)]
 
 
 def get_client_ip(request: Request) -> str:
+    """Best-effort client IP for rate limiting + audit trails.
+
+    Phase 12 hardening: header values are only trusted from the LAST XFF
+    entry (the one appended by OUR reverse proxy) or X-Real-IP (set by the
+    proxy, overriding client-supplied values). Earlier XFF entries are
+    client-controlled — trusting them let an attacker rotate spoofed IPs
+    and bypass the per-IP login limiter. When the app is reached directly
+    (dev mode), the socket peer address is used.
+    """
+    real = request.headers.get("x-real-ip")
+    if real and real.strip():
+        return real.strip()
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        last = forwarded.split(",")[-1].strip()
+        if last:
+            return last
     return request.client.host if request.client else "unknown"
 
 

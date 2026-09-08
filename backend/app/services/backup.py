@@ -48,15 +48,25 @@ class BackupResult:
 
 
 class BackupService:
+    #: data directories included in FILE backups (brief §13): important,
+    #: regenerable-late but hard-to-replace data. temporary/ and cache/ are
+    #: deliberately NEVER backed up (disposable runtime data).
+    FILE_BACKUP_DIRS = ("exports", "scraper-results", "campaigns", "attachments", "imports")
+
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.backup_root: Path = settings.backup_dir
         self.db_dir = self.backup_root / "db"
+        self.files_dir = self.backup_root / "files"
         self.config_dir = self.backup_root / "config"
         self._ensure_dirs()
 
+    @property
+    def manifest_path(self) -> Path:
+        return self.backup_root / "manifest.jsonl"
+
     def _ensure_dirs(self) -> None:
-        for d in (self.backup_root, self.db_dir, self.config_dir):
+        for d in (self.backup_root, self.db_dir, self.files_dir, self.config_dir):
             d.mkdir(parents=True, exist_ok=True)
 
     def run_database_backup(self) -> BackupResult:
@@ -170,3 +180,210 @@ class BackupService:
                 fh.write(json.dumps(result.to_dict(), default=str) + "\n")
         except OSError as exc:  # pragma: no cover
             log_with(logger, 40, "Could not write backup manifest", error=str(exc))
+
+    # ---------------------------------------------------------------- Phase 12
+    def run_files_backup(self) -> BackupResult:
+        """Tar.gz snapshot of the important file-data directories (§13).
+
+        Includes exports, scraper results, campaigns, attachments and imports;
+        excludes temporary/ cache/ and backups/ (never nested). The archive is
+        streamed with deterministic member paths and checksummed like DB
+        backups. Never fails the caller — reports honestly instead.
+        """
+        import tarfile
+
+        started = datetime.now(timezone.utc)
+        stamp = started.strftime("%Y%m%d-%H%M%S")
+        target = self.files_dir / f"qbit-files-{stamp}.tar.gz"
+        result = BackupResult(
+            status="failed",
+            backend="files",
+            started_at=started.isoformat(),
+        )
+        try:
+            data_root = self.settings.data_dir
+            included = 0
+            with tarfile.open(target, "w:gz") as tar:
+                for name in self.FILE_BACKUP_DIRS:
+                    directory = data_root / name
+                    if not directory.exists():
+                        continue
+                    for member in sorted(directory.rglob("*")):
+                        if member.is_file():
+                            tar.add(member, arcname=str(member.relative_to(data_root)))
+                            included += 1
+            if included == 0:
+                result.status = "completed"
+                result.details["reason"] = "no file data to back up"
+                target.unlink(missing_ok=True)
+                return result
+            result = self._finalize_file(started, target, backend="files")
+            result.details["files_included"] = included
+        except Exception as exc:  # noqa: BLE001 - backups report, never crash
+            log_with(logger, 40, "File backup failed", error=type(exc).__name__)
+            result.status = "failed"
+            result.details["error"] = type(exc).__name__
+            result.finished_at = datetime.now(timezone.utc).isoformat()
+        self._append_manifest(result)
+        return result
+
+    def backup_config_snapshot(self) -> BackupResult:
+        """Snapshot NON-SECRET configuration metadata (§12).
+
+        Writes the .env VARIABLE NAMES required by the deployment (never
+        values) plus runtime settings metadata — enough to reconstruct the
+        environment shape after a host loss without ever persisting secrets.
+        """
+        import os
+
+        started = datetime.now(timezone.utc)
+        target = self.config_dir / f"env-manifest-{started.strftime('%Y%m%d-%H%M%S')}.txt"
+        result = BackupResult(
+            status="failed", backend="config", started_at=started.isoformat()
+        )
+        try:
+            required = sorted(
+                key for key in os.environ
+                if key.startswith(("QBIT_", "DATABASE_URL", "REDIS_URL", "POSTGRES_", "SMTP_", "WHATSAPP_", "EMAIL_"))
+            )
+            lines = [f"{key}=<set>" for key in required]
+            target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            result = self._finalize_file(started, target, backend="config")
+        except Exception as exc:  # noqa: BLE001
+            result.status = "failed"
+            result.details["error"] = type(exc).__name__
+            result.finished_at = datetime.now(timezone.utc).isoformat()
+        self._append_manifest(result)
+        return result
+
+    def verify_backup(self, relative_path: str) -> dict:
+        """Verify a backup artifact WITHOUT touching production data (§12).
+
+        - postgres custom dump: `pg_restore --list` parses the archive header
+          and catalog (no database connection needed)
+        - sqlite: SQLite integrity_check on a COPY (never the live file)
+        - tar.gz files backup: full archive listing (detects truncation)
+        - config snapshot: file readability
+        Returns {"status": "verified"|"failed"|"unsupported", "detail": ...}.
+        """
+        import sqlite3 as _sqlite3
+        import tarfile
+        import tempfile
+
+        path = (self.backup_root / relative_path).resolve()
+        containment = self.backup_root.resolve()
+        if not str(path).startswith(str(containment)):
+            return {"status": "failed", "detail": "path escapes backup root"}
+        if not path.exists():
+            return {"status": "failed", "detail": "backup file not found"}
+        try:
+            if path.suffix == ".dump":
+                pg_restore = shutil.which("pg_restore")
+                if pg_restore is None:
+                    return {"status": "unsupported", "detail": "pg_restore not found"}
+                proc = subprocess.run(
+                    [pg_restore, "--list", str(path)],
+                    capture_output=True, text=True, timeout=600,
+                )
+                if proc.returncode == 0 and "TABLE DATA" in proc.stdout:
+                    tables = sum(1 for line in proc.stdout.splitlines() if "TABLE DATA" in line)
+                    return {"status": "verified", "detail": f"{tables} table(s) in archive"}
+                return {"status": "failed", "detail": "pg_restore could not read the archive"}
+            if path.suffix in {".db", ".sqlite"}:
+                with tempfile.TemporaryDirectory() as tmp:
+                    copy = Path(tmp) / path.name
+                    shutil.copy2(path, copy)
+                    conn = _sqlite3.connect(str(copy))
+                    try:
+                        (result_row,) = conn.execute("PRAGMA integrity_check").fetchone()
+                    finally:
+                        conn.close()
+                    return {
+                        "status": "verified" if result_row == "ok" else "failed",
+                        "detail": result_row,
+                    }
+            if path.name.endswith((".tar.gz",)):
+                with tarfile.open(path, "r:gz") as tar:
+                    members = tar.getnames()
+                return {"status": "verified", "detail": f"{len(members)} entries readable"}
+            if path.suffix == ".txt":
+                lines = path.read_text(encoding="utf-8").splitlines()
+                return {"status": "verified", "detail": f"{len(lines)} variable names"}
+            return {"status": "unsupported", "detail": "unknown artifact type"}
+        except Exception as exc:  # noqa: BLE001
+            return {"status": "failed", "detail": type(exc).__name__}
+
+    def read_manifest(self) -> list[dict]:
+        """Full append-only manifest history (never rewritten)."""
+        entries: list[dict] = []
+        if self.manifest_path.exists():
+            for line in self.manifest_path.read_text().splitlines():
+                if line.strip():
+                    try:
+                        entries.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+        return entries
+
+    def prune_backups(
+        self,
+        *,
+        keep_daily: int,
+        keep_weekly: int,
+        keep_monthly: int,
+    ) -> list[str]:
+        """GFS retention (docs/21: 14 daily / 8 weekly / 6 monthly, §12/§29).
+
+        ONLY artifacts recorded in the manifest are eligible — unknown files
+        in the backup dirs are never touched. The newest `keep_daily` are
+        always kept; within older windows the newest daily/weekly/monthly
+        exemplars are retained. Returns the list of REMOVED relative paths.
+        """
+        now = datetime.now(timezone.utc)
+        entries = [
+            e for e in self.read_manifest()
+            if e.get("status") == "completed" and e.get("path")
+        ]
+        entries.sort(key=lambda e: e.get("started_at", ""), reverse=True)
+
+        kept: set[str] = set()
+        seen_weeks: set[str] = set()
+        seen_months: set[str] = set()
+        daily_budget = keep_daily
+        for entry in entries:
+            rel = entry["path"]
+            try:
+                started = datetime.fromisoformat(str(entry.get("started_at")))
+            except ValueError:
+                kept.add(rel)  # unparseable timestamps are never pruned
+                continue
+            age_days = (now - started).total_seconds() / 86400
+            if daily_budget > 0:
+                kept.add(rel)
+                daily_budget -= 1
+                continue
+            week = started.strftime("%G-W%V")
+            month = started.strftime("%Y-%m")
+            if age_days <= 7 * keep_weekly and week not in seen_weeks:
+                seen_weeks.add(week)
+                kept.add(rel)
+                continue
+            if month not in seen_months and len(seen_months) < keep_monthly:
+                seen_months.add(month)
+                kept.add(rel)
+
+        removed: list[str] = []
+        for entry in entries:
+            rel = entry["path"]
+            if rel in kept:
+                continue
+            candidate = (self.backup_root / rel).resolve()
+            if not str(candidate).startswith(str(self.backup_root.resolve())):
+                continue
+            try:
+                candidate.unlink()
+                removed.append(rel)
+                log_with(logger, 20, "Backup pruned by retention policy", path=rel)
+            except OSError as exc:
+                log_with(logger, 30, "Backup prune failed", path=rel, error=str(exc))
+        return removed

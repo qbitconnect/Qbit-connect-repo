@@ -22,9 +22,13 @@ EXPOSE 8000
 
 # Migrations run as a separate, controlled step (never automatic on boot):
 #   docker compose exec qbit-api alembic upgrade head
+# Phase 12 (audit M2): HEALTHCHECK uses /health/live (LIVENESS — zero
+# dependency probes) so a transient DB/Redis blip no longer marks the API
+# container unhealthy and eligible for restart. Readiness is served by
+# /health/ready for orchestrators/load balancers.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request,sys; \
-        sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status==200 else 1)" \
+        sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=4).status==200 else 1)" \
         || exit 1
 
 CMD ["uvicorn", "app.asgi:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

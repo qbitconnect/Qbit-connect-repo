@@ -88,6 +88,20 @@ def lead_to_row(lead: Lead, fields: list[str]) -> dict:
     return row
 
 
+def _formula_safe_cell(value):
+    """Phase 12 (audit L1): neutralize CSV/Excel formula injection.
+
+    Lead fields are free-text and may originate from SCRAPED content. A cell
+    beginning with = + - @ would be interpreted as a formula by Excel/Libre
+    Office/Google Sheets when the operator opens the export (DDE/SQL/command
+    payloads are a real exfiltration vector). String cells with those lead
+    characters get a leading apostrophe; numeric types pass through intact.
+    """
+    if isinstance(value, str) and value[:1] in {"=", "+", "-", "@", "\t", "\r"}:
+        return "'" + value
+    return value
+
+
 class _CSVWriter:
     format_name = "csv"
     mime_type = "text/csv"
@@ -99,7 +113,7 @@ class _CSVWriter:
         self.count = 0
 
     def write_row(self, row: dict) -> None:
-        self._writer.writerow(row.values())
+        self._writer.writerow([_formula_safe_cell(v) for v in row.values()])
         self.count += 1
 
     def close(self) -> None:
@@ -160,7 +174,7 @@ class _XLSXWriter:
         self.count = 0
 
     def write_row(self, row: dict) -> None:
-        self._ws.append(list(row.values()))
+        self._ws.append([_formula_safe_cell(v) for v in row.values()])
         self.count += 1
 
     def close(self) -> None:

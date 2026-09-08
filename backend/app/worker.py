@@ -19,8 +19,10 @@ actor fails the job honestly (FAILED with SCRAPER_CONFIGURATION_ERROR).
 from __future__ import annotations
 
 import asyncio
+import json
 import signal
 import sys
+import time
 import uuid
 
 from app.core.config import get_settings
@@ -93,20 +95,33 @@ class ScrapeWorker:
         outbox_task = asyncio.create_task(self._inbox_outbox_loop())
         automation_task = asyncio.create_task(self._automation_loop())
         analytics_task = asyncio.create_task(self._analytics_loop())
+        heartbeat_file_task = asyncio.create_task(self._liveness_loop())
+        backup_task = asyncio.create_task(self._backup_loop())
         try:
             while not self._shutdown.is_set():
                 if len(self._tasks) >= self.settings.QBIT_WORKER_MAX_CONCURRENT_JOBS:
                     await asyncio.sleep(self.settings.QBIT_WORKER_POLL_SECONDS)
                     continue
-                job_id = await self.queue.dequeue(
-                    timeout_seconds=self.settings.QBIT_WORKER_POLL_SECONDS
-                )
+                try:
+                    job_id = await self.queue.dequeue(
+                        timeout_seconds=self.settings.QBIT_WORKER_POLL_SECONDS
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception:  # noqa: BLE001 — audit M1: a transient broker
+                    # error (Redis blip) must kill the dequeue attempt, not the
+                    # worker process; back off and keep the loop alive.
+                    logger.exception("Queue dequeue failed; backing off")
+                    await asyncio.sleep(max(self.settings.QBIT_WORKER_POLL_SECONDS * 5, 5.0))
+                    continue
                 if job_id is None:
                     continue
                 task = asyncio.create_task(self._process(job_id))
                 self._tasks.add(task)
                 task.add_done_callback(self._tasks.discard)
         finally:
+            backup_task.cancel()
+            heartbeat_file_task.cancel()
             sweep_task.cancel()
             data_task.cancel()
             campaign_task.cancel()
@@ -288,15 +303,99 @@ class ScrapeWorker:
             return
 
     async def _drain(self) -> None:
+        """Bounded drain (Phase 12 audit H3): wait the grace period for
+        in-flight jobs, then CANCEL whatever remains so the runner's
+        CancelledError path (checkpoint + PAUSED, never FAILED) actually
+        executes instead of Docker's SIGKILL landing mid-job."""
         if not self._tasks:
             return
-        await asyncio.gather(*self._tasks, return_exceptions=True)
+        grace = self.settings.QBIT_WORKER_DRAIN_SECONDS
+        done, pending = await asyncio.wait(set(self._tasks), timeout=grace)
+        if pending:
+            log_with(
+                logger, 30, "Drain grace period elapsed; pausing in-flight jobs",
+                pending=len(pending), grace_seconds=grace,
+            )
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
+        if done:
+            await asyncio.gather(*done, return_exceptions=True)
+
+    async def _liveness_loop(self) -> None:
+        """Phase 12 (audit M12): write a liveness heartbeat file so the
+        container healthcheck can distinguish a live worker from a hung one.
+        Best-effort by design: observability must never break the worker."""
+        try:
+            path = self.settings.data_dir / "cache" / "worker-heartbeat.json"
+            while True:
+                try:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(json.dumps({
+                        "worker_id": self.runner.owner,
+                        "ts": time.time(),
+                        "active_jobs": len(self._tasks),
+                    }))
+                except Exception:  # noqa: BLE001
+                    logger.exception("Worker heartbeat write failed")
+                await asyncio.sleep(min(self.settings.QBIT_WORKER_POLL_SECONDS * 5, 30.0))
+        except asyncio.CancelledError:
+            return
 
     async def _periodic_sweep(self) -> None:
         try:
             while True:
                 await asyncio.sleep(max(self.settings.QBIT_WORKER_LEASE_SECONDS, 60))
                 await self.recover()
+        except asyncio.CancelledError:
+            return
+
+    async def _backup_loop(self) -> None:
+        """Phase 12 (audit H2, brief §12): scheduled backup beat.
+
+        Every QBIT_BACKUP_SCHEDULE_HOURS (0 = disabled): database backup +
+        file-data backup + config manifest, then verify the newest artifacts
+        and apply GFS retention pruning. Runs in the single worker process so
+        schedules never double-fire; every step is failure-isolated.
+        """
+        from app.services.backup import BackupService
+
+        hours = self.settings.QBIT_BACKUP_SCHEDULE_HOURS
+        if hours <= 0:
+            return
+        service = BackupService(self.settings)
+        try:
+            while not self._shutdown.is_set():
+                await asyncio.sleep(hours * 3600)
+                if self._shutdown.is_set():
+                    return
+                try:
+                    db_result = service.run_database_backup()
+                    files_result = service.run_files_backup()
+                    service.backup_config_snapshot()
+                    log_with(
+                        logger, 20, "Scheduled backup cycle completed",
+                        db=db_result.status, files=files_result.status,
+                    )
+                    # verify the newest DB + files artifact (§12 verification)
+                    for result in (db_result, files_result):
+                        if result.status == "completed" and result.path:
+                            verdict = service.verify_backup(result.path)
+                            log_with(
+                                logger,
+                                20 if verdict.get("status") == "verified" else 40,
+                                "Backup verification",
+                                path=result.path, verdict=verdict.get("status"),
+                            )
+                    removed = service.prune_backups(
+                        keep_daily=self.settings.QBIT_BACKUP_RETENTION_DAILY,
+                        keep_weekly=self.settings.QBIT_BACKUP_RETENTION_WEEKLY,
+                        keep_monthly=self.settings.QBIT_BACKUP_RETENTION_MONTHLY,
+                    )
+                    if removed:
+                        log_with(logger, 20, "Backup retention pruned", count=len(removed))
+                except Exception:  # noqa: BLE001 — one failed cycle never stops the next
+                    logger.exception("Scheduled backup cycle failed")
         except asyncio.CancelledError:
             return
 
