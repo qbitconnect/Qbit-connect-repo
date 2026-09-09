@@ -76,13 +76,17 @@ class GenericDirectoryAdapter:
                 items.append(record)
         return items
 
-    def next_page(self, config: DirectoryAdapterConfig, soup: BeautifulSoup) -> str | None:
+    def next_page(
+        self, config: DirectoryAdapterConfig, soup: BeautifulSoup, base_url: str
+    ) -> str | None:
+        """Resolve the next-page link against the CURRENT page URL (not the
+        configured list_url) so relative hrefs keep working on page 2+."""
         if not config.pagination_next_selector:
             return None
         tag = soup.select_one(config.pagination_next_selector)
         if tag is None or not tag.get("href"):
             return None
-        return normalize_url(str(tag["href"]), config.list_url)
+        return normalize_url(base_url, str(tag["href"]))
 
 
 ADAPTER_REGISTRY: dict[str, type] = {

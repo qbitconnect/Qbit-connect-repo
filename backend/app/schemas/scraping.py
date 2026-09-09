@@ -51,6 +51,7 @@ class ScrapeJobOut(BaseModel):
     stage: str | None
     records_found: int
     records_saved: int
+    records_updated: int
     records_duplicate: int
     records_failed: int
     attempt: int

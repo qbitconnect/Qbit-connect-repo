@@ -28,6 +28,7 @@ Pagination follows a simple `page_token` convention so checkpoints work.
 from __future__ import annotations
 
 from typing import Protocol
+from urllib.parse import urlencode
 
 from app.core.logging import get_logger
 from app.scrapers.core.exceptions import ScraperConfigurationError, ScraperProviderError
@@ -111,7 +112,9 @@ class HttpMapsProvider:
         ):
             if value:
                 params[key] = value
-        query_string = "&".join(f"{k}={v}" for k, v in params.items())
+        # URL-encode every parameter: spaces/&/# in the query previously
+        # corrupted the request and allowed parameter injection.
+        query_string = urlencode(params)
         try:
             payload = await http.get_json(f"{self.base_url}?{query_string}", headers=headers)
         except ScraperProviderError:

@@ -406,13 +406,26 @@ class ScrapeWorker:
         except ValueError:
             log_with(logger, 40, "Invalid job id on queue", job_id=job_id)
             return
-        try:
-            actor = self.registry.get(job_id)
-        except KeyError:
+        # The queue carries the JOB id; the actor must be resolved from the
+        # job row's actor_id (registry keys are actor slugs, not job UUIDs).
+        from sqlalchemy import select
+
+        from app.models.scrape import ScrapeJob
+
+        async with self.db.session() as session:
+            row = await session.execute(
+                select(ScrapeJob.actor_id).where(ScrapeJob.id == job_uuid)
+            )
+            actor_id = row.scalar_one_or_none()
+        if actor_id is None:
+            log_with(logger, 40, "Job row not found for queue message", job_id=job_id)
+            return
+        entry = self.registry.entry(actor_id)
+        if entry is None or not entry.enabled:
             await self._fail_unknown_actor(job_id)
             return
         try:
-            await self.runner.execute(job_uuid, actor)
+            await self.runner.execute(job_uuid, entry.actor)
         except Exception:  # noqa: BLE001 — worker isolation is the whole point
             logger.exception(
                 "Job execution crashed at worker level",

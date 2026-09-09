@@ -191,7 +191,7 @@ class JobRunner:
                 progress=progress,
                 events=events,
                 checkpoint=checkpoint,
-                control_reader=ControlReader(self.queue, job.id),
+                control_reader=ControlReader(self.queue, job.id, self.session_factory),
                 settings=self.settings,
             )
             pipeline.ctx = ctx  # counters + stop checks (§20, §38)
@@ -326,7 +326,7 @@ class JobRunner:
                     user_id=fresh.created_by,
                     organization_id=fresh.organization_id,
                     type="SCRAPE_JOB",
-                    title=f"Scrape job completed: {fresh.name}",
+                    title=f"Scrape job completed: {_job_label(fresh)}",
                     body=f"Found {fresh.records_found}, saved {fresh.records_saved}, "
                          f"duplicates {fresh.records_duplicate}, failed {fresh.records_failed}",
                     resource_type="scrape_job",
@@ -353,7 +353,7 @@ class JobRunner:
                     user_id=fresh.created_by,
                     organization_id=fresh.organization_id,
                     type="SCRAPE_JOB",
-                    title=f"Scrape job failed: {fresh.name}",
+                    title=f"Scrape job failed: {_job_label(fresh)}",
                     body=message[:300],
                     resource_type="scrape_job",
                     resource_id=str(job.id),
@@ -488,12 +488,21 @@ class JobRunner:
 
     def _http_overrides(self, job: ScrapeJob) -> dict:
         cfg = job.config or {}
+        inp = job.input or {}
+
+        def _pick(key: str):
+            """Advanced-settings panel (job.config) wins; actor input field is
+            the fallback so per-run input knobs are no longer dead."""
+            if cfg.get(key) is not None:
+                return cfg.get(key)
+            return inp.get(key)
+
         return {
-            "request_timeout": cfg.get("request_timeout"),
+            "request_timeout": _pick("request_timeout"),
             "requests_per_second": cfg.get("requests_per_second"),
             "concurrency": cfg.get("concurrency"),
             "max_retries": cfg.get("max_retries"),
-            "respect_robots": cfg.get("respect_robots"),
+            "respect_robots": _pick("respect_robots"),
         }
 
     def _progress_flusher(self, job_id: uuid.UUID):
@@ -515,22 +524,66 @@ class JobRunner:
         return flush
 
 
+def _job_label(job: ScrapeJob) -> str:
+    """Human-readable notification label: actor id + primary input hint.
+    (ScrapeJob has no `name` column — deriving one honestly here.)"""
+    inp = job.input if isinstance(job.input, dict) else {}
+    hint = inp.get("query") or inp.get("url") or inp.get("website") or inp.get("domain") or ""
+    hint = str(hint).strip()[:60]
+    return f"{job.actor_id} · {hint}" if hint else str(job.actor_id)
+
+
 class ControlReader:
     """Async control-flag reader handed to the ScraperContext (fast path).
 
-    Reads the queue control key; the durable source of truth remains the DB
-    `stop_requested` column which the engine writes first.
+    Reads the queue control key first; if the queue backend cannot see the
+    API process's control write (e.g. InProcessQueueBackend across API and
+    worker processes, i.e. Redis-less deployments), falls back to the
+    durable DB `stop_requested` column, TTL-cached so safe-point polling
+    stays cheap.
     """
 
-    def __init__(self, queue: QueueBackend, job_id: uuid.UUID) -> None:
+    _DB_TTL_SECONDS = 4.0
+
+    def __init__(self, queue: QueueBackend, job_id: uuid.UUID, session_factory=None) -> None:
         self._queue = queue
         self._job_id = str(job_id)
+        self._session_factory = session_factory
+        self._db_checked_at: float = 0.0
+        self._db_value: str | None = None
+
+    async def _from_db(self) -> str | None:
+        import time as _time
+
+        now = _time.monotonic()
+        if now - self._db_checked_at < self._DB_TTL_SECONDS:
+            return self._db_value
+        self._db_checked_at = now
+        if self._session_factory is None:
+            return None
+        try:
+            from sqlalchemy import select
+
+            from app.models.scrape import ScrapeJob
+
+            async with self._session_factory() as session:
+                row = await session.execute(
+                    select(ScrapeJob.stop_requested).where(ScrapeJob.id == uuid.UUID(self._job_id))
+                )
+                value = row.scalar_one_or_none()
+            self._db_value = value if value and value != "NONE" else None
+        except Exception:  # noqa: BLE001 - control-plane errors never kill jobs
+            self._db_value = None
+        return self._db_value
 
     async def __call__(self) -> str | None:
         try:
-            return await self._queue.get_control(self._job_id)
+            control = await self._queue.get_control(self._job_id)
         except Exception:  # noqa: BLE001 - control-plane errors never kill jobs
-            return None
+            control = None
+        if control:
+            return control
+        return await self._from_db()
 
 
 def _event_row(job_id, event_type, message, metadata=None):

@@ -83,7 +83,7 @@ class BusinessDirectoryActor(ScraperActor):
                     yielded += 1
 
                 await ctx.save_checkpoint({"next_page": list_url, "yielded": yielded})
-                list_url = adapter.next_page(inp.config, soup)
+                list_url = adapter.next_page(inp.config, soup, str(resp.url))
 
         await ctx.save_checkpoint({"next_page": None, "yielded": yielded}, force=True)
 

@@ -81,22 +81,21 @@ async def list_jobs(
     page_size: int = Query(default=25, ge=1, le=100),
 ) -> ScrapeJobListOut:
     engine = _engine(request, session)
+    # Resolve tenant context first so org scope is enforced in SQL,
+    # not post-pagination (Phase 11 §9 fix: accurate totals + full pages).
+    from app.services import authorization as authz
+
+    ctx = await _ctx_for(session, _)
     jobs, total = await engine.list_jobs(
         status=status,
         actor_id=actor_id,
         search=search,
+        organization_id=getattr(ctx, "organization_id", None),
         page=page,
         page_size=page_size,
     )
-    # Phase 11 §9: organization + visibility scope, enforced backend-side
-    from app.services import authorization as authz
-
-    ctx = await _ctx_for(session, _)
 
     def _in_tenant(job) -> bool:
-        org = getattr(job, "organization_id", None)
-        if org is not None and org != ctx.organization_id:
-            return False
         return authz._passes_scope(job, ctx)
 
     visible = [j for j in jobs if _in_tenant(j)]

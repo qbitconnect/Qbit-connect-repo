@@ -250,6 +250,7 @@ class JobEngine:
         actor_id: str | None = None,
         search: str | None = None,
         created_by: uuid.UUID | None = None,
+        organization_id: uuid.UUID | None = None,
         page: int = 1,
         page_size: int = 25,
     ) -> tuple[list[ScrapeJob], int]:
@@ -263,6 +264,12 @@ class JobEngine:
             query = query.where(ScrapeJob.actor_id == actor_id)
         if created_by is not None:
             query = query.where(ScrapeJob.created_by == created_by)
+        if organization_id is not None:
+            # Tenant scope enforced in SQL (NULL org rows = legacy, visible)
+            query = query.where(
+                or_(ScrapeJob.organization_id.is_(None),
+                    ScrapeJob.organization_id == organization_id)
+            )
         if search:
             like = f"%{search.strip()}%"
             query = query.where(
