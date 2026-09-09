@@ -4,8 +4,10 @@
 
 {% block content %}
 <div class="page-head">
-  <h1>INBOX</h1>
-  <p class="muted">Unified WhatsApp + Email conversations</p>
+  <div>
+    <h1>INBOX</h1>
+    <p class="muted">Unified WhatsApp + Email conversations — one workspace for every customer thread.</p>
+  </div>
 </div>
 
 <div class="inbox-shell">
@@ -52,7 +54,15 @@
   <!-- ============================ CENTER: thread ============================ -->
   <section class="inbox-pane inbox-center card">
     <div id="thread-empty" class="inbox-empty">
-      <p class="muted">Select a conversation to view messages.</p>
+      <div class="empty-state compact">
+        <svg viewBox="0 0 130 130" fill="none" aria-hidden="true">
+          <circle cx="65" cy="65" r="58" stroke="rgba(61,123,255,.28)" stroke-dasharray="2 7"/>
+          <circle cx="65" cy="65" r="36" stroke="rgba(61,123,255,.42)"/>
+          <circle cx="65" cy="65" r="4" fill="#3d7bff"/>
+        </svg>
+        <h3>Select a conversation</h3>
+        <p>Choose a thread on the left to view its full message timeline.</p>
+      </div>
     </div>
     <div id="thread" class="inbox-thread" hidden>
       <div class="thread-head">
@@ -104,7 +114,15 @@
   <!-- ============================ RIGHT: context ============================ -->
   <section class="inbox-pane inbox-right card">
     <div id="context-empty" class="inbox-empty">
-      <p class="muted">Contact not linked to a lead.</p>
+      <div class="empty-state compact">
+        <svg viewBox="0 0 130 130" fill="none" aria-hidden="true">
+          <circle cx="65" cy="65" r="58" stroke="rgba(61,123,255,.2)" stroke-dasharray="2 7"/>
+          <circle cx="65" cy="65" r="36" stroke="rgba(61,123,255,.32)"/>
+          <circle cx="65" cy="65" r="4" fill="#3d7bff"/>
+        </svg>
+        <h3>No lead linked</h3>
+        <p>This contact is not linked to a lead record yet.</p>
+      </div>
     </div>
     <div id="lead-context" hidden>
       <h2>Lead context</h2>
@@ -181,7 +199,14 @@
     var list = $("conversation-list");
     list.innerHTML = "";
     if (!data.items.length) {
-      list.innerHTML = '<div class="inbox-empty"><p class="muted">No conversations yet.</p></div>';
+      list.innerHTML = '<div class="inbox-empty"><div class="empty-state compact">' +
+        '<svg viewBox="0 0 130 130" fill="none" aria-hidden="true">' +
+        '<circle cx="65" cy="65" r="58" stroke="rgba(61,123,255,.28)" stroke-dasharray="2 7"/>' +
+        '<circle cx="65" cy="65" r="36" stroke="rgba(61,123,255,.42)"/>' +
+        '<circle cx="65" cy="65" r="4" fill="#3d7bff"/></svg>' +
+        '<h3>No conversations yet</h3>' +
+        '<p>Connect WhatsApp or email and every customer thread lands here.</p>' +
+        '<a class="btn btn-primary" href="/connections">Open connections</a></div></div>';
     }
     data.items.forEach(function (c) {
       var row = document.createElement("div");

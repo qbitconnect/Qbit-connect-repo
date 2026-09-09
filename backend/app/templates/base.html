@@ -7,119 +7,162 @@
   <link rel="stylesheet" href="/static/css/qbit.css">
 </head>
 <body>
-<div class="shell">
-  <aside class="sidebar">
+{# ------------------------------------------------------------------ icons #}
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M4.5 10.5 12 4l7.5 6.5"/><path d="M6 9.5V19a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9.5"/><path d="M10 20v-5h4v5"/></symbol>
+    <symbol id="i-leads" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="3.4"/><path d="M12 3.8V1.6M12 22.4v-2.2M3.8 12H1.6M22.4 12h-2.2"/></symbol>
+    <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 15V4.5M8 8l4-3.9L16 8"/><path d="M4.5 14.5v4a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-4"/></symbol>
+    <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 4.5V15M8 11.5l4 3.9 4-3.9"/><path d="M4.5 14.5v4a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-4"/></symbol>
+    <symbol id="i-scraper" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 2.6v2.4M15 2.6v2.4M9 19v2.4M15 19v2.4M2.6 9H5M2.6 15H5M19 9h2.4M19 15h2.4"/><circle cx="12" cy="12" r="2.1"/></symbol>
+    <symbol id="i-jobs" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.2 2"/></symbol>
+    <symbol id="i-results" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/></symbol>
+    <symbol id="i-campaigns" viewBox="0 0 24 24"><path d="M20.5 3.5 10 14M20.5 3.5l-6.3 17-3.2-7.5L3.5 9.8z"/></symbol>
+    <symbol id="i-connections" viewBox="0 0 24 24"><path d="M9 7.5 5.5 11a3.5 3.5 0 0 0 5 5L14 12.5M15 16.5 18.5 13a3.5 3.5 0 0 0-5-5L10 11.5"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 13.5 6.6 5a1.6 1.6 0 0 1 1.5-1.1h7.8A1.6 1.6 0 0 1 17.4 5L20 13.5V18a1.6 1.6 0 0 1-1.6 1.6H5.6A1.6 1.6 0 0 1 4 18z"/><path d="M4 13.5h4.6a3.4 3.4 0 0 0 6.8 0H20"/></symbol>
+    <symbol id="i-automation" viewBox="0 0 24 24"><rect x="3" y="9.5" width="6" height="5" rx="1.6"/><rect x="15" y="3.5" width="6" height="5" rx="1.6"/><rect x="15" y="15.5" width="6" height="5" rx="1.6"/><path d="M9 12h3.5M12.5 12V6h2.5M12.5 12v6h2.5"/></symbol>
+    <symbol id="i-analytics" viewBox="0 0 24 24"><path d="M4 20V4M4 20h16"/><path d="M8 16v-4M12.5 16V8M17 16v-6.5"/></symbol>
+    <symbol id="i-admin" viewBox="0 0 24 24"><path d="M12 3 5 5.8v5.4c0 4.4 3 8.2 7 9.3 4-1.1 7-4.9 7-9.3V5.8z"/><path d="m9.2 11.8 2 2 3.6-3.9"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8.2" r="3.4"/><path d="M3.5 20c.6-3.3 2.8-5.2 5.5-5.2s4.9 1.9 5.5 5.2M15.5 5.2a3.4 3.4 0 0 1 0 6M17.3 14.9c1.7.7 2.9 2.4 3.2 5.1"/></symbol>
+    <symbol id="i-teams" viewBox="0 0 24 24"><circle cx="12" cy="7.6" r="2.9"/><circle cx="5.4" cy="10.4" r="2.4"/><circle cx="18.6" cy="10.4" r="2.4"/><path d="M7.5 20c.5-2.8 2.2-4.5 4.5-4.5s4 1.7 4.5 4.5M2.5 17.6c.4-2 1.6-3.3 3.3-3.3M21.5 17.6c-.4-2-1.6-3.3-3.3-3.3"/></symbol>
+    <symbol id="i-roles" viewBox="0 0 24 24"><circle cx="12" cy="9" r="5.4"/><path d="m8.8 13.5-1.6 7 4.8-2.6 4.8 2.6-1.6-7"/></symbol>
+    <symbol id="i-invitations" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="m4.5 7 7.5 6 7.5-6M19 3.5v3M17.5 5h3"/></symbol>
+    <symbol id="i-access" viewBox="0 0 24 24"><path d="M7 9.5 3.8 12 7 14.5M3.8 12H15M17 14.5l3.2-2.5L17 9.5M20.2 12H9"/></symbol>
+    <symbol id="i-keys" viewBox="0 0 24 24"><circle cx="8" cy="14.5" r="4.2"/><path d="m11.2 11.3 8-8M16.5 6l2.6 2.6M14 8.5l2.6 2.6"/></symbol>
+    <symbol id="i-security" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7M12 14.4v2.4"/></symbol>
+    <symbol id="i-audit" viewBox="0 0 24 24"><path d="M5.5 4.5h13v15h-13z" rx="2"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4.5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.14-1.4l2-1.55-2-3.46-2.35.95a7 7 0 0 0-2.42-1.4L13.73 2.6h-3.46l-.36 2.54a7 7 0 0 0-2.42 1.4l-2.35-.95-2 3.46 2 1.55A7 7 0 0 0 5 12c0 .48.05.94.14 1.4l-2 1.55 2 3.46 2.35-.95a7 7 0 0 0 2.42 1.4l.36 2.54h3.46l.36-2.54a7 7 0 0 0 2.42-1.4l2.35.95 2-3.46-2-1.55c.09-.46.14-.92.14-1.4Z"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 15.5V10a6 6 0 1 0-12 0v5.5L4.5 18h15zM10 21h4"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5.5 6.5 6.5L9 18.5"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M14 4.5H7A1.5 1.5 0 0 0 5.5 6v12A1.5 1.5 0 0 0 7 19.5h7M10.5 12h9.5M17 8.8l3.2 3.2-3.2 3.2"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6.5h16M4 12h16M4 17.5h16"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/></symbol>
+  </defs>
+</svg>
+
+<div class="bg-layers" aria-hidden="true"></div>
+
+{% if user %}
+<div class="shell" id="qbit-shell">
+  <aside class="sidebar" id="qbit-sidebar">
     <div class="brand">
       <span class="brand-mark">Q</span>
       <span class="brand-name">QBIT <em>CONNECT</em></span>
+      <button type="button" class="nav-toggle" id="nav-toggle" title="Collapse navigation" aria-label="Collapse navigation">
+        <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><use href="#i-chevron"/></svg>
+      </button>
     </div>
-    <nav>
-      <a href="/leads" class="nav-item {% block nav_leads %}{% endblock %}">
-        <span class="nav-ico">&#9670;</span> Leads
-      </a>
-      <a href="/leads/import" class="nav-item {% block nav_imports %}{% endblock %}">
-        <span class="nav-ico">&#8613;</span> Imports
-      </a>
-      <a href="/leads/exports" class="nav-item {% block nav_exports %}{% endblock %}">
-        <span class="nav-ico">&#8615;</span> Exports
-      </a>
-      <a href="/scraping" class="nav-item {% block nav_scrapers %}{% endblock %}">
-        <span class="nav-ico">&#9881;</span> Scrapers
-      </a>
-      <a href="/scraping/jobs" class="nav-item {% block nav_jobs %}{% endblock %}">
-        <span class="nav-ico">&#9203;</span> Jobs
-      </a>
-      <a href="/scraping/jobs?status=COMPLETED" class="nav-item {% block nav_results %}{% endblock %}">
-        <span class="nav-ico">&#9636;</span> Results
-      </a>
-      <a href="/campaigns" class="nav-item {% block nav_campaigns %}{% endblock %}">
-        <span class="nav-ico">&#9993;</span> Campaigns
-      </a>
-      <a href="/connections" class="nav-item {% block nav_connections %}{% endblock %}">
-        <span class="nav-ico">&#9642;</span> Connections
-      </a>
-      <a href="/inbox" class="nav-item {% block nav_inbox %}{% endblock %}">
-        <span class="nav-ico">&#9992;</span> Inbox
-        <span id="inbox-unread-badge" class="nav-badge" hidden></span>
-      </a>
-      <a href="/automation" class="nav-item {% block nav_automation %}{% endblock %}">
-        <span class="nav-ico">&#9881;</span> Automation
-      </a>
-      <a href="/analytics" class="nav-item {% block nav_analytics %}{% endblock %}">
-        <span class="nav-ico">&#9635;</span> Analytics
-      </a>
+    <nav aria-label="Primary">
+      <div class="nav-section">Workspace</div>
+      <a href="/" class="nav-item {% block nav_home %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-home"/></svg></span><span class="nav-label">Home</span></a>
+      <a href="/leads" class="nav-item {% block nav_leads %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><use href="#i-leads"/></svg></span><span class="nav-label">Leads</span></a>
+      <a href="/leads/import" class="nav-item {% block nav_imports %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><use href="#i-import"/></svg></span><span class="nav-label">Imports</span></a>
+      <a href="/leads/exports" class="nav-item {% block nav_exports %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><use href="#i-export"/></svg></span><span class="nav-label">Exports</span></a>
+      <a href="/scraping" class="nav-item {% block nav_scrapers %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><use href="#i-scraper"/></svg></span><span class="nav-label">Scrapers</span></a>
+      <a href="/scraping/jobs" class="nav-item {% block nav_jobs %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><use href="#i-jobs"/></svg></span><span class="nav-label">Jobs</span></a>
+      <a href="/scraping/jobs?status=COMPLETED" class="nav-item {% block nav_results %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><use href="#i-results"/></svg></span><span class="nav-label">Results</span></a>
+
+      <div class="nav-section">Growth</div>
+      <a href="/campaigns" class="nav-item {% block nav_campaigns %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-campaigns"/></svg></span><span class="nav-label">Campaigns</span></a>
+      <a href="/connections" class="nav-item {% block nav_connections %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><use href="#i-connections"/></svg></span><span class="nav-label">Connections</span></a>
+      <a href="/inbox" class="nav-item {% block nav_inbox %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-inbox"/></svg></span><span class="nav-label">Inbox</span><span id="inbox-unread-badge" class="nav-badge" hidden></span></a>
+      <a href="/automation" class="nav-item {% block nav_automation %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><use href="#i-automation"/></svg></span><span class="nav-label">Automation</span></a>
+
+      <div class="nav-section">Intelligence</div>
+      <a href="/analytics" class="nav-item {% block nav_analytics %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><use href="#i-analytics"/></svg></span><span class="nav-label">Analytics</span></a>
+
       {% set admin_nav = ['users.view','teams.view','roles.view','invitations.view','connections.view','apikeys.view','security.view','audit.view','settings.view'] %}
       {% if perms and admin_nav | select('in', perms) | list %}
-      <div class="nav-section">ADMIN</div>
+      <div class="nav-section">Admin</div>
       {% if 'users.view' in perms %}
-      <a href="/admin" class="nav-item {% block nav_admin %}{% endblock %}">
-        <span class="nav-ico">&#9873;</span> Overview
-      </a>
-      <a href="/admin/users" class="nav-item {% block nav_admin_users %}{% endblock %}">
-        <span class="nav-ico">&#9786;</span> Users
-      </a>
+      <a href="/admin" class="nav-item {% block nav_admin %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-admin"/></svg></span><span class="nav-label">Overview</span></a>
+      <a href="/admin/users" class="nav-item {% block nav_admin_users %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><use href="#i-users"/></svg></span><span class="nav-label">Users</span></a>
       {% endif %}
       {% if 'teams.view' in perms %}
-      <a href="/admin/teams" class="nav-item {% block nav_admin_teams %}{% endblock %}">
-        <span class="nav-ico">&#9975;</span> Teams
-      </a>
+      <a href="/admin/teams" class="nav-item {% block nav_admin_teams %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><use href="#i-teams"/></svg></span><span class="nav-label">Teams</span></a>
       {% endif %}
       {% if 'roles.view' in perms %}
-      <a href="/admin/roles" class="nav-item {% block nav_admin_roles %}{% endblock %}">
-        <span class="nav-ico">&#9919;</span> Roles
-      </a>
+      <a href="/admin/roles" class="nav-item {% block nav_admin_roles %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-roles"/></svg></span><span class="nav-label">Roles</span></a>
       {% endif %}
       {% if 'invitations.view' in perms %}
-      <a href="/admin/invitations" class="nav-item {% block nav_admin_inv %}{% endblock %}">
-        <span class="nav-ico">&#9997;</span> Invitations
-      </a>
+      <a href="/admin/invitations" class="nav-item {% block nav_admin_inv %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-invitations"/></svg></span><span class="nav-label">Invitations</span></a>
       {% endif %}
       {% if 'connections.view' in perms %}
-      <a href="/admin/connections" class="nav-item {% block nav_admin_conn %}{% endblock %}">
-        <span class="nav-ico">&#8646;</span> Access
-      </a>
+      <a href="/admin/connections" class="nav-item {% block nav_admin_conn %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><use href="#i-access"/></svg></span><span class="nav-label">Access</span></a>
       {% endif %}
       {% if 'apikeys.view' in perms %}
-      <a href="/admin/api-keys" class="nav-item {% block nav_admin_keys %}{% endblock %}">
-        <span class="nav-ico">&#128273;</span> API Keys
-      </a>
+      <a href="/admin/api-keys" class="nav-item {% block nav_admin_keys %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-keys"/></svg></span><span class="nav-label">API Keys</span></a>
       {% endif %}
       {% if 'security.view' in perms %}
-      <a href="/admin/security" class="nav-item {% block nav_admin_sec %}{% endblock %}">
-        <span class="nav-ico">&#9965;</span> Security
-      </a>
+      <a href="/admin/security" class="nav-item {% block nav_admin_sec %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-security"/></svg></span><span class="nav-label">Security</span></a>
       {% endif %}
       {% if 'audit.view' in perms %}
-      <a href="/admin/audit" class="nav-item {% block nav_admin_audit %}{% endblock %}">
-        <span class="nav-ico">&#9998;</span> Audit Logs
-      </a>
+      <a href="/admin/audit" class="nav-item {% block nav_admin_audit %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-audit"/></svg></span><span class="nav-label">Audit Logs</span></a>
       {% endif %}
       {% if 'settings.view' in perms %}
-      <a href="/admin/settings" class="nav-item {% block nav_admin_settings %}{% endblock %}">
-        <span class="nav-ico">&#9881;</span> Org Settings
-      </a>
+      <a href="/admin/settings" class="nav-item {% block nav_admin_settings %}{% endblock %}"><span class="nav-ico"><svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-settings"/></svg></span><span class="nav-label">Org Settings</span></a>
       {% endif %}
       {% endif %}
-      {% if user %}
-      <a href="/notifications" class="nav-item {% block nav_notifications %}{% endblock %}">
-        <span class="nav-ico">&#9993;</span> Notifications
-      </a>
-      {% endif %}
-
     </nav>
     <div class="sidebar-foot">
-      {% if user %}
-        <div class="user-chip">{{ user.full_name or user.email }}</div>
-        <form method="post" action="/logout"><button class="btn btn-ghost btn-sm">Sign out</button></form>
-      {% endif %}
+      <div class="user-chip" title="{{ user.email }}">{{ user.full_name or user.email }}</div>
+      <form method="post" action="/logout"><button class="btn btn-ghost btn-sm" type="submit">Sign out</button></form>
     </div>
   </aside>
-  <main class="content">
-    {% block content %}{% endblock %}
+
+  <main class="content page-fade">
+    <div class="topbar">
+      <div class="topbar-context">
+        <button type="button" class="icon-btn mobile-menu-btn" id="mobile-menu" aria-label="Open navigation">
+          <svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><use href="#i-menu"/></svg>
+        </button>
+        <span class="topbar-env" title="Runtime environment">{{ env_label }}</span>
+      </div>
+      <div class="topbar-actions">
+        <button type="button" class="search-trigger" id="palette-trigger" aria-label="Open command palette (Ctrl+K)">
+          <svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><use href="#i-search"/></svg>
+          <span class="search-hint">Search or jump to…</span>
+          <span class="kbd">Ctrl K</span>
+        </button>
+        <a class="icon-btn {% block nav_notifications %}{% endblock %}" href="/notifications" title="Notifications" aria-label="Notifications">
+          <svg fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><use href="#i-bell"/></svg>
+        </a>
+        <span class="topbar-avatar" title="{{ user.full_name or user.email }}">{{ (user.full_name or user.email)[:1]|upper }}</span>
+      </div>
+    </div>
+{% else %}
+<main class="content page-fade login-shell">
+{% endif %}
+{% block content %}{% endblock %}
+{% if user %}
   </main>
 </div>
+
+{# ------------------------------------------------- command palette (Ctrl+K) #}
+<div class="palette-backdrop" id="palette-backdrop" role="dialog" aria-modal="true" aria-label="Command palette">
+  <div class="palette">
+    <div class="palette-input-row">
+      <svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><use href="#i-search"/></svg>
+      <input id="palette-input" type="text" placeholder="Search leads, jobs, campaigns, chats — or jump to a page…" autocomplete="off" spellcheck="false" aria-label="Search">
+      <span class="kbd">ESC</span>
+    </div>
+    <div class="palette-list" id="palette-list"></div>
+    <div class="palette-foot">
+      <span><span class="kbd">↑↓</span> navigate</span>
+      <span><span class="kbd">↵</span> open</span>
+      <span><span class="kbd">ESC</span> close</span>
+    </div>
+  </div>
+</div>
+
+{% else %}
+  </main>
+{% endif %}
+
 {% block scripts %}{% endblock %}
 {% if user %}
+<script src="/static/js/qbit-app.js" defer></script>
 <script>
 // Phase 8 §36: sidebar unread badge — real database values via /ui/inbox/counters
 (function () {

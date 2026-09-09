@@ -34,6 +34,7 @@
   <div class="stat card"><span class="stat-label">PROGRESS</span>
     {% if job.progress %}
       <span class="stat-value" id="job-progress">{{ job.progress }}%</span>
+      <span class="score-bar" style="width:100%"><span style="width: {{ job.progress }}%"></span></span>
     {% else %}
       <span class="stat-value" id="job-progress">&mdash;</span>
       <span class="muted small">total unknown — counting records</span>

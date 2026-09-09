@@ -2,27 +2,55 @@
 {% block title %}Scrapers — QBIT Connect{% endblock %}
 {% block nav_scrapers %}active{% endblock %}
 {% block content %}
-<header class="page-head">
-  <div>
-    <h1>SEARCH SCRAPERS</h1>
-    <p class="muted">{{ scrapers|length }} scraper{{ scrapers|length != 1 and 's' or '' }} registered</p>
-  </div>
-  <form method="get" action="/scraping" class="search">
-    <input type="search" name="q" value="{{ q }}" placeholder="Search scrapers...">
-    <button class="btn btn-ghost">Search</button>
+<section class="hero">
+  <svg class="hero-orbs" viewBox="0 0 380 380" fill="none" aria-hidden="true">
+    <circle cx="190" cy="190" r="186" stroke="rgba(61,123,255,.16)" stroke-dasharray="2 7"/>
+    <circle cx="190" cy="190" r="140" stroke="rgba(61,123,255,.22)" stroke-dasharray="2 7"/>
+    <circle cx="190" cy="190" r="94" stroke="rgba(61,123,255,.3)"/>
+    <circle cx="190" cy="190" r="3.5" fill="#3d7bff"/>
+    <circle cx="330" cy="190" r="4.5" fill="#6495ff"/>
+    <circle cx="86" cy="118" r="3" fill="#38bdf8"/>
+    <circle cx="258" cy="86" r="2.5" fill="#a78bfa"/>
+  </svg>
+  <span class="hero-eyebrow">Internal data tools · {{ total_registered }} registered</span>
+  <h1>Scrape anything.<br>Turn the web into data.</h1>
+  <p class="hero-sub">Run your company's internal data collection tools, monitor jobs in real time,
+    and deliver results straight into the QBIT Connect lead workspace.</p>
+  <form method="get" action="/scraping" class="hero-search" role="search">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search scrapers by name, capability or category…" aria-label="Search scrapers">
+    {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
+    <button class="btn btn-primary" type="submit">Search</button>
   </form>
-</header>
+</section>
 
-<section class="cards">
+{% if not q and categories %}
+<nav class="pill-row" aria-label="Filter by category">
+  <a class="pill {% if not category %}active{% endif %}" href="/scraping">All <span class="count">{{ total_registered }}</span></a>
+  {% for c in categories %}
+  <a class="pill {% if category|lower == c|lower %}active{% endif %}" href="/scraping?category={{ c | lower | replace(' ', '_') }}">{{ c }}</a>
+  {% endfor %}
+</nav>
+{% elif q %}
+<p class="muted small" style="margin:-6px 0 16px">{{ scrapers|length }} result{{ scrapers|length != 1 and 's' or '' }} for “{{ q }}” · <a href="/scraping">clear search</a></p>
+{% endif %}
+
+<section class="cards card-grid">
   {% for s in scrapers %}
   <article class="card scraper-card">
     <div class="card-top">
       <span class="actor-ico">{{ s.name[:1] }}</span>
       <span class="badge badge-{{ s.status.lower() }}">{{ s.status }}</span>
     </div>
-    <h2>{{ s.name }}</h2>
-    <p class="actor-tag">{{ s.category.replace('_',' ')|title }} &middot; v{{ s.version }}</p>
+    <div>
+      <h2>{{ s.name }}</h2>
+      <p class="actor-tag">{{ s.category.replace('_',' ')|title }} &middot; V{{ s.version }}</p>
+    </div>
     <p class="muted">{{ s.description }}</p>
+    {% if s.get('capabilities') %}
+    <div class="cap-row" style="margin:2px 0">
+      {% for cap in s.capabilities[:3] %}<span class="cap">{{ cap }}</span>{% endfor %}
+    </div>
+    {% endif %}
     {% if s.status_detail and s.status != 'READY' %}
       <p class="status-detail">{{ s.status_detail }}</p>
     {% endif %}
@@ -34,11 +62,23 @@
         <span class="muted small">needs configuration</span>
       {% else %}
         <a class="btn btn-primary" href="/scraping/{{ s.id }}">Run</a>
+        <a class="btn btn-ghost" href="/scraping/{{ s.id }}">Details</a>
       {% endif %}
     </div>
   </article>
   {% else %}
-  <p class="muted">No scrapers match your search.</p>
+  <div class="card empty-state" style="grid-column:1/-1">
+    <svg viewBox="0 0 130 130" fill="none" aria-hidden="true">
+      <circle cx="65" cy="65" r="58" stroke="rgba(61,123,255,.3)" stroke-dasharray="2 7"/>
+      <circle cx="65" cy="65" r="36" stroke="rgba(61,123,255,.45)"/>
+      <circle cx="65" cy="65" r="4" fill="#3d7bff"/>
+      <circle cx="112" cy="42" r="3" fill="#6495ff"/>
+      <path d="M52 65h26M65 52v26" stroke="rgba(255,255,255,.35)" stroke-linecap="round"/>
+    </svg>
+    <h3>No scrapers match your search</h3>
+    <p>Try a different term, or clear the active filters to see all registered data tools.</p>
+    <a class="btn btn-ghost" href="/scraping">Clear search</a>
+  </div>
   {% endfor %}
 </section>
 {% endblock %}

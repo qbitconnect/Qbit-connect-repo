@@ -2,13 +2,20 @@
 {% block title %}Leads — QBIT Connect{% endblock %}
 {% block nav_leads %}active{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div>
-    <h1>LEADS</h1>
-    <p class="muted">Data workspace — every record with full source provenance.</p>
-  </div>
-  <div class="head-actions">
-    {% if can_import %}<a class="btn btn-ghost" href="/leads/import">Import</a>{% endif %}
+<section class="hero" style="padding:32px 34px 30px">
+  <svg class="hero-orbs" viewBox="0 0 380 380" fill="none" aria-hidden="true">
+    <circle cx="190" cy="190" r="186" stroke="rgba(61,123,255,.14)" stroke-dasharray="2 7"/>
+    <circle cx="190" cy="190" r="132" stroke="rgba(61,123,255,.24)"/>
+    <circle cx="190" cy="190" r="3.5" fill="#3d7bff"/>
+    <circle cx="308" cy="140" r="4" fill="#6495ff"/>
+    <circle cx="96" cy="240" r="3" fill="#a78bfa"/>
+  </svg>
+  <span class="hero-eyebrow">Lead intelligence · {{ stats.total }} records</span>
+  <h1>Every lead. One workspace.</h1>
+  <p class="hero-sub">Your company's unified lead intelligence — scraped, imported and enriched
+    records with full source provenance, dedup and quality scoring.</p>
+  <div class="head-actions" style="position:relative;z-index:1">
+    {% if can_import %}<a class="btn btn-primary" href="/leads/import">Import</a>{% endif %}
     {% if can_export %}
     <form method="post" action="/leads/export" class="inline-form">
       <input type="hidden" name="format" value="csv">
@@ -21,21 +28,21 @@
       <input type="hidden" name="has_email" value="{{ f.has_email }}">
       <input type="hidden" name="has_phone" value="{{ f.has_phone }}">
       <input type="hidden" name="advanced" value="{{ f.advanced }}">
-      <button class="btn btn-primary" type="submit">Export filtered</button>
+      <button class="btn btn-ghost" type="submit">Export filtered</button>
     </form>
     {% endif %}
   </div>
-</div>
+</section>
 
-{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if ok %}<div class="alert alert-ok">{{ ok }}</div>{% endif %}
 {% if err or advanced_error %}<div class="alert alert-error">{{ err }} {{ advanced_error }}</div>{% endif %}
 
 <div class="stat-grid">
-  <div class="stat"><span class="stat-label">TOTAL LEADS</span><span class="stat-value">{{ stats.total }}</span></div>
-  <div class="stat"><span class="stat-label">NEW</span><span class="stat-value">{{ stats.new }}</span></div>
-  <div class="stat"><span class="stat-label">VERIFIED</span><span class="stat-value">{{ stats.verified }}</span></div>
-  <div class="stat"><span class="stat-label">QUALIFIED</span><span class="stat-value">{{ stats.qualified }}</span></div>
-  <div class="stat"><span class="stat-label">DUPLICATE CANDIDATES</span><span class="stat-value"><a href="/leads/duplicates">{{ stats.duplicates }}</a></span></div>
+  <div class="stat"><span class="stat-label">Total leads</span><span class="stat-value">{{ stats.total }}</span></div>
+  <div class="stat"><span class="stat-label">New</span><span class="stat-value">{{ stats.new }}</span></div>
+  <div class="stat"><span class="stat-label">Verified</span><span class="stat-value">{{ stats.verified }}</span></div>
+  <div class="stat"><span class="stat-label">Qualified</span><span class="stat-value">{{ stats.qualified }}</span></div>
+  <div class="stat"><span class="stat-label">Duplicate candidates</span><span class="stat-value"><a href="/leads/duplicates">{{ stats.duplicates }}</a></span></div>
 </div>
 
 <form method="get" action="/leads" class="toolbar">
@@ -151,7 +158,20 @@
           {% endfor %}
         </tr>
         {% else %}
-        <tr><td colspan="{{ visible_cols | length + 1 }}" class="center muted">No leads match the current filters.</td></tr>
+        <tr><td colspan="{{ visible_cols | length + 1 }}">
+          <div class="empty-state">
+            <svg viewBox="0 0 130 130" fill="none" aria-hidden="true">
+              <circle cx="65" cy="65" r="58" stroke="rgba(61,123,255,.3)" stroke-dasharray="2 7"/>
+              <circle cx="65" cy="65" r="36" stroke="rgba(61,123,255,.45)"/>
+              <circle cx="52" cy="60" r="3" fill="#6495ff"/><circle cx="76" cy="72" r="3" fill="#a78bfa"/>
+              <circle cx="65" cy="65" r="4" fill="#3d7bff"/>
+            </svg>
+            <h3>No leads match the current filters</h3>
+            <p>Run a scraper or import your first dataset to populate the workspace.</p>
+            <a class="btn btn-primary" href="/scraping">Run a scraper</a>
+            <a class="btn btn-ghost" href="/leads/import">Import data</a>
+          </div>
+        </td></tr>
         {% endfor %}
       </tbody>
     </table>

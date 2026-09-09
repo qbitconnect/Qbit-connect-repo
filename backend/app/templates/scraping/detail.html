@@ -7,8 +7,11 @@
     <a class="crumb" href="/scraping">&larr; Scrapers</a>
     <h1>{{ actor.name }}</h1>
     <p class="muted">{{ actor.description }}</p>
-    <p class="actor-tag">v{{ actor.version }} &middot; {{ actor.category.replace('_',' ')|title }}
+    <p class="actor-tag">V{{ actor.version }} &middot; {{ actor.category.replace('_',' ')|title }}
       &middot; <span class="badge badge-{{ status.lower() }}">{{ status }}</span></p>
+  </div>
+  <div class="head-actions">
+    <a class="btn btn-ghost" href="/scraping/jobs">View jobs</a>
   </div>
 </header>
 
@@ -16,60 +19,78 @@
 <div class="alert alert-warn">{{ status_detail }}</div>
 {% endif %}
 
-<div class="cap-row">
-  {% for cap in actor.capabilities %}<span class="cap">{{ cap }}</span>{% endfor %}
-</div>
-
-{% if errors %}
-  <div class="alert alert-error">
-    <strong>Validation failed</strong>
-    <ul>{% for k, v in errors.items() %}<li><b>{{ k }}</b>: {{ v }}</li>{% endfor %}</ul>
-  </div>
-{% endif %}
-
-<section class="card form-card">
-  <h2>Run configuration</h2>
-  <form method="post" action="/scraping/{{ actor.id }}/run" id="run-form">
-    {% for f in fields %}
-      <label>{{ f.name }}{% if f.required %} <em>*</em>{% endif %}
-        {% if f.type == 'boolean' %}
-          <select name="input__{{ f.name }}">
-            <option value="true" {% if f.default %}selected{% endif %}>true</option>
-            <option value="false" {% if not f.default %}selected{% endif %}>false</option>
-          </select>
-        {% else %}
-          <input name="input__{{ f.name }}"
-                 type="{{ 'number' if f.type == 'integer' else 'text' }}"
-                 {% if f.required %}required{% endif %}
-                 {% if f.minimum is not none %}min="{{ f.minimum }}"{% endif %}
-                 {% if f.maximum is not none %}max="{{ f.maximum }}"{% endif %}
-                 value="{{ form_values.get(f.name, f.default if f.default is not none else '') }}">
-        {% endif %}
-      </label>
-    {% endfor %}
-
-    <details class="advanced">
-      <summary>Advanced settings</summary>
-      <div class="grid-2">
-        <label>max_pages <input name="config__max_pages" type="number" min="1" placeholder="default"></label>
-        <label>max_records <input name="config__max_records" type="number" min="1" placeholder="default"></label>
-        <label>max_runtime_seconds <input name="config__max_runtime_seconds" type="number" min="30" placeholder="3600"></label>
-        <label>request_timeout <input name="config__request_timeout" type="number" min="1" placeholder="20"></label>
-        <label>requests_per_second <input name="config__requests_per_second" type="number" step="0.1" min="0.1" placeholder="1.0"></label>
-        <label>concurrency <input name="config__concurrency" type="number" min="1" placeholder="4"></label>
-        <label>max_retries <input name="config__max_retries" type="number" min="0" placeholder="3"></label>
-        <label class="checkbox"><input type="checkbox" name="config__respect_robots" checked> respect robots.txt</label>
+<div class="actor-layout">
+  <aside class="actor-side">
+    <div class="card">
+      <h2 style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Capabilities</h2>
+      <div class="cap-row" style="margin:6px 0 0">
+        {% for cap in actor.capabilities %}<span class="cap">{{ cap }}</span>{% endfor %}
       </div>
-    </details>
-
-    <div class="form-actions">
-      <button type="button" class="btn btn-ghost" id="validate-btn"
-              data-actor="{{ actor.id }}">Validate</button>
-      <button type="submit" class="btn btn-primary">Run</button>
     </div>
-    <div id="validate-result" class="validate-result" hidden></div>
-  </form>
-</section>
+    <div class="card">
+      <h2 style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">How it works</h2>
+      <p class="muted small" style="margin:0">
+        Configure the inputs on the right and launch a run. The job is queued for the
+        background worker; you can watch live progress, pause, or cancel it at any time
+        from the job page. Saved records land directly in the Leads workspace with full
+        source provenance.
+      </p>
+    </div>
+  </aside>
+
+  <section>
+    {% if errors %}
+      <div class="alert alert-error">
+        <strong>Validation failed</strong>
+        <ul>{% for k, v in errors.items() %}<li><b>{{ k }}</b>: {{ v }}</li>{% endfor %}</ul>
+      </div>
+    {% endif %}
+
+    <section class="card form-card">
+      <h2>Run configuration</h2>
+      <form method="post" action="/scraping/{{ actor.id }}/run" id="run-form">
+        {% for f in fields %}
+          <label style="margin-bottom:14px">{{ f.name }}{% if f.required %} <em>*</em>{% endif %}
+            {% if f.type == 'boolean' %}
+              <select name="input__{{ f.name }}">
+                <option value="true" {% if f.default %}selected{% endif %}>true</option>
+                <option value="false" {% if not f.default %}selected{% endif %}>false</option>
+              </select>
+            {% else %}
+              <input name="input__{{ f.name }}"
+                     type="{{ 'number' if f.type == 'integer' else 'text' }}"
+                     {% if f.required %}required{% endif %}
+                     {% if f.minimum is not none %}min="{{ f.minimum }}"{% endif %}
+                     {% if f.maximum is not none %}max="{{ f.maximum }}"{% endif %}
+                     value="{{ form_values.get(f.name, f.default if f.default is not none else '') }}">
+            {% endif %}
+          </label>
+        {% endfor %}
+
+        <details class="adv-panel" style="margin-top:16px">
+          <summary>Advanced settings</summary>
+          <div class="grid-2" style="margin-top:14px">
+            <label>max_pages <input name="config__max_pages" type="number" min="1" placeholder="default"></label>
+            <label>max_records <input name="config__max_records" type="number" min="1" placeholder="default"></label>
+            <label>max_runtime_seconds <input name="config__max_runtime_seconds" type="number" min="30" placeholder="3600"></label>
+            <label>request_timeout <input name="config__request_timeout" type="number" min="1" placeholder="20"></label>
+            <label>requests_per_second <input name="config__requests_per_second" type="number" step="0.1" min="0.1" placeholder="1.0"></label>
+            <label>concurrency <input name="config__concurrency" type="number" min="1" placeholder="4"></label>
+            <label>max_retries <input name="config__max_retries" type="number" min="0" placeholder="3"></label>
+            <label class="checkbox" style="margin-top:22px"><input type="checkbox" name="config__respect_robots" checked> respect robots.txt</label>
+          </div>
+        </details>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" style="min-width:150px;height:40px">Run scraper</button>
+          <button type="button" class="btn btn-ghost" id="validate-btn"
+                  data-actor="{{ actor.id }}">Validate</button>
+        </div>
+        <div id="validate-result" class="validate-result" hidden></div>
+      </form>
+    </section>
+  </section>
+</div>
 {% endblock %}
 
 {% block scripts %}

@@ -3,8 +3,12 @@
 {% block content %}
 <div class="login-wrap">
   <form method="post" action="/login" class="card login-card">
+    <div class="login-brand" aria-hidden="true">
+      <span class="brand-mark">Q</span>
+      <span>QBIT <em>CONNECT</em></span>
+    </div>
     <h1>Sign in</h1>
-    <p class="muted">Operator access to the scraping control center.</p>
+    <p class="muted">Operator access to your company's data &amp; growth platform.</p>
     <input type="hidden" name="next" value="{{ next }}">
     <label>Email
       <input type="email" name="email" required autocomplete="username" autofocus>
@@ -14,6 +18,9 @@
     </label>
     {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
     <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+    <div class="login-foot">
+      <p class="muted small center" style="margin:0">Internal platform — access is provisioned by your administrator.</p>
+    </div>
   </form>
 </div>
 {% endblock %}

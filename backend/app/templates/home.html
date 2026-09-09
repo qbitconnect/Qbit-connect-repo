@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Home — QBIT Connect{% endblock %}
+{% block nav_home %}active{% endblock %}
+{% block content %}
+<section class="hero" style="padding:34px 36px 32px">
+  <svg class="hero-orbs" viewBox="0 0 380 380" fill="none" aria-hidden="true">
+    <circle cx="190" cy="190" r="186" stroke="rgba(61,123,255,.14)" stroke-dasharray="2 7"/>
+    <circle cx="190" cy="190" r="132" stroke="rgba(61,123,255,.24)"/>
+    <circle cx="190" cy="190" r="3.5" fill="#3d7bff"/>
+    <circle cx="308" cy="140" r="4" fill="#6495ff"/>
+    <circle cx="96" cy="240" r="3" fill="#a78bfa"/>
+  </svg>
+  <span class="hero-eyebrow">Command center · live platform state</span>
+  <h1>{{ greeting }}, {{ (user.full_name or user.email) }}.</h1>
+  <p class="hero-sub">Your growth operations at a glance — every number below is computed live
+    from stored records. Nothing estimated.</p>
+  <div class="head-actions" style="position:relative;z-index:1">
+    <a class="btn btn-primary" href="/scraping">Run a scraper</a>
+    <a class="btn btn-ghost" href="/leads/import">Import leads</a>
+    <a class="btn btn-ghost" href="/campaigns/new">New campaign</a>
+  </div>
+</section>
+
+{# ------------------------------------------------------------ key metrics #}
+<div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+  <a class="stat" href="/leads">
+    <span class="stat-label">Leads</span>
+    <span class="stat-value">{{ leads_total }}</span>
+    <span class="small muted">unified lead workspace</span>
+  </a>
+  <a class="stat" href="/scraping/jobs">
+    <span class="stat-label">Scrape jobs</span>
+    <span class="stat-value">{{ jobs_total }}</span>
+    <span class="small muted">
+      {% if jobs_running %}<b class="badge badge-running" style="margin-right:6px">{{ jobs_running }} running</b>{% else %}none running{% endif %}
+    </span>
+  </a>
+  <a class="stat" href="/campaigns">
+    <span class="stat-label">Campaigns</span>
+    <span class="stat-value">{{ campaigns_total }}</span>
+    <span class="small muted">{% if campaigns_active %}<b>{{ campaigns_active }} active</b>{% else %}none active{% endif %}</span>
+  </a>
+  <a class="stat" href="/inbox">
+    <span class="stat-label">Open conversations</span>
+    <span class="stat-value">{{ inbox_open }}</span>
+    <span class="small muted">inbox awaiting replies</span>
+  </a>
+  <a class="stat" href="/automation">
+    <span class="stat-label">Workflows</span>
+    <span class="stat-value">{{ workflows_total }}</span>
+    <span class="small muted">{% if workflows_active %}<b>{{ workflows_active }} active</b>{% else %}none active{% endif %}</span>
+  </a>
+</div>
+
+{# ---------------------------------------------- asymmetric two-column deck #}
+<div class="home-deck">
+  <section class="card home-panel-wide">
+    <div class="panel-head">
+      <h2>Recent scraper runs</h2>
+      <a class="btn btn-sm btn-ghost" href="/scraping/jobs">All jobs</a>
+    </div>
+    {% if recent_jobs %}
+    <table class="table home-jobs">
+      <thead>
+        <tr><th>Job</th><th>Scraper</th><th>Status</th><th>Progress</th><th>Records</th><th>Created</th></tr>
+      </thead>
+      <tbody>
+        {% for r in recent_jobs %}
+        {% set j = r.job %}
+        <tr>
+          <td><a class="mono" href="/scraping/jobs/{{ j.id }}">{{ str(j.id)[:8] }}</a></td>
+          <td>{{ r.actor_name }}</td>
+          <td><span class="badge badge-{{ j.status.lower() }}">{{ j.status }}</span></td>
+          <td>{{ (j.progress | round(0) | int) }}%</td>
+          <td>{{ j.records_saved }}/{{ j.records_found }}</td>
+          <td class="muted">{{ j.created_at.strftime("%Y-%m-%d %H:%M") }} UTC</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <svg viewBox="0 0 130 130" fill="none" aria-hidden="true">
+        <circle cx="65" cy="65" r="58" stroke="rgba(61,123,255,.28)" stroke-dasharray="2 7"/>
+        <circle cx="65" cy="65" r="36" stroke="rgba(61,123,255,.42)"/>
+        <circle cx="65" cy="65" r="4" fill="#3d7bff"/>
+      </svg>
+      <h3>No scraper runs yet</h3>
+      <p>Pick a data tool and launch your first collection run.</p>
+      <a class="btn btn-primary" href="/scraping">Browse scrapers</a>
+    </div>
+    {% endif %}
+  </section>
+
+  <div class="home-side">
+    <section class="card">
+      <div class="panel-head"><h2>Operations health</h2></div>
+      <div class="health-rows">
+        <div class="health-row">
+          <span>Scraping jobs</span>
+          <span class="badge {{ 'badge-running' if jobs_running else 'badge-ready' }}">
+            {{ 'OPERATIONAL' if not jobs_failed_24h else 'CHECK RUNS' }}
+          </span>
+        </div>
+        <div class="health-row">
+          <span>Failed jobs (24h)</span>
+          <span class="mono {{ 'text-bad' if jobs_failed_24h else 'muted' }}">{{ jobs_failed_24h }}</span>
+        </div>
+        <div class="health-row">
+          <span>Running now</span>
+          <span class="mono">{{ jobs_running }}</span>
+        </div>
+        <div class="health-row">
+          <span>Inbox threads open</span>
+          <span class="mono">{{ inbox_open }}</span>
+        </div>
+        <div class="health-row">
+          <span>Automation executions</span>
+          <span class="badge {{ 'badge-active' if workflows_active else 'badge-draft' }}">
+            {{ 'ACTIVE' if workflows_active else 'IDLE' }}
+          </span>
+        </div>
+      </div>
+      <p class="small muted" style="margin:10px 0 0">Values reflect this workspace's stored records only.</p>
+    </section>
+
+    <section class="card">
+      <div class="panel-head"><h2>Jump to</h2></div>
+      <div class="jump-grid">
+        <a class="jump-item" href="/scraping"><span>Scrapers</span><small>data tools</small></a>
+        <a class="jump-item" href="/leads"><span>Leads</span><small>workspace</small></a>
+        <a class="jump-item" href="/campaigns"><span>Campaigns</span><small>outreach</small></a>
+        <a class="jump-item" href="/inbox"><span>Inbox</span><small>conversations</small></a>
+        <a class="jump-item" href="/automation"><span>Automation</span><small>workflows</small></a>
+        <a class="jump-item" href="/analytics"><span>Analytics</span><small>intelligence</small></a>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

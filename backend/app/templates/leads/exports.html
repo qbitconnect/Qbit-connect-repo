@@ -6,7 +6,7 @@
   <div><h1>EXPORTS</h1><p class="muted">Every export is recorded. Files are stored via the local storage service and downloaded by file id only.</p></div>
 </div>
 
-{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if ok %}<div class="alert alert-ok">{{ ok }}</div>{% endif %}
 {% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
 
 {% if can_export %}

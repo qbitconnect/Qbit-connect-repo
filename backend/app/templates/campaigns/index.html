@@ -2,11 +2,15 @@
 {% block title %}Campaigns — QBIT Connect{% endblock %}
 {% block nav_campaigns %}active{% endblock %}
 {% block content %}
+<section class="hero" style="padding:30px 34px 28px">
+  <span class="hero-eyebrow">Marketing operations</span>
+  <h1>Reach the right audience, on every channel.</h1>
+  <p class="hero-sub">Draft, launch and monitor WhatsApp &amp; email campaigns against your lead
+    audiences — with honest delivery analytics and suppression handling.</p>
+</section>
+
 <div class="page-head">
-  <div>
-    <h1>CAMPAIGNS</h1>
-    <p class="muted">Marketing control center — leads, audiences, channels and delivery analytics.</p>
-  </div>
+  <div></div>
   <div class="head-actions">
     {% if can_create %}<a class="btn btn-primary" href="/campaigns/new">New campaign</a>{% endif %}
     <a class="btn btn-ghost" href="/campaigns/templates">Templates</a>
@@ -15,7 +19,7 @@
   </div>
 </div>
 
-{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if ok %}<div class="alert alert-ok">{{ ok }}</div>{% endif %}
 {% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
 
 {% if not provider_configured %}
@@ -63,8 +67,16 @@
           <td><a class="btn btn-sm btn-ghost" href="/campaigns/{{ c.id }}">Open</a></td>
         </tr>
         {% else %}
-        <tr><td colspan="9" class="center muted" style="padding:32px">
-          No campaigns yet. {% if can_create %}Create your first campaign from a lead audience.{% endif %}
+        <tr><td colspan="9" style="padding:0">
+          <div class="empty-state">
+            <svg viewBox="0 0 130 130" fill="none" aria-hidden="true">
+              <circle cx="65" cy="65" r="58" stroke="rgba(61,123,255,.3)" stroke-dasharray="2 7"/>
+              <path d="M50 65l10 10 22-24" stroke="rgba(61,123,255,.7)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <h3>No campaigns yet</h3>
+            <p>Create your first campaign from a lead audience — WhatsApp or email.</p>
+            {% if can_create %}<a class="btn btn-primary" href="/campaigns/new">New campaign</a>{% endif %}
+          </div>
         </td></tr>
         {% endfor %}
       </tbody>

@@ -19,7 +19,7 @@ Pages:
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, Query, Request
@@ -151,10 +151,19 @@ def ui_user_for(required_permission: str | None = None):
 
 
 def _ctx(request: Request, user: User | None, **extra) -> dict:
+    # runtime env label for the topbar badge (honest indicator, never hardcoded)
+    env = "DEV"
+    try:
+        raw = str(getattr(request.app.state.settings, "QBIT_ENV", "development")).lower()
+        env = {"development": "DEV", "production": "PROD", "staging": "STAGING",
+               "test": "TEST"}.get(raw, raw.upper()[:8])
+    except Exception:  # noqa: BLE001 — badge must never break a page render
+        pass
     return {
         "request": request,
         "user": user,
         "year": datetime.now(timezone.utc).year,
+        "env_label": env,
         # Phase 11: nav gating (UI-only concern; the API enforces for real)
         "perms": getattr(request.state, "ui_permissions", None) or set(),
         **extra,
@@ -293,12 +302,105 @@ async def forbidden(request: Request):
     )
 
 
+# --------------------------------------------------------------------- home
+@router.get("/", response_class=HTMLResponse)
+async def home(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(ui_user_for())],
+):
+    """Command center (redesign brief: premium internal home).
+
+    Read-only: every number is a real count from the same sources the
+    section pages use — nothing estimated, nothing faked. Missing data
+    renders honest zero/empty states.
+    """
+    from sqlalchemy import func as sa_func
+
+    from app.models.automation import Workflow
+    from app.models.marketing import Campaign
+    from app.models.messaging import Conversation
+    from app.models.scrape import JobStatus, ScrapeJob
+
+    from .leads import workspace as lead_workspace
+
+    async def _scalar(stmt) -> int:
+        return int(await session.scalar(stmt) or 0)
+
+    # leads — same source as the leads workspace KPI row
+    leads_total = await lead_workspace.count_all(session)
+
+    # scraping jobs — same source as Jobs (JobEngine.list_jobs page 1)
+    engine = JobEngine(session, request.app.state.queue)
+    jobs_running = await _scalar(
+        select(sa_func.count(ScrapeJob.id)).select_from(ScrapeJob)
+        .where(ScrapeJob.status == JobStatus.RUNNING.value)
+    )
+    jobs_failed_24h = await _scalar(
+        select(sa_func.count(ScrapeJob.id)).select_from(ScrapeJob).where(
+            ScrapeJob.status == JobStatus.FAILED.value,
+            ScrapeJob.created_at >= datetime.now(timezone.utc) - timedelta(hours=24),
+        )
+    )
+    recent_jobs, jobs_total = await engine.list_jobs(page=1, page_size=6)
+    registry = request.app.state.scraper_registry
+    recent_rows = []
+    for job in recent_jobs:
+        try:
+            actor_name = registry.get(job.actor_id).name
+        except KeyError:
+            actor_name = job.actor_id
+        recent_rows.append({"job": job, "actor_name": actor_name})
+
+    # marketing — campaigns by lifecycle group (real counts)
+    campaigns_total = await _scalar(select(sa_func.count(Campaign.id)).select_from(Campaign))
+    campaigns_active = await _scalar(
+        select(sa_func.count(Campaign.id)).select_from(Campaign)
+        .where(Campaign.status.in_(["RUNNING", "SCHEDULED", "QUEUED"]))
+    )
+
+    # inbox — open threads awaiting a reply
+    inbox_open = await _scalar(
+        select(sa_func.count(Conversation.id)).select_from(Conversation)
+        .where(Conversation.status.in_(["OPEN", "WAITING", "PENDING"]))
+    )
+
+    # automation — published/active workflows
+    workflows_total = await _scalar(select(sa_func.count(Workflow.id)).select_from(Workflow))
+    workflows_active = await _scalar(
+        select(sa_func.count(Workflow.id)).select_from(Workflow)
+        .where(Workflow.status == "ACTIVE")
+    )
+
+    hour = datetime.now().hour
+    greeting = "Good morning" if hour < 12 else ("Good afternoon" if hour < 18 else "Good evening")
+
+    return templates.TemplateResponse(
+        request, "home.html",
+        _ctx(
+            request, user,
+            greeting=greeting,
+            leads_total=leads_total,
+            jobs_total=jobs_total,
+            jobs_running=jobs_running,
+            jobs_failed_24h=jobs_failed_24h,
+            recent_jobs=recent_rows,
+            campaigns_total=campaigns_total,
+            campaigns_active=campaigns_active,
+            inbox_open=inbox_open,
+            workflows_total=workflows_total,
+            workflows_active=workflows_active,
+        ),
+    )
+
+
 # ----------------------------------------------------------------- scrapers
 @router.get("/scraping", response_class=HTMLResponse)
 async def scraping_home(
     request: Request,
     user: Annotated[User, Depends(ui_user)],
     q: str = Query(default="", max_length=100),
+    category: str = Query(default="", max_length=50),
 ):
     registry = request.app.state.scraper_registry
     # Refresh health on view — all built-in health checks are local/fast (§49)
@@ -318,6 +420,7 @@ async def scraping_home(
                 "status_detail": entry.detail if entry else None,
             }
         )
+    cards_all = list(cards)  # unfiltered copy for the category pill counts
     if q:
         ql = q.lower()
         cards = [
@@ -325,8 +428,17 @@ async def scraping_home(
             if ql in c["name"].lower() or ql in c["description"].lower()
             or ql in c["category"]
         ]
+    # Category pills (UI-only filter over the registry listing, no data change)
+    all_categories = sorted({
+        c["category"].replace("_", " ").title() for c in cards_all
+    })
+    if category:
+        wanted = category.lower()
+        cards = [c for c in cards if c["category"].replace("_", " ").lower() == wanted]
     return templates.TemplateResponse(
-        request, "scraping/index.html", _ctx(request, user, scrapers=cards, q=q)
+        request, "scraping/index.html",
+        _ctx(request, user, scrapers=cards, q=q, category=category,
+             categories=all_categories, total_registered=len(cards_all))
     )
 
 

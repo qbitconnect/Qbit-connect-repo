@@ -3,7 +3,10 @@
 {% block nav_jobs %}active{% endblock %}
 {% block content %}
 <header class="page-head">
-  <div><h1>SCRAPE JOBS</h1><p class="muted">{{ total }} job{{ total != 1 and 's' or '' }}</p></div>
+  <div>
+    <h1>SCRAPE JOBS</h1>
+    <p class="muted">Infrastructure run history — {{ total }} job{{ total != 1 and 's' or '' }} across all actors.</p>
+  </div>
   <form method="get" action="/scraping/jobs" class="search">
     <input type="hidden" name="status" value="{{ status }}">
     <input type="search" name="q" value="{{ q }}" placeholder="Search id / scraper / error...">
@@ -43,7 +46,18 @@
         <td><a class="btn btn-sm btn-ghost" href="/scraping/jobs/{{ j.id }}">Open</a></td>
       </tr>
       {% else %}
-      <tr><td colspan="9" class="muted center">No jobs found.</td></tr>
+      <tr><td colspan="9">
+        <div class="empty-state">
+          <svg viewBox="0 0 130 130" fill="none" aria-hidden="true">
+            <circle cx="65" cy="65" r="58" stroke="rgba(61,123,255,.3)" stroke-dasharray="2 7"/>
+            <circle cx="65" cy="65" r="36" stroke="rgba(61,123,255,.45)"/>
+            <circle cx="65" cy="65" r="4" fill="#3d7bff"/>
+          </svg>
+          <h3>No jobs found</h3>
+          <p>Run a scraper to see its execution history here.</p>
+          <a class="btn btn-primary" href="/scraping">Browse scrapers</a>
+        </div>
+      </td></tr>
       {% endfor %}
     </tbody>
   </table>

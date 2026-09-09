@@ -14,7 +14,7 @@
   <div class="head-actions"><a class="btn btn-ghost" href="/connections/email">Back</a></div>
 </div>
 
-{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if ok %}<div class="alert alert-ok">{{ ok }}</div>{% endif %}
 {% if validation_failed %}
 <div class="alert alert-error">
   Validation failed — the account stays <strong>ERROR</strong> until the provider accepts every step.
