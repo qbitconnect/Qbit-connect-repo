@@ -1,83 +1,118 @@
 {% extends "base.html" %}
 {% block title %}Connections — QBIT Connect{% endblock %}
 {% block nav_connections %}active{% endblock %}
+{% block breadcrumb %}Growth / Provider Integrations{% endblock %}
+
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>CONNECTIONS</h1>
-    <p class="muted">Provider connections per channel. WhatsApp accounts use the official WhatsApp Business Cloud API — credentials are encrypted at rest and never displayed.</p>
+    <h1 class="page-title">Channel Provider Connections</h1>
+    <p class="page-subtitle">Encrypted API credentials and health status for WhatsApp Cloud API, SMTP, and transactional email providers.</p>
   </div>
   <div class="head-actions">
-    {% if can_manage %}<a class="btn btn-primary" href="/connections/whatsapp/new">Add WhatsApp account</a>{% endif %}
-    {% if can_manage %}<a class="btn btn-ghost" href="/connections/email/new">Add email account</a>{% endif %}
+    {% if can_manage %}
+      <a class="btn btn-primary btn-sm" href="/connections/whatsapp/new">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Connect WhatsApp
+      </a>
+      <a class="btn btn-ghost btn-sm" href="/connections/email/new">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Connect Email Sender
+      </a>
+    {% endif %}
   </div>
 </div>
 
-{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if ok %}<div class="alert alert-ok">{{ ok }}</div>{% endif %}
 {% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
 
-<h2 style="margin:18px 0 8px">WHATSAPP</h2>
-{% if whatsapp %}
-<div class="card-grid">
-  {% for a in whatsapp %}
-  <div class="card conn-card">
-    <div class="conn-head">
-      <strong>{{ a.name }}</strong>
-      <span class="badge badge-{{ a.status | lower }}">{{ a.status }}</span>
-    </div>
-    <dl class="kv">
-      <dt>Phone</dt><dd class="mono">{{ a.display_identifier or a.identifier }}</dd>
-      <dt>Business account</dt><dd class="mono">{% if a.business_account_id %}{{ a.business_account_id[:12] }}…{% else %}<span class="muted">not configured</span>{% endif %}</dd>
-      <dt>Provider</dt><dd class="mono">{{ a.provider }}{% if a.provider_test_only %} <span class="badge badge-failed">MOCK / TEST ONLY</span>{% endif %}</dd>
-      <dt>Health</dt><dd><span class="badge badge-{{ a.health_status | lower }}">{{ a.health_status }}</span></dd>
-      <dt>Last checked</dt><dd>{% if a.last_health_check %}{{ a.last_health_check[:19] | replace('T',' ') }} UTC{% else %}<span class="muted">never</span>{% endif %}</dd>
-      <dt>Credentials</dt><dd>{% if a.has_credentials %}stored (encrypted){% else %}<span class="muted">none</span>{% endif %}</dd>
-    </dl>
-    <div class="form-actions">
-      <a class="btn btn-ghost" href="/connections/whatsapp/{{ a.id }}">View</a>
-      {% if can_health %}
-      <form method="post" action="/connections/whatsapp/{{ a.id }}/health"><button class="btn btn-ghost" type="submit">Health check</button></form>
-      {% endif %}
-      {% if can_edit %}
-      <form method="post" action="/connections/whatsapp/{{ a.id }}/status">
-        <input type="hidden" name="status" value="{{ 'INACTIVE' if a.status == 'ACTIVE' else 'ACTIVE' }}">
-        <button class="btn btn-ghost" type="submit">{{ 'Disable' if a.status == 'ACTIVE' else 'Enable' }}</button>
-      </form>
-      {% endif %}
-    </div>
+<!-- WhatsApp Accounts Section -->
+<div style="margin-bottom: 32px;">
+  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+    <h2 style="margin: 0; font-size: 16px;">WhatsApp Business Cloud API</h2>
   </div>
-  {% endfor %}
-</div>
-{% else %}
-<div class="alert">No WhatsApp accounts yet.{% if can_manage %} Use "Add WhatsApp account" to connect one — the account becomes ACTIVE only after the provider validates it.{% endif %}</div>
-{% endif %}
 
-<h2 style="margin:18px 0 8px">EMAIL</h2>
-{% if email %}
-<div class="card-grid">
-  {% for a in email %}
-  <div class="card conn-card">
-    <div class="conn-head">
-      <strong>{{ a.sender_name or a.name }}</strong>
-      <span class="badge badge-{{ a.status | lower }}">{{ a.status }}</span>
+  {% if whatsapp %}
+  <div class="cards" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
+    {% for a in whatsapp %}
+    <div class="card conn-card" style="padding: 20px;">
+      <div class="conn-head" style="margin-bottom: 8px;">
+        <strong style="font-size: 15px;">{{ a.name }}</strong>
+        <span class="badge badge-{{ a.status | lower }}">{{ a.status }}</span>
+      </div>
+
+      <div class="section-grid" style="gap: 4px;">
+        <div class="kv"><span class="k">Phone</span><span class="v mono">{{ a.display_identifier or a.identifier }}</span></div>
+        <div class="kv"><span class="k">Account ID</span><span class="v mono small">{% if a.business_account_id %}{{ a.business_account_id[:12] }}…{% else %}<span class="muted">unconfigured</span>{% endif %}</span></div>
+        <div class="kv"><span class="k">Provider</span><span class="v mono small">{{ a.provider }}{% if a.provider_test_only %} <span class="badge badge-bad">MOCK</span>{% endif %}</span></div>
+        <div class="kv"><span class="k">Health</span><span class="v"><span class="badge badge-{{ a.health_status | lower }}">{{ a.health_status }}</span></span></div>
+        <div class="kv"><span class="k">Vault Status</span><span class="v">{% if a.has_credentials %}<span style="color: var(--ok);">Encrypted</span>{% else %}<span class="muted">None</span>{% endif %}</span></div>
+      </div>
+
+      <div class="form-actions" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-soft); justify-content: flex-end;">
+        <a class="btn btn-sm btn-ghost" href="/connections/whatsapp/{{ a.id }}">Inspect</a>
+        {% if can_health %}
+        <form method="post" action="/connections/whatsapp/{{ a.id }}/health" class="inline-form">
+          <button class="btn btn-sm btn-ghost" type="submit">Ping Health</button>
+        </form>
+        {% endif %}
+        {% if can_edit %}
+        <form method="post" action="/connections/whatsapp/{{ a.id }}/status" class="inline-form">
+          <input type="hidden" name="status" value="{{ 'INACTIVE' if a.status == 'ACTIVE' else 'ACTIVE' }}">
+          <button class="btn btn-sm btn-ghost" type="submit">{{ 'Disable' if a.status == 'ACTIVE' else 'Enable' }}</button>
+        </form>
+        {% endif %}
+      </div>
     </div>
-    <dl class="kv">
-      <dt>Sender email</dt><dd class="mono">{{ a.sender_email or a.identifier }}</dd>
-      <dt>Provider</dt><dd class="mono">{{ a.provider }}{% if a.provider_test_only %} <span class="badge badge-failed">MOCK / TEST ONLY</span>{% endif %}</dd>
-      <dt>Health</dt><dd><span class="badge badge-{{ a.health_status | lower }}">{{ a.health_status }}</span></dd>
-      <dt>Last checked</dt><dd>{% if a.last_health_check %}{{ a.last_health_check[:19] | replace('T',' ') }} UTC{% else %}<span class="muted">never</span>{% endif %}</dd>
-      <dt>Credentials</dt><dd>{% if a.has_credentials %}stored (encrypted){% else %}<span class="muted">none</span>{% endif %}</dd>
-    </dl>
-    <div class="form-actions">
-      <a class="btn btn-ghost" href="/connections/email/{{ a.id }}">View</a>
-    </div>
+    {% endfor %}
   </div>
-  {% endfor %}
+  {% else %}
+  <div class="card" style="padding: 24px; text-align: center;">
+    <p class="muted small" style="margin: 0 0 12px;">No active WhatsApp Business API accounts configured.</p>
+    {% if can_manage %}
+    <a href="/connections/whatsapp/new" class="btn btn-primary btn-sm">Connect WhatsApp API</a>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
-{% else %}
-<div class="alert">No email sender accounts yet.{% if can_manage %} <a href="/connections/email">Open the email sender dashboard</a> to add one — SMTP and Email API providers are supported.{% else %} <a href="/connections/email">Open the email sender dashboard</a>.{% endif %}</div>
-{% endif %}
 
-<h2 style="margin:18px 0 8px">SMS</h2>
-<div class="alert">SMS connections are planned for a later phase.</div>
+<!-- Email Accounts Section -->
+<div style="margin-bottom: 32px;">
+  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+    <h2 style="margin: 0; font-size: 16px;">Email Senders &amp; SMTP Relays</h2>
+  </div>
+
+  {% if email %}
+  <div class="cards" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
+    {% for a in email %}
+    <div class="card conn-card" style="padding: 20px;">
+      <div class="conn-head" style="margin-bottom: 8px;">
+        <strong style="font-size: 15px;">{{ a.sender_name or a.name }}</strong>
+        <span class="badge badge-{{ a.status | lower }}">{{ a.status }}</span>
+      </div>
+
+      <div class="section-grid" style="gap: 4px;">
+        <div class="kv"><span class="k">From Email</span><span class="v mono">{{ a.sender_email or a.identifier }}</span></div>
+        <div class="kv"><span class="k">Provider</span><span class="v mono small">{{ a.provider }}{% if a.provider_test_only %} <span class="badge badge-bad">MOCK</span>{% endif %}</span></div>
+        <div class="kv"><span class="k">Health</span><span class="v"><span class="badge badge-{{ a.health_status | lower }}">{{ a.health_status }}</span></span></div>
+        <div class="kv"><span class="k">Vault Status</span><span class="v">{% if a.has_credentials %}<span style="color: var(--ok);">Encrypted</span>{% else %}<span class="muted">None</span>{% endif %}</span></div>
+      </div>
+
+      <div class="form-actions" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-soft); justify-content: flex-end;">
+        <a class="btn btn-sm btn-ghost" href="/connections/email/{{ a.id }}">Inspect Sender</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card" style="padding: 24px; text-align: center;">
+    <p class="muted small" style="margin: 0 0 12px;">No email sending accounts configured.</p>
+    {% if can_manage %}
+    <a href="/connections/email/new" class="btn btn-primary btn-sm">Add SMTP / Email Provider</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
 {% endblock %}

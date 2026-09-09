@@ -1,19 +1,26 @@
 {% extends "base.html" %}
-{% block title %}Automation — QBIT Connect{% endblock %}
+{% block title %}Automation Engine — QBIT Connect{% endblock %}
 {% block nav_automation %}active{% endblock %}
+{% block breadcrumb %}Growth / Workflow Automation{% endblock %}
 
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>AUTOMATION</h1>
-    <p class="muted">Workflow engine — trigger, condition, action, wait (Phase 9)</p>
+    <h1 class="page-title">Event-Driven Automation</h1>
+    <p class="page-subtitle">Reactive workflow pipelines: triggers, conditional filters, webhook dispatch, and automated sequences.</p>
   </div>
-  <div class="page-actions">
+  <div class="head-actions">
     {% if "automation.create" in perms %}
-      <a class="btn btn-primary" href="/automation/new">+ New workflow</a>
+      <a class="btn btn-primary btn-sm" href="/automation/new">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New Workflow
+      </a>
     {% endif %}
     {% if "automation.view_executions" in perms %}
-      <a class="btn btn-ghost" href="/automation/executions">Executions</a>
+      <a class="btn btn-ghost btn-sm" href="/automation/executions">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Execution Log
+      </a>
     {% endif %}
   </div>
 </div>
@@ -22,51 +29,84 @@
   <div class="alert {{ 'alert-error' if flash_kind == 'error' else 'alert-ok' }}">{{ flash }}</div>
 {% endif %}
 
+<!-- Workflows Table -->
 <div class="card table-card">
   <div class="table-scroll">
     <table>
       <thead>
         <tr>
-          <th>Name</th><th>Trigger</th><th>Status</th><th>Version</th>
-          <th>Executions</th><th>Success</th><th>Failed</th><th>Last run</th><th></th>
+          <th>Workflow Name</th>
+          <th>Intake Trigger</th>
+          <th>Status</th>
+          <th>Active Version</th>
+          <th>Executions</th>
+          <th>Success Rate</th>
+          <th>Failed</th>
+          <th>Last Run</th>
+          <th style="text-align: right;">Action</th>
         </tr>
       </thead>
       <tbody>
       {% for wf in items %}
         <tr>
-          <td><a href="/automation/{{ wf.id }}"><strong>{{ wf.name }}</strong></a>
-              {% if wf.description %}<div class="muted small">{{ wf.description[:90] }}</div>{% endif %}</td>
-          <td>{{ trigger_labels.get(wf.trigger_type, wf.trigger_type) }}</td>
+          <td style="font-weight: 600;">
+            <a href="/automation/{{ wf.id }}" style="color: var(--text);">{{ wf.name }}</a>
+            {% if wf.description %}<div class="muted small" style="font-weight: normal;">{{ wf.description[:90] }}</div>{% endif %}
+          </td>
+          <td>
+            <span class="chip" style="font-size: 11px;">
+              {{ trigger_labels.get(wf.trigger_type, wf.trigger_type) }}
+            </span>
+          </td>
           <td><span class="badge badge-{{ wf.status|lower }}">{{ wf.status }}</span></td>
-          <td>{{ wf.current_version or "—" }}</td>
-          <td>{{ wf.executions_total }}</td>
-          <td>{{ wf.executions_completed }}{% if wf.success_rate is not none %} <span class="muted small">({{ (wf.success_rate * 100)|round(1) }}%)</span>{% endif %}</td>
-          <td>{{ wf.executions_failed }}</td>
+          <td class="mono small">{{ wf.current_version or "—" }}</td>
+          <td class="mono">{{ wf.executions_total }}</td>
+          <td class="mono">
+            <span style="color: var(--ok);">{{ wf.executions_completed }}</span>
+            {% if wf.success_rate is not none %}
+              <span class="muted small">({{ (wf.success_rate * 100)|round(1) }}%)</span>
+            {% endif %}
+          </td>
+          <td class="mono" style="color: var(--bad);">{{ wf.executions_failed }}</td>
           <td class="muted small">{{ wf.last_execution_at[:16].replace("T", " ") if wf.last_execution_at else "—" }}</td>
-          <td class="row-actions">
-            <a class="btn btn-sm btn-ghost" href="/automation/{{ wf.id }}">Open</a>
+          <td style="text-align: right;">
+            <a class="btn btn-sm btn-ghost" href="/automation/{{ wf.id }}">Configure</a>
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="9" class="muted" style="padding:28px;text-align:center">
-          No workflows yet. Create one from scratch or start from a template below.
-        </td></tr>
+        <tr>
+          <td colspan="9">
+            <div class="empty-state" style="padding: 40px 0;">
+              <div class="empty-icon">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="M2 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="M12 22v-4"/><path d="m19.07 19.07-2.83-2.83"/><path d="M22 12h-4"/><path d="m19.07 4.93-2.83 2.83"/><circle cx="12" cy="12" r="3"/></svg>
+              </div>
+              <div class="empty-title">No workflows created yet</div>
+              <p class="empty-sub">Automate lead enrichment, qualification rules, and campaign triggers.</p>
+              {% if "automation.create" in perms %}
+              <a href="/automation/new" class="btn btn-primary btn-sm">Build First Workflow</a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
 
+<!-- Starter Templates -->
 {% if templates and "automation.create" in perms %}
-<div class="card" style="margin-top:20px">
-  <h2 class="section-title">Starter templates</h2>
-  <p class="muted small">Templates create a DRAFT you configure and publish yourself — nothing runs automatically.</p>
-  <div class="template-grid">
+<div class="card" style="margin-top: 24px; padding: 24px;">
+  <h2 style="font-size: 16px; margin-bottom: 4px;">Pre-configured Workflow Blueprints</h2>
+  <p class="muted small" style="margin-bottom: 18px;">Jumpstart common automations. Blueprints instantiate editable drafts in your workspace.</p>
+  <div class="cards" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
     {% for tid, spec in templates.items() %}
-      <div class="template-card">
-        <strong>{{ spec.name }}</strong>
-        <p class="muted small">{{ spec.description[:140] }}</p>
-        <a class="btn btn-sm btn-ghost" href="/automation/new?from_template={{ tid }}">Use template</a>
+      <div class="card card-elevated" style="display: flex; flex-direction: column; gap: 10px;">
+        <strong style="font-size: 14px; color: var(--text);">{{ spec.name }}</strong>
+        <p class="muted small" style="margin: 0; flex: 1;">{{ spec.description[:140] }}</p>
+        <div style="padding-top: 6px;">
+          <a class="btn btn-sm btn-ghost" href="/automation/new?from_template={{ tid }}" style="width: 100%;">Instantiate Blueprint &rarr;</a>
+        </div>
       </div>
     {% endfor %}
   </div>

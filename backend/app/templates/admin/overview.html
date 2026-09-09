@@ -1,41 +1,109 @@
 {% extends "base.html" %}
-{% block title %}Admin — QBIT Connect{% endblock %}
+{% block title %}Enterprise Command Center — QBIT Connect{% endblock %}
 {% block nav_admin %}active{% endblock %}
+{% block breadcrumb %}Administration / Command Center{% endblock %}
+
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>ADMIN OVERVIEW</h1>
-    <p class="muted">{{ org.name }} — live platform state (real counts, no estimates).</p>
+    <h1 class="page-title">Enterprise Command Center</h1>
+    <p class="page-subtitle">{{ org.name }} &middot; Platform status, operational capacity, and real-time audit trail.</p>
   </div>
 </div>
 
-<div class="stat-grid">
-  <div class="stat"><span class="stat-label">ACTIVE USERS</span><span class="stat-value">{{ stats.active_users }}</span></div>
-  <div class="stat"><span class="stat-label">ORG MEMBERS</span><span class="stat-value">{{ stats.members }}</span></div>
-  <div class="stat"><span class="stat-label">TEAMS</span><span class="stat-value">{{ stats.teams }}</span></div>
-  <div class="stat"><span class="stat-label">CONNECTIONS</span><span class="stat-value">{{ stats.connections }}</span></div>
-  <div class="stat"><span class="stat-label">ACTIVE CAMPAIGNS</span><span class="stat-value">{{ stats.campaigns }}</span></div>
-  <div class="stat"><span class="stat-label">OPEN CONVERSATIONS</span><span class="stat-value">{{ stats.conversations }}</span></div>
-  <div class="stat"><span class="stat-label">ACTIVE SCRAPE JOBS</span><span class="stat-value">{{ stats.jobs }}</span></div>
-  <div class="stat"><span class="stat-label">LEADS</span><span class="stat-value">{{ stats.leads }}</span></div>
-  <div class="stat"><span class="stat-label">PENDING INVITATIONS</span><span class="stat-value">{{ stats.invitations }}</span></div>
-  <div class="stat"><span class="stat-label">ACTIVE WORKFLOWS</span><span class="stat-value">{{ stats.workflows if stats.workflows is not none else 'N/A' }}</span></div>
-</div>
+<!-- Primary Capacity Grid -->
+<section class="stat-grid" style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px;">
+  <div class="metric-card">
+    <span class="metric-label">Active Operators</span>
+    <span class="metric-value" style="color: var(--ok);">{{ stats.active_users }}</span>
+    <span class="muted small">{{ stats.members }} total organization seats</span>
+  </div>
 
+  <div class="metric-card">
+    <span class="metric-label">Teams</span>
+    <span class="metric-value">{{ stats.teams }}</span>
+    <span class="muted small">Configured groups</span>
+  </div>
+
+  <div class="metric-card">
+    <span class="metric-label">Provider Integrations</span>
+    <span class="metric-value" style="color: var(--accent);">{{ stats.connections }}</span>
+    <span class="muted small">Encrypted channels</span>
+  </div>
+
+  <div class="metric-card">
+    <span class="metric-label">Active Sequences</span>
+    <span class="metric-value">{{ stats.campaigns }}</span>
+    <span class="muted small">Live outreach</span>
+  </div>
+
+  <div class="metric-card">
+    <span class="metric-label">Inbox Inquiries</span>
+    <span class="metric-value" style="color: var(--warn);">{{ stats.conversations }}</span>
+    <span class="muted small">Open conversations</span>
+  </div>
+
+  <div class="metric-card">
+    <span class="metric-label">Active Scrapes</span>
+    <span class="metric-value">{{ stats.jobs }}</span>
+    <span class="muted small">In-flight runners</span>
+  </div>
+
+  <div class="metric-card">
+    <span class="metric-label">Total Leads</span>
+    <span class="metric-value">{{ stats.leads }}</span>
+    <span class="muted small">Enriched records</span>
+  </div>
+
+  <div class="metric-card">
+    <span class="metric-label">Pending Invites</span>
+    <span class="metric-value" style="color: var(--text-2);">{{ stats.invitations }}</span>
+    <span class="muted small">Awaiting accept</span>
+  </div>
+
+  <div class="metric-card">
+    <span class="metric-label">Automations</span>
+    <span class="metric-value">{{ stats.workflows if stats.workflows is not none else 'N/A' }}</span>
+    <span class="muted small">Event pipelines</span>
+  </div>
+</section>
+
+<!-- Audit Feed Table -->
 <div class="card table-card">
+  <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+    <div>
+      <h2 style="margin: 0; font-size: 15px;">Recent Administrative Actions</h2>
+      <p class="muted small" style="margin: 0;">Immutable security and mutation audit records.</p>
+    </div>
+    <a href="/admin/audit" class="btn btn-sm btn-ghost">Complete Audit Log &rarr;</a>
+  </div>
   <div class="table-scroll">
     <table>
-      <thead><tr><th>Time</th><th>Action</th><th>Resource</th><th>Resource ID</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Action Type</th>
+          <th>Target Entity</th>
+          <th>Resource Identifier</th>
+        </tr>
+      </thead>
       <tbody>
         {% for e in recent %}
         <tr>
-          <td class="muted small">{{ fmt(e.created_at) }}</td>
-          <td class="mono">{{ e.action }}</td>
-          <td>{{ e.resource_type or '—' }}</td>
-          <td class="mono muted">{{ (e.resource_id or '—')[:12] }}</td>
+          <td class="muted small mono">{{ fmt(e.created_at) }}</td>
+          <td><span class="mono" style="color: var(--accent); font-size: 12px;">{{ e.action }}</span></td>
+          <td><span class="chip" style="font-size: 11px;">{{ e.resource_type or '—' }}</span></td>
+          <td class="mono small muted">{{ (e.resource_id or '—')[:16] }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="4" class="center muted" style="padding:24px">No activity in the last 7 days.</td></tr>
+        <tr>
+          <td colspan="4">
+            <div class="empty-state" style="padding: 36px 0;">
+              <div class="empty-title" style="font-size: 14px;">No administrative events</div>
+              <p class="empty-sub" style="font-size: 12px;">No logged security or configuration mutations in the last 7 days.</p>
+            </div>
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>

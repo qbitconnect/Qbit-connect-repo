@@ -1,12 +1,22 @@
 {% extends "base.html" %}
-{% block title %}403 — QBIT Connect{% endblock %}
+{% block title %}Access Restricted (403) — QBIT Connect{% endblock %}
+{% block breadcrumb %}Security / Access Denied{% endblock %}
+
 {% block content %}
-<div class="login-wrap">
-  <div class="card login-card center">
-    <h1>403</h1>
-    <p class="muted">You do not have permission to access this area.</p>
-    {% if detail %}<p class="muted">{{ detail }}</p>{% endif %}
-    <a class="btn btn-ghost" href="/scraping">Back to Scrapers</a>
+<div class="empty-state" style="padding: 100px 20px;">
+  <div class="empty-icon" style="width: 72px; height: 72px; color: var(--bad); border-color: rgba(240,82,82,0.3); background: var(--bad-dim); margin-bottom: 16px;">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+  </div>
+  <h1 class="page-title" style="font-size: 32px; margin-bottom: 8px;">Access Restricted (403)</h1>
+  <p class="empty-sub" style="font-size: 15px; max-width: 440px; margin-bottom: 24px;">
+    You do not possess the required RBAC capability permissions to access this administrative resource.
+  </p>
+  {% if detail %}
+  <div class="alert alert-warn" style="font-size: 12px; margin-bottom: 24px; max-width: 440px;">{{ detail }}</div>
+  {% endif %}
+  <div style="display: flex; gap: 10px;">
+    <a class="btn btn-ghost" href="javascript:history.back()">&larr; Go Back</a>
+    <a class="btn btn-primary" href="/scraping">Back to Workspace</a>
   </div>
 </div>
 {% endblock %}

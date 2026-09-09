@@ -1,19 +1,46 @@
 {% extends "base.html" %}
-{% block title %}Sign in — QBIT Connect{% endblock %}
+{% block title %}Sign in — QBIT Connect AI Platform{% endblock %}
+{% block breadcrumb %}Authentication{% endblock %}
 {% block content %}
 <div class="login-wrap">
-  <form method="post" action="/login" class="card login-card">
-    <h1>Sign in</h1>
-    <p class="muted">Operator access to the scraping control center.</p>
+  <form method="post" action="/login" class="login-card">
+    <div class="login-brand" style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+      <span class="brand-mark" style="width: 42px; height: 42px; font-size: 20px;">Q</span>
+      <div>
+        <div style="font-weight: 800; font-size: 16px; letter-spacing: 0.08em; color: var(--text);">QBIT <span style="color: var(--accent);">CONNECT</span></div>
+        <div style="font-size: 11px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;">Internal Data Platform</div>
+      </div>
+    </div>
+
+    <h1>Sign in to workspace</h1>
+    <p class="muted" style="margin-bottom: 24px; font-size: 13px; color: var(--text-2);">
+      Operator access for automated scraping, lead intelligence &amp; campaigns.
+    </p>
+
     <input type="hidden" name="next" value="{{ next }}">
-    <label>Email
-      <input type="email" name="email" required autocomplete="username" autofocus>
-    </label>
-    <label>Password
-      <input type="password" name="password" required autocomplete="current-password">
-    </label>
-    {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
-    <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+
+    <div style="margin-bottom: 16px;">
+      <label class="field-label" for="login-email">Email Address</label>
+      <input id="login-email" type="email" name="email" required autocomplete="username" autofocus placeholder="name@company.com">
+    </div>
+
+    <div style="margin-bottom: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <label class="field-label" for="login-password" style="margin-bottom: 0;">Password</label>
+      </div>
+      <input id="login-password" type="password" name="password" required autocomplete="current-password" placeholder="••••••••••••">
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error" style="display: flex; align-items: center; gap: 8px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span>{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top: 8px;">
+      Authenticate &amp; Enter
+    </button>
   </form>
 </div>
 {% endblock %}

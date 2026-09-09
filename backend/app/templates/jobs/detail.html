@@ -1,103 +1,162 @@
 {% extends "base.html" %}
 {% block title %}Job {{ str(job.id)[:8] }} — QBIT Connect{% endblock %}
 {% block nav_jobs %}active{% endblock %}
+{% block breadcrumb %}<a href="/scraping/jobs" style="color: inherit;">Jobs</a> / {{ str(job.id)[:8] }}{% endblock %}
+
 {% block content %}
 <header class="page-head">
   <div>
-    <a class="crumb" href="/scraping/jobs">&larr; Jobs</a>
-    <h1>SCRAPE JOB <span class="mono">{{ str(job.id)[:8] }}</span></h1>
-    <p class="muted">{{ actor_name }} &middot; v{{ job.actor_version }}
-      {% if job.input.get('query') %}&middot; Query: {{ job.input['query'] }}{% endif %}
-      {% if job.input.get('city') %}&middot; {{ job.input['city'] }}{% endif %}
-      {% if job.input.get('url') %}&middot; {{ job.input['url'] }}{% endif %}
-      {% if job.input.get('website') %}&middot; {{ job.input['website'] }}{% endif %}
+    <a class="crumb" href="/scraping/jobs">&larr; Back to Pipeline Monitor</a>
+    <div style="display: flex; align-items: center; gap: 12px; margin-top: 4px;">
+      <h1 class="page-title">Scraper Run <span class="mono" style="color: var(--accent);">#{{ str(job.id)[:8] }}</span></h1>
+      <span class="badge badge-{{ job.status.lower() }}" id="job-status">{{ job.status }}</span>
+    </div>
+    <p class="page-subtitle">
+      {{ actor_name }} &middot; v{{ job.actor_version }}
+      {% if job.input.get('query') %}&middot; Query: <b>{{ job.input['query'] }}</b>{% endif %}
+      {% if job.input.get('city') %}&middot; City: <b>{{ job.input['city'] }}</b>{% endif %}
+      {% if job.input.get('url') %}&middot; URL: <span class="mono">{{ job.input['url'] }}</span>{% endif %}
+      {% if job.input.get('website') %}&middot; Site: <span class="mono">{{ job.input['website'] }}</span>{% endif %}
     </p>
   </div>
   <div class="head-actions">
     {% if job.status == 'RUNNING' or job.status == 'QUEUED' %}
-      {% if can_pause %}<form method="post" action="/scraping/jobs/{{ job.id }}/pause"><button class="btn btn-ghost">Pause</button></form>{% endif %}
-      {% if can_cancel %}<form method="post" action="/scraping/jobs/{{ job.id }}/cancel"><button class="btn btn-danger">Cancel</button></form>{% endif %}
+      {% if can_pause %}<form method="post" action="/scraping/jobs/{{ job.id }}/pause"><button class="btn btn-ghost btn-sm">Pause Job</button></form>{% endif %}
+      {% if can_cancel %}<form method="post" action="/scraping/jobs/{{ job.id }}/cancel"><button class="btn btn-danger btn-sm">Terminate</button></form>{% endif %}
     {% elif job.status == 'PAUSED' %}
-      {% if can_pause %}<form method="post" action="/scraping/jobs/{{ job.id }}/resume"><button class="btn btn-primary">Resume</button></form>{% endif %}
-      {% if can_cancel %}<form method="post" action="/scraping/jobs/{{ job.id }}/cancel"><button class="btn btn-danger">Cancel</button></form>{% endif %}
+      {% if can_pause %}<form method="post" action="/scraping/jobs/{{ job.id }}/resume"><button class="btn btn-primary btn-sm">Resume Job</button></form>{% endif %}
+      {% if can_cancel %}<form method="post" action="/scraping/jobs/{{ job.id }}/cancel"><button class="btn btn-danger btn-sm">Terminate</button></form>{% endif %}
     {% elif job.status == 'FAILED' %}
-      {% if can_retry %}<form method="post" action="/scraping/jobs/{{ job.id }}/retry"><button class="btn btn-primary">Retry</button></form>{% endif %}
+      {% if can_retry %}<form method="post" action="/scraping/jobs/{{ job.id }}/retry"><button class="btn btn-primary btn-sm">Retry Job</button></form>{% endif %}
     {% endif %}
   </div>
 </header>
 
+<!-- Telemetry Grid -->
 <section class="stat-grid">
-  <div class="stat card"><span class="stat-label">STATUS</span>
-    <span class="badge badge-{{ job.status.lower() }}" id="job-status">{{ job.status }}</span>
+  <div class="metric-card">
+    <span class="metric-label">Execution Status</span>
+    <div style="margin-top: 4px;">
+      <span class="badge badge-{{ job.status.lower() }}" style="font-size: 13px; padding: 5px 12px;">{{ job.status }}</span>
+    </div>
     {% if job.error %}<p class="error-line">{{ job.error }}</p>{% endif %}
   </div>
-  <div class="stat card"><span class="stat-label">PROGRESS</span>
-    {% if job.progress %}
-      <span class="stat-value" id="job-progress">{{ job.progress }}%</span>
-    {% else %}
-      <span class="stat-value" id="job-progress">&mdash;</span>
-      <span class="muted small">total unknown — counting records</span>
-    {% endif %}
-    {% if job.stage %}<p class="muted small" id="job-stage">{{ job.stage }}</p>{% endif %}
+
+  <div class="metric-card">
+    <span class="metric-label">Progress Rate</span>
+    <span class="metric-value" id="job-progress">{% if job.progress %}{{ job.progress }}%{% else %}&mdash;{% endif %}</span>
+    <span class="muted small" id="job-stage">{% if job.stage %}{{ job.stage }}{% else %}Counting records stream{% endif %}</span>
   </div>
-  <div class="stat card"><span class="stat-label">RECORDS</span>
-    <span class="stat-value mono" id="job-found">{{ job.records_found }}</span>
-    <span class="muted small">saved <b class="mono" id="job-saved">{{ job.records_saved }}</b> · updated <b class="mono" id="job-updated">{{ job.records_updated }}</b></span>
+
+  <div class="metric-card">
+    <span class="metric-label">Discovered / Saved</span>
+    <div class="metric-value mono">
+      <span id="job-saved" style="color: var(--ok);">{{ job.records_saved }}</span>
+      <span class="muted" style="font-size: 18px;">/</span>
+      <span id="job-found" style="color: var(--text);">{{ job.records_found }}</span>
+    </div>
+    <span class="muted small">Updated: <b class="mono" id="job-updated">{{ job.records_updated }}</b></span>
   </div>
-  <div class="stat card"><span class="stat-label">DUPLICATES</span>
-    <span class="stat-value mono" id="job-dup">{{ job.records_duplicate }}</span>
-    <span class="muted small">failed <b class="mono" id="job-failed">{{ job.records_failed }}</b></span>
+
+  <div class="metric-card">
+    <span class="metric-label">Duplicates &amp; Errors</span>
+    <div class="metric-value mono" style="display: flex; gap: 8px;">
+      <span id="job-dup" style="color: var(--warn);">{{ job.records_duplicate }}</span>
+      <span class="muted" style="font-size: 18px;">dup</span>
+    </div>
+    <span class="muted small">Failed parses: <b class="mono" id="job-failed" style="color: var(--bad);">{{ job.records_failed }}</b></span>
   </div>
-  <div class="stat card"><span class="stat-label">ELAPSED</span>
-    <span class="stat-value mono" id="job-elapsed">
+
+  <div class="metric-card">
+    <span class="metric-label">Elapsed Time</span>
+    <span class="metric-value mono" id="job-elapsed">
       {% if job.started_at %}{{ elapsed_display }}{% else %}&mdash;{% endif %}
     </span>
+    <span class="muted small">Started: {{ job.started_at.strftime('%H:%M:%S') if job.started_at else '&mdash;' }}</span>
   </div>
 </section>
 
-<section class="card log-card">
-  <h2>Live log</h2>
-  <div class="log" id="log-box">
-    <div class="muted center">Loading events…</div>
+<!-- Terminal Log Viewer -->
+<section class="card log-card" style="padding: 20px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1.5s infinite;"></div>
+      <h2 style="font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em; margin: 0;">Live Execution Log</h2>
+    </div>
+    <span class="muted small">Streaming event log</span>
+  </div>
+  <div class="log" id="log-box" style="height: 280px; max-height: 280px;">
+    <div class="muted center" style="padding-top: 80px;">Awaiting event stream…</div>
   </div>
 </section>
 
+<!-- Results Section (Completed Jobs) -->
 {% if job.status in ['COMPLETED', 'FAILED', 'CANCELLED'] %}
-<section class="card results-card">
-  <h2>Results</h2>
-  <div class="result-grid">
-    <div><span class="muted small">TOTAL FOUND</span><span class="stat-value mono">{{ job.records_found }}</span></div>
-    <div><span class="muted small">SAVED</span><span class="stat-value mono">{{ job.records_saved }}</span></div>
-    <div><span class="muted small">UPDATED</span><span class="stat-value mono">{{ job.records_updated }}</span></div>
-    <div><span class="muted small">DUPLICATES</span><span class="stat-value mono">{{ job.records_duplicate }}</span></div>
-    <div><span class="muted small">FAILED</span><span class="stat-value mono">{{ job.records_failed }}</span></div>
+<section class="card results-card" style="margin-top: 24px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+    <div>
+      <h2 style="margin: 0 0 4px;">Dataset Results</h2>
+      <p class="muted small" style="margin: 0;">Extracted payload entries stored in your workspace.</p>
+    </div>
+    {% if can_export %}
+    <div class="export-row" style="margin: 0;">
+      <a class="btn btn-ghost btn-sm" href="/scraping/jobs/{{ job.id }}/export?format=csv">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export CSV
+      </a>
+      <a class="btn btn-ghost btn-sm" href="/scraping/jobs/{{ job.id }}/export?format=xlsx">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export XLSX
+      </a>
+      <a class="btn btn-ghost btn-sm" href="/scraping/jobs/{{ job.id }}/export?format=json">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export JSON
+      </a>
+    </div>
+    {% endif %}
   </div>
-  {% if can_export %}
-  <div class="export-row">
-    <a class="btn btn-ghost" href="/scraping/jobs/{{ job.id }}/export?format=csv">Export CSV</a>
-    <a class="btn btn-ghost" href="/scraping/jobs/{{ job.id }}/export?format=xlsx">Export XLSX</a>
-    <a class="btn btn-ghost" href="/scraping/jobs/{{ job.id }}/export?format=json">Export JSON</a>
-  </div>
-  {% endif %}
 
   {% if leads %}
-  <h3>Leads <span class="muted small">({{ leads_total }} total, first 20)</span></h3>
+  <div style="margin-bottom: 8px; font-size: 13px; color: var(--text-2);">
+    Displaying first 20 records (out of <b>{{ leads_total }}</b> total in database):
+  </div>
   <div class="table-scroll">
-  <table>
-    <thead><tr><th>Business</th><th>Email</th><th>Phone</th><th>Website</th><th>City</th><th>Source</th></tr></thead>
-    <tbody>
-      {% for l in leads %}
-      <tr>
-        <td>{{ l.business_name or '&mdash;' }}</td>
-        <td class="mono">{{ l.email or '&mdash;' }}</td>
-        <td class="mono">{{ l.phone or '&mdash;' }}</td>
-        <td class="mono">{{ (l.website or '&mdash;')|truncate(40) }}</td>
-        <td>{{ l.city or '&mdash;' }}</td>
-        <td><a href="{{ l.source_url }}" target="_blank" rel="noopener noreferrer" class="mono small">{{ l.source }}</a></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+    <table>
+      <thead>
+        <tr>
+          <th>Business / Name</th>
+          <th>Email</th>
+          <th>Phone</th>
+          <th>Website</th>
+          <th>City</th>
+          <th>Source Provenance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in leads %}
+        <tr>
+          <td style="font-weight: 600;">{{ l.business_name or '&mdash;' }}</td>
+          <td class="mono small">{{ l.email or '&mdash;' }}</td>
+          <td class="mono small">{{ l.phone or '&mdash;' }}</td>
+          <td class="mono small">
+            {% if l.website %}
+              <a href="{{ l.website }}" target="_blank" rel="noopener noreferrer" style="color: var(--accent);">
+                {{ l.website|truncate(36) }}
+              </a>
+            {% else %}
+              <span class="muted">&mdash;</span>
+            {% endif %}
+          </td>
+          <td>{{ l.city or '&mdash;' }}</td>
+          <td>
+            <a href="{{ l.source_url }}" target="_blank" rel="noopener noreferrer" class="mono small" style="color: var(--text-3);">
+              {{ l.source }}
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
   {% endif %}
 </section>
@@ -106,42 +165,44 @@
 
 {% block scripts %}
 <script>
-  // Phase 12 (audit H5): escape untrusted text before ANY innerHTML use.
-  // Event messages embed attacker-controlled URLs from scraped pages
-  // (redirect targets, hrefs) — injecting them raw was a stored-XSS sink.
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
     });
   }
   const jobId = '{{ job.id }}';
-  let lastCount = -1;
   async function refresh() {
     try {
       const res = await fetch(`/scraping/jobs/${jobId}/live`);
       if (!res.ok) return;
       const data = await res.json();
       const j = data.job;
-      document.getElementById('job-status').textContent = j.status;
-      document.getElementById('job-status').className = 'badge badge-' + j.status.toLowerCase();
-      document.getElementById('job-found').textContent = j.records_found;
-      document.getElementById('job-saved').textContent = j.records_saved;
-      document.getElementById('job-updated').textContent = j.records_updated;
-      document.getElementById('job-dup').textContent = j.records_duplicate;
-      document.getElementById('job-failed').textContent = j.records_failed;
-      if (j.progress) document.getElementById('job-progress').textContent = j.progress + '%';
-      if (j.stage) document.getElementById('job-stage').textContent = j.stage;
+      const statusEl = document.getElementById('job-status');
+      if (statusEl) {
+        statusEl.textContent = j.status;
+        statusEl.className = 'badge badge-' + j.status.toLowerCase();
+      }
+      if (document.getElementById('job-found')) document.getElementById('job-found').textContent = j.records_found;
+      if (document.getElementById('job-saved')) document.getElementById('job-saved').textContent = j.records_saved;
+      if (document.getElementById('job-updated')) document.getElementById('job-updated').textContent = j.records_updated;
+      if (document.getElementById('job-dup')) document.getElementById('job-dup').textContent = j.records_duplicate;
+      if (document.getElementById('job-failed')) document.getElementById('job-failed').textContent = j.records_failed;
+      if (j.progress && document.getElementById('job-progress')) document.getElementById('job-progress').textContent = j.progress + '%';
+      if (j.stage && document.getElementById('job-stage')) document.getElementById('job-stage').textContent = j.stage;
+
       const box = document.getElementById('log-box');
-      box.innerHTML = data.events.map(e =>
-        `<div class="log-line"><span class="log-time">${esc(e.at)}</span>` +
-        `<span class="log-type t-${esc(String(e.type).toLowerCase().replace('_','-'))}">${esc(e.type)}</span>` +
-        `<span>${esc(e.message)}</span></div>`).join('') ||
-        '<div class="muted center">No events yet.</div>';
+      if (box && data.events) {
+        box.innerHTML = data.events.map(e =>
+          `<div class="log-line"><span class="log-time">${esc(e.at)}</span>` +
+          `<span class="log-type t-${esc(String(e.type).toLowerCase().replace('_','-'))}">${esc(e.type)}</span>` +
+          `<span>${esc(e.message)}</span></div>`).join('') ||
+          '<div class="muted center">No events recorded.</div>';
+      }
       if (['COMPLETED','FAILED','CANCELLED'].includes(j.status) &&
           !document.querySelector('.results-card')) {
-        window.location.reload();  // final state → render results section once
+        window.location.reload();
       }
-    } catch (e) { /* transient poll failure — keep last view */ }
+    } catch (e) {}
   }
   refresh();
   setInterval(refresh, 4000);

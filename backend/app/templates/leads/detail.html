@@ -1,174 +1,251 @@
 {% extends "base.html" %}
-{% block title %}{{ (lead_data.business_name or 'Lead') }} — QBIT Connect{% endblock %}
+{% block title %}{{ (lead_data.business_name or 'Lead Record') }} — QBIT Connect{% endblock %}
 {% block nav_leads %}active{% endblock %}
+{% block breadcrumb %}<a href="/leads" style="color: inherit;">Leads</a> / {{ (lead_data.business_name or 'Record')|truncate(24) }}{% endblock %}
+
 {% block content %}
-<div class="crumb"><a href="/leads">Leads</a> / {{ lead_data.business_name or '(no name)' }}</div>
-<div class="page-head">
+<div class="crumb"><a href="/leads">&larr; Back to Leads Workspace</a></div>
+
+<!-- Profile Header -->
+<div class="page-head" style="align-items: center; border-bottom: 1px solid var(--border-soft); padding-bottom: 20px; margin-bottom: 24px;">
   <div>
-    <h1>{{ lead_data.business_name or '(no name)' }}</h1>
-    <p class="muted">
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
+      <h1 class="page-title" style="margin: 0;">{{ lead_data.business_name or '(unnamed record)' }}</h1>
       <span class="badge badge-{{ lead_data.status | lower }}">{{ lead_data.status }}</span>
-      &nbsp; Quality: <strong>{{ lead_data.quality_score if lead_data.quality_score is not none else '—' }}/100</strong>
-      &nbsp; Seen {{ lead_data.seen_count }}×
+    </div>
+    <p class="page-subtitle" style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+      <span>Data Completeness: <strong style="color: var(--ok);">{{ lead_data.quality_score if lead_data.quality_score is not none else '—' }}%</strong></span>
+      <span>&middot;</span>
+      <span>Seen in Scrapes: <strong>{{ lead_data.seen_count }}&times;</strong></span>
+      {% if lead_data.source %}
+      <span>&middot;</span>
+      <span>Origin: <span class="mono" style="color: var(--accent);">{{ lead_data.source }}</span></span>
+      {% endif %}
     </p>
   </div>
+
   <div class="head-actions">
-    {% if can_edit %}
-    <form method="post" action="/leads/{{ lead.id }}/status" class="inline-form">
-      <select name="status">
-        {% for s in statuses %}<option value="{{ s }}" {% if s == lead_data.status %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    {% if can_edit and not lead_data.merged_into_id %}
+    <form method="post" action="/leads/{{ lead.id }}/status" class="inline-form" style="display: flex; gap: 6px;">
+      <select name="status" style="margin: 0; padding: 6px 10px; font-size: 12px;">
+        {% for s in statuses %}<option value="{{ s }}" {% if s == lead_data.status %}selected{% endif %}>{{ s|title }}</option>{% endfor %}
       </select>
-      <button class="btn btn-sm btn-primary" type="submit">Set status</button>
+      <button class="btn btn-sm btn-primary" type="submit">Update Status</button>
     </form>
     {% endif %}
+
     {% if can_archive %}
       {% if lead_data.status == 'ARCHIVED' %}
-      <form method="post" action="/leads/{{ lead.id }}/restore" class="inline-form"><button class="btn btn-sm btn-ghost" type="submit">Restore</button></form>
+      <form method="post" action="/leads/{{ lead.id }}/restore" class="inline-form"><button class="btn btn-sm btn-ghost" type="submit">Restore Lead</button></form>
       {% else %}
       <form method="post" action="/leads/{{ lead.id }}/archive" class="inline-form"><button class="btn btn-sm btn-ghost" type="submit">Archive</button></form>
       {% endif %}
     {% endif %}
+
     {% if can_export %}
     <form method="post" action="/leads/export" class="inline-form">
       <input type="hidden" name="format" value="csv">
       <input type="hidden" name="scope" value="lead">
       <input type="hidden" name="lead_id" value="{{ lead.id }}">
-      <button class="btn btn-sm btn-ghost" type="submit">Export lead</button>
+      <button class="btn btn-sm btn-ghost" type="submit">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export Record
+      </button>
     </form>
     {% endif %}
   </div>
 </div>
 
-{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
-{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
-{% if lead_data.merged_into_id %}<div class="alert alert-warn">This lead was merged into <a href="/leads/{{ lead_data.merged_into_id }}">{{ lead_data.merged_into_id[:8] }}</a> — it is read-only.</div>{% endif %}
+{% if ok %}
+<div class="alert alert-ok">{{ ok }}</div>
+{% endif %}
+{% if err %}
+<div class="alert alert-error">{{ err }}</div>
+{% endif %}
+{% if lead_data.merged_into_id %}
+<div class="alert alert-warn">
+  This lead record was merged into target <a href="/leads/{{ lead_data.merged_into_id }}">{{ lead_data.merged_into_id[:8] }}</a> &mdash; archived and read-only.
+</div>
+{% endif %}
 
-<div class="section-grid">
+<!-- Intelligence Grid (4 Cards) -->
+<div class="section-grid" style="margin-bottom: 20px;">
+  <!-- Contact -->
   <div class="card">
-    <h2>Contact</h2>
-    <div class="kv"><span class="k">Contact name</span><span class="v">{{ lead_data.contact_name or '—' }}</span></div>
-    <div class="kv"><span class="k">First name</span><span class="v">{{ lead_data.first_name or '—' }}</span></div>
-    <div class="kv"><span class="k">Last name</span><span class="v">{{ lead_data.last_name or '—' }}</span></div>
-    <div class="kv"><span class="k">Phone</span><span class="v">{{ lead_data.phone or '—' }}</span></div>
-    <div class="kv"><span class="k">Email</span><span class="v">{{ lead_data.email or '—' }}</span></div>
-    <div class="kv"><span class="k">Website</span><span class="v">
-      {% if lead_data.website %}<a href="{{ lead_data.website }}" rel="noopener noreferrer nofollow">{{ lead_data.website }}</a>{% else %}—{% endif %}
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <h2 style="margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em;">Contact Identity</h2>
+    </div>
+    <div class="kv"><span class="k">Full Name</span><span class="v" style="font-weight: 600;">{{ lead_data.contact_name or '—' }}</span></div>
+    <div class="kv"><span class="k">First Name</span><span class="v">{{ lead_data.first_name or '—' }}</span></div>
+    <div class="kv"><span class="k">Last Name</span><span class="v">{{ lead_data.last_name or '—' }}</span></div>
+    <div class="kv"><span class="k">Phone</span><span class="v mono">
+      {% if lead_data.phone %}<a href="tel:{{ lead_data.phone }}" style="color: var(--accent);">{{ lead_data.phone }}</a>{% else %}—{% endif %}
+    </span></div>
+    <div class="kv"><span class="k">Email</span><span class="v mono">
+      {% if lead_data.email %}<a href="mailto:{{ lead_data.email }}" style="color: var(--accent);">{{ lead_data.email }}</a>{% else %}—{% endif %}
+    </span></div>
+    <div class="kv"><span class="k">Website</span><span class="v mono">
+      {% if lead_data.website %}<a href="{{ lead_data.website }}" target="_blank" rel="noopener noreferrer nofollow" style="color: var(--accent);">{{ lead_data.website|truncate(32) }}</a>{% else %}—{% endif %}
     </span></div>
   </div>
+
+  <!-- Business -->
   <div class="card">
-    <h2>Business</h2>
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/></svg>
+      <h2 style="margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em;">Firmographics</h2>
+    </div>
     <div class="kv"><span class="k">Category</span><span class="v">{{ lead_data.category or '—' }}</span></div>
     <div class="kv"><span class="k">Industry</span><span class="v">{{ lead_data.industry or '—' }}</span></div>
-    <div class="kv"><span class="k">Rating</span><span class="v">{{ lead_data.rating if lead_data.rating is not none else '—' }}</span></div>
-    <div class="kv"><span class="k">Reviews</span><span class="v">{{ lead_data.review_count if lead_data.review_count is not none else '—' }}</span></div>
+    <div class="kv"><span class="k">Public Rating</span><span class="v">
+      {% if lead_data.rating is not none %}<span style="color: var(--warn); font-weight: 700;">★ {{ lead_data.rating }}</span>{% else %}—{% endif %}
+    </span></div>
+    <div class="kv"><span class="k">Review Count</span><span class="v mono">{{ lead_data.review_count if lead_data.review_count is not none else '—' }}</span></div>
   </div>
+
+  <!-- Location -->
   <div class="card">
-    <h2>Location</h2>
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      <h2 style="margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em;">Location</h2>
+    </div>
     <div class="kv"><span class="k">Address</span><span class="v">{{ lead_data.address or '—' }}</span></div>
-    <div class="kv"><span class="k">City</span><span class="v">{{ lead_data.city or '—' }}</span></div>
-    <div class="kv"><span class="k">State</span><span class="v">{{ lead_data.state or '—' }}</span></div>
-    <div class="kv"><span class="k">Postal code</span><span class="v">{{ lead_data.postal_code or '—' }}</span></div>
+    <div class="kv"><span class="k">City</span><span class="v" style="font-weight: 600;">{{ lead_data.city or '—' }}</span></div>
+    <div class="kv"><span class="k">State / Region</span><span class="v">{{ lead_data.state or '—' }}</span></div>
+    <div class="kv"><span class="k">Postal Code</span><span class="v mono">{{ lead_data.postal_code or '—' }}</span></div>
     <div class="kv"><span class="k">Country</span><span class="v">{{ lead_data.country or '—' }}</span></div>
   </div>
+
+  <!-- Source & Provenance -->
   <div class="card">
-    <h2>Source &amp; Quality</h2>
-    <div class="kv"><span class="k">Source</span><span class="v">{{ lead_data.source or '—' }}</span></div>
-    <div class="kv"><span class="k">Source type</span><span class="v">{{ lead_data.source_type or '—' }}</span></div>
-    <div class="kv"><span class="k">Source URL</span><span class="v">{% if lead_data.source_url %}<a href="{{ lead_data.source_url }}" rel="noopener noreferrer nofollow" class="mono small">{{ lead_data.source_url[:60] }}</a>{% else %}—{% endif %}</span></div>
-    <div class="kv"><span class="k">Scraper</span><span class="v">{{ lead_data.source_actor_id or '—' }} {{ ('v' + lead_data.source_actor_version) if lead_data.source_actor_version else '' }}</span></div>
-    <div class="kv"><span class="k">Scrape job</span><span class="v">{% if lead_data.source_job_id %}<a href="/scraping/jobs/{{ lead_data.source_job_id }}" class="mono small">{{ lead_data.source_job_id[:8] }}</a>{% else %}—{% endif %}</span></div>
-    <div class="kv"><span class="k">Import batch</span><span class="v mono small">{{ (lead_data.import_batch_id or '—')[:8] }}</span></div>
-    <div class="kv"><span class="k">Scraped at</span><span class="v">{{ (lead_data.scraped_at or '—')[:19].replace('T',' ') }}</span></div>
-    <div class="kv"><span class="k">Last verified</span><span class="v">{{ (lead_data.last_verified_at or '—')[:19].replace('T',' ') }}</span></div>
-    <div class="kv"><span class="k">Created</span><span class="v">{{ (lead_data.created_at or '—')[:19].replace('T',' ') }}</span></div>
-    <div class="kv"><span class="k">Updated</span><span class="v">{{ (lead_data.updated_at or '—')[:19].replace('T',' ') }}</span></div>
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+      <h2 style="margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em;">Data Provenance</h2>
+    </div>
+    <div class="kv"><span class="k">Source Channel</span><span class="v">{{ lead_data.source or '—' }}</span></div>
+    <div class="kv"><span class="k">Actor Tool</span><span class="v mono small">{{ lead_data.source_actor_id or '—' }} {{ ('v' + lead_data.source_actor_version) if lead_data.source_actor_version else '' }}</span></div>
+    <div class="kv"><span class="k">Job ID</span><span class="v">
+      {% if lead_data.source_job_id %}<a href="/scraping/jobs/{{ lead_data.source_job_id }}" class="mono small" style="color: var(--accent);">{{ lead_data.source_job_id[:8] }}</a>{% else %}—{% endif %}
+    </span></div>
+    <div class="kv"><span class="k">Source URL</span><span class="v">
+      {% if lead_data.source_url %}<a href="{{ lead_data.source_url }}" target="_blank" rel="noopener noreferrer nofollow" class="mono small" style="color: var(--text-3);">{{ lead_data.source_url[:36] }}…</a>{% else %}—{% endif %}
+    </span></div>
+    <div class="kv"><span class="k">First Ingested</span><span class="v mono small muted">{{ (lead_data.created_at or '—')[:16].replace('T',' ') }}</span></div>
+    <div class="kv"><span class="k">Last Synced</span><span class="v mono small muted">{{ (lead_data.updated_at or '—')[:16].replace('T',' ') }}</span></div>
   </div>
 </div>
 
-<div class="card">
-  <h2>Quality</h2>
-  <span class="score-bar" style="width:220px;height:10px"><span style="width: {{ lead_data.quality_score or 0 }}%"></span></span>
-  <span class="stat-value" style="margin-left:10px">{{ lead_data.quality_score if lead_data.quality_score is not none else '—' }}/100</span>
-  <p class="muted small">Deterministic data-completeness score (name 20 · phone 20 · email 20 · website 15 · address 10 · city 5 · state 5 · provenance 5). Not an AI prediction.</p>
+<!-- Quality Telemetry Card -->
+<div class="card" style="margin-bottom: 20px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <h2 style="margin: 0; font-size: 15px;">Quality Completeness Score</h2>
+    <span class="metric-value" style="font-size: 22px; color: var(--ok);">{{ lead_data.quality_score if lead_data.quality_score is not none else '—' }}/100</span>
+  </div>
+  <div class="score-bar" style="width: 100%; height: 8px; margin-bottom: 10px;">
+    <span style="width: {{ lead_data.quality_score or 0 }}%;"></span>
+  </div>
+  <p class="muted small" style="margin: 0;">
+    Deterministic data-completeness score based on business name (+20), phone (+20), email (+20), website (+15), address (+10), city (+5), state (+5), and source provenance (+5).
+  </p>
 </div>
 
-<div class="card">
-  <h2>Tags</h2>
-  <div>
+<!-- Tags Section -->
+<div class="card" style="margin-bottom: 20px;">
+  <h2 style="font-size: 15px; margin-bottom: 12px;">Segmentation Tags</h2>
+  <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
     {% for t in tags %}
-      <span class="tag-pill">{{ t.name }}{% if can_edit and not lead_data.merged_into_id %}
-        <form method="post" action="/leads/{{ lead.id }}/tags/{{ t.id }}/remove" class="inline-form"><button type="submit" title="Remove tag">×</button></form>{% endif %}
+      <span class="tag-pill" style="font-size: 12px; padding: 4px 10px;">
+        {{ t.name }}
+        {% if can_edit and not lead_data.merged_into_id %}
+        <form method="post" action="/leads/{{ lead.id }}/tags/{{ t.id }}/remove" class="inline-form">
+          <button type="submit" title="Remove tag">&times;</button>
+        </form>
+        {% endif %}
       </span>
     {% else %}
-      <span class="muted">No tags.</span>
+      <span class="muted small">No tags applied yet.</span>
     {% endfor %}
   </div>
+
   {% if can_edit and not lead_data.merged_into_id %}
-  <form method="post" action="/leads/{{ lead.id }}/tags" class="form-actions">
-    <input type="text" name="tag" placeholder="Add tag (creates if missing)" maxlength="100" required>
-    <button class="btn btn-sm btn-primary" type="submit">Add tag</button>
+  <form method="post" action="/leads/{{ lead.id }}/tags" class="form-actions" style="margin: 0; display: flex; gap: 8px;">
+    <input type="text" name="tag" placeholder="Add or create tag (e.g. priority, enterprise)" maxlength="100" required style="max-width: 300px; margin: 0;">
+    <button class="btn btn-sm btn-primary" type="submit">Add Tag</button>
   </form>
   {% endif %}
 </div>
 
+<!-- Edit Drawer -->
 {% if can_edit and not lead_data.merged_into_id %}
-<details class="adv-panel">
-  <summary>Edit lead</summary>
-  <form method="post" action="/leads/{{ lead.id }}/edit">
-    <div class="grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <label>Business name<input type="text" name="business_name" value="{{ lead_data.business_name or '' }}" maxlength="300"></label>
-      <label>Contact name<input type="text" name="contact_name" value="{{ lead_data.contact_name or '' }}" maxlength="300"></label>
-      <label>Email<input type="text" name="email" value="{{ lead_data.email or '' }}" maxlength="320"></label>
-      <label>Phone<input type="text" name="phone" value="{{ lead_data.phone or '' }}" maxlength="40"></label>
-      <label>Website<input type="text" name="website" value="{{ lead_data.website or '' }}" maxlength="500"></label>
-      <label>Category<input type="text" name="category" value="{{ lead_data.category or '' }}" maxlength="150"></label>
-      <label>Industry<input type="text" name="industry" value="{{ lead_data.industry or '' }}" maxlength="150"></label>
-      <label>Address<input type="text" name="address" value="{{ lead_data.address or '' }}" maxlength="500"></label>
-      <label>City<input type="text" name="city" value="{{ lead_data.city or '' }}" maxlength="150"></label>
-      <label>State<input type="text" name="state" value="{{ lead_data.state or '' }}" maxlength="150"></label>
-      <label>Postal code<input type="text" name="postal_code" value="{{ lead_data.postal_code or '' }}" maxlength="20"></label>
-      <label>Country<input type="text" name="country" value="{{ lead_data.country or '' }}" maxlength="150"></label>
+<details class="adv-panel" style="margin-bottom: 20px;">
+  <summary style="font-weight: 600; color: var(--accent);">Edit Lead Record Details</summary>
+  <form method="post" action="/leads/{{ lead.id }}/edit" style="margin-top: 14px;">
+    <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+      <div><label class="field-label">Business Name</label><input type="text" name="business_name" value="{{ lead_data.business_name or '' }}" maxlength="300"></div>
+      <div><label class="field-label">Contact Name</label><input type="text" name="contact_name" value="{{ lead_data.contact_name or '' }}" maxlength="300"></div>
+      <div><label class="field-label">Email</label><input type="text" name="email" value="{{ lead_data.email or '' }}" maxlength="320"></div>
+      <div><label class="field-label">Phone</label><input type="text" name="phone" value="{{ lead_data.phone or '' }}" maxlength="40"></div>
+      <div><label class="field-label">Website</label><input type="text" name="website" value="{{ lead_data.website or '' }}" maxlength="500"></div>
+      <div><label class="field-label">Category</label><input type="text" name="category" value="{{ lead_data.category or '' }}" maxlength="150"></div>
+      <div><label class="field-label">Industry</label><input type="text" name="industry" value="{{ lead_data.industry or '' }}" maxlength="150"></div>
+      <div><label class="field-label">Address</label><input type="text" name="address" value="{{ lead_data.address or '' }}" maxlength="500"></div>
+      <div><label class="field-label">City</label><input type="text" name="city" value="{{ lead_data.city or '' }}" maxlength="150"></div>
+      <div><label class="field-label">State</label><input type="text" name="state" value="{{ lead_data.state or '' }}" maxlength="150"></div>
+      <div><label class="field-label">Postal Code</label><input type="text" name="postal_code" value="{{ lead_data.postal_code or '' }}" maxlength="20"></div>
+      <div><label class="field-label">Country</label><input type="text" name="country" value="{{ lead_data.country or '' }}" maxlength="150"></div>
     </div>
-    <div class="form-actions"><button class="btn btn-primary" type="submit">Save changes</button></div>
+    <div class="form-actions" style="margin-top: 16px;">
+      <button class="btn btn-primary" type="submit">Save Modifications</button>
+    </div>
   </form>
 </details>
 {% endif %}
 
-<div class="card">
-  <h2>Notes</h2>
-  {% for note in notes %}
-    <div class="activity-line">
-      <span class="activity-time">{{ (note.created_at or '')[:16].replace('T',' ') }}</span>
-      <span>{{ note.content }}</span>
-    </div>
-  {% else %}
-    <p class="muted">No notes yet.</p>
-  {% endfor %}
+<!-- Internal Notes -->
+<div class="card" style="margin-bottom: 20px;">
+  <h2 style="font-size: 15px; margin-bottom: 12px;">Internal Operator Notes</h2>
+  <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+    {% for note in notes %}
+      <div class="note" style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>{{ note.content }}</div>
+        <span class="small" style="color: var(--text-3); white-space: nowrap; margin-left: 12px;">{{ (note.created_at or '')[:16].replace('T',' ') }}</span>
+      </div>
+    {% else %}
+      <p class="muted small" style="margin: 0;">No notes added yet.</p>
+    {% endfor %}
+  </div>
+
   {% if can_edit and not lead_data.merged_into_id %}
-  <form method="post" action="/leads/{{ lead.id }}/notes" class="form-actions">
-    <textarea name="content" rows="2" placeholder="Add a note…" maxlength="20000" required style="width:100%"></textarea>
-    <button class="btn btn-sm btn-primary" type="submit">Add note</button>
+  <form method="post" action="/leads/{{ lead.id }}/notes" class="form-actions" style="margin: 0; display: flex; flex-direction: column; gap: 8px;">
+    <textarea name="content" rows="2" placeholder="Record feedback, outreach history, or qualification notes…" maxlength="20000" required style="width: 100%; margin: 0;"></textarea>
+    <div style="display: flex; justify-content: flex-end;">
+      <button class="btn btn-sm btn-primary" type="submit">Add Note</button>
+    </div>
   </form>
   {% endif %}
 </div>
 
-<div class="card log-card">
-  <h2>Activity</h2>
-  <div class="log">
-    {% for a in activity %}
-      <div class="log-line">
-        <span class="log-time">{{ (a.created_at or '')[:19].replace('T',' ') }}</span>
-        <span class="log-type">{{ a.event_type }}</span>
-        <span>{{ a.message or '' }}</span>
-      </div>
-    {% else %}
-      <div class="log-line"><span class="muted">No activity recorded.</span></div>
-    {% endfor %}
+<!-- Activity Log & Raw JSON -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+  <div class="card log-card" style="margin: 0;">
+    <h2 style="font-size: 14px; margin-bottom: 8px;">Audit &amp; Change Activity</h2>
+    <div class="log" style="height: 200px; max-height: 200px;">
+      {% for a in activity %}
+        <div class="log-line">
+          <span class="log-time">{{ (a.created_at or '')[:16].replace('T',' ') }}</span>
+          <span class="log-type">{{ a.event_type }}</span>
+          <span>{{ a.message or '' }}</span>
+        </div>
+      {% else %}
+        <div class="log-line"><span class="muted">No activity events recorded.</span></div>
+      {% endfor %}
+    </div>
   </div>
-</div>
 
-<div class="card log-card">
-  <h2>Metadata</h2>
-  <pre class="mono small muted" style="overflow-x:auto">{{ metadata_json }}</pre>
+  <div class="card log-card" style="margin: 0;">
+    <h2 style="font-size: 14px; margin-bottom: 8px;">Raw Ingest Payload</h2>
+    <pre class="log" style="height: 200px; max-height: 200px; margin: 0;">{{ metadata_json }}</pre>
+  </div>
 </div>
 {% endblock %}

@@ -1,53 +1,90 @@
 {% extends "base.html" %}
-{% block title %}Users — Admin — QBIT Connect{% endblock %}
+{% block title %}User Management — Admin — QBIT Connect{% endblock %}
 {% block nav_admin_users %}active{% endblock %}
+{% block breadcrumb %}Administration / User Directory{% endblock %}
+
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>USERS</h1>
-    <p class="muted">Accounts, roles and lifecycle. Deactivation keeps all history — users are never hard-deleted.</p>
+    <h1 class="page-title">Operator Access &amp; Directory</h1>
+    <p class="page-subtitle">Manage organization member seats, assigned roles, and authentication state.</p>
   </div>
-  <div class="head-actions">{% if can_manage %}<a class="btn btn-ghost" href="/admin/invitations">Invite via invitations</a>{% endif %}</div>
+  <div class="head-actions">
+    {% if can_manage %}
+    <a class="btn btn-primary btn-sm" href="/admin/invitations">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Invite Operator
+    </a>
+    {% endif %}
+  </div>
 </div>
 
-{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
+{% if ok %}<div class="alert alert-ok">{{ ok }}</div>{% endif %}
 {% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
 
-<form method="get" action="/admin/users" class="toolbar">
-  <input type="text" name="search" value="{{ search }}" placeholder="Search email or name" maxlength="200">
-  <select name="status">
-    <option value="">Status: any</option>
+<!-- Filter Toolbar -->
+<form method="get" action="/admin/users" class="toolbar card" style="padding: 12px 16px; margin-bottom: 16px;">
+  <div class="search" style="flex: 1; min-width: 220px;">
+    <span class="search-ico">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </span>
+    <input type="text" name="search" value="{{ search }}" placeholder="Search email or full name..." maxlength="200">
+  </div>
+  <select name="status" style="width: auto; min-width: 140px; margin: 0;">
+    <option value="">Status: All</option>
     {% for s in ['ACTIVE','INVITED','SUSPENDED','DEACTIVATED'] %}
-    <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s }}</option>
+    <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s|title }}</option>
     {% endfor %}
   </select>
-  <button class="btn btn-primary" type="submit">Filter</button>
-  <a class="btn btn-ghost" href="/admin/users">Reset</a>
+  <button class="btn btn-primary btn-sm" type="submit">Filter</button>
+  <a class="btn btn-ghost btn-sm" href="/admin/users">Reset</a>
 </form>
 
+<!-- Users Table -->
 <div class="card table-card">
   <div class="table-scroll">
     <table>
       <thead>
-        <tr><th>User</th><th>Status</th><th>Roles</th><th>Created</th><th></th></tr>
+        <tr>
+          <th>User Identity</th>
+          <th>Account Status</th>
+          <th>Assigned Roles</th>
+          <th>Created</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
       </thead>
       <tbody>
         {% for u in users %}
         <tr>
           <td>
-            <a href="/admin/users/{{ u.id }}"><strong>{{ u.full_name or u.email }}</strong></a>
-            {% if u.full_name %}<div class="muted small">{{ u.email }}</div>{% endif %}
+            <a href="/admin/users/{{ u.id }}" style="font-weight: 600; color: var(--text);">
+              {{ u.full_name or u.email }}
+            </a>
+            {% if u.full_name %}<div class="muted small mono">{{ u.email }}</div>{% endif %}
           </td>
           <td><span class="badge badge-{{ u.status | lower }}">{{ u.status }}</span></td>
           <td>
-            {% for r in u.roles %}<span class="badge">{{ r }}</span> {% endfor %}
-            {% if u.is_super and total_super_admins <= 1 %}<span class="muted small" title="Cannot be removed — last SUPER_ADMIN">last admin</span>{% endif %}
+            {% for r in u.roles %}
+              <span class="chip" style="font-size: 11px; margin-right: 4px;">{{ r }}</span>
+            {% endfor %}
+            {% if u.is_super and total_super_admins <= 1 %}
+              <span class="badge badge-warn" style="font-size: 10px;">Root Admin</span>
+            {% endif %}
           </td>
           <td class="muted small">{{ u.created }}</td>
-          <td><a class="btn btn-sm btn-ghost" href="/admin/users/{{ u.id }}">Manage</a></td>
+          <td style="text-align: right;">
+            <a class="btn btn-sm btn-ghost" href="/admin/users/{{ u.id }}">Inspect User</a>
+          </td>
         </tr>
         {% else %}
-        <tr><td colspan="5" class="center muted" style="padding:32px">No users match the filters.</td></tr>
+        <tr>
+          <td colspan="5">
+            <div class="empty-state" style="padding: 32px 0;">
+              <div class="empty-title" style="font-size: 14px;">No members match the filter</div>
+              <p class="empty-sub" style="font-size: 12px;">Try broadening your search term or status selection.</p>
+            </div>
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
@@ -55,7 +92,7 @@
 </div>
 
 {% if total > page_size %}
-<div class="pager">
+<div class="pager" style="justify-content: flex-end; margin-top: 16px;">
   {% for p in range(1, ((total + page_size - 1) // page_size) + 1) %}
     {% if p <= page + 2 and p >= page - 2 %}
       <a class="pager-item {% if p == page %}active{% endif %}" href="/admin/users?search={{ search }}&status={{ status }}&page={{ p }}">{{ p }}</a>

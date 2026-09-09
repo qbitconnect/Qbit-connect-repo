@@ -1,45 +1,91 @@
 {% extends "base.html" %}
-{% block title %}Import history — QBIT Connect{% endblock %}
+{% block title %}Import Pipeline History — QBIT Connect{% endblock %}
 {% block nav_imports %}active{% endblock %}
+{% block breadcrumb %}Workspace / Ingest Pipeline{% endblock %}
+
 {% block content %}
 <div class="page-head">
-  <div><h1>IMPORTS</h1><p class="muted">Every import batch with full counters and rejected-row reports.</p></div>
+  <div>
+    <h1 class="page-title">Dataset Ingest History</h1>
+    <p class="page-subtitle">Historical ingest batches, validation metrics, and rejected-row audits.</p>
+  </div>
   {% if can_import %}
-  <div class="head-actions"><a class="btn btn-primary" href="/leads/import">New import</a></div>
+  <div class="head-actions">
+    <a class="btn btn-primary btn-sm" href="/leads/import">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Upload New Dataset
+    </a>
+  </div>
   {% endif %}
 </div>
 
 <div class="card table-card">
   <div class="table-scroll">
     <table>
-      <thead><tr><th>File</th><th>Format</th><th>Status</th><th>Rows</th><th>Imported</th><th>Updated</th><th>Duplicates</th><th>Rejected</th><th>Created</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          <th>Source Filename</th>
+          <th>Format</th>
+          <th>Status</th>
+          <th>Total Rows</th>
+          <th>Imported</th>
+          <th>Updated</th>
+          <th>Duplicates</th>
+          <th>Invalid</th>
+          <th>Timestamp</th>
+          <th style="text-align: right;">Audit Report</th>
+        </tr>
+      </thead>
       <tbody>
         {% for b in batches %}
         <tr>
-          <td><a href="/leads/import/{{ b.id }}">{{ b.filename }}</a></td>
-          <td class="mono">{{ b.format | upper }}</td>
+          <td style="font-weight: 600;"><a href="/leads/import/{{ b.id }}">{{ b.filename }}</a></td>
+          <td class="mono">
+            <span class="badge badge-registered">{{ b.format | upper }}</span>
+          </td>
           <td><span class="badge badge-{{ b.status | lower }}">{{ b.status }}</span></td>
-          <td>{{ b.total_rows }}</td>
-          <td>{{ b.imported_rows }}</td>
-          <td>{{ b.updated_rows }}</td>
-          <td>{{ b.duplicate_rows }}</td>
-          <td>{{ b.invalid_rows }}</td>
+          <td class="mono">{{ b.total_rows }}</td>
+          <td class="mono" style="color: var(--ok);">{{ b.imported_rows }}</td>
+          <td class="mono" style="color: var(--accent);">{{ b.updated_rows }}</td>
+          <td class="mono" style="color: var(--warn);">{{ b.duplicate_rows }}</td>
+          <td class="mono" style="color: var(--bad);">{{ b.invalid_rows }}</td>
           <td class="mono small muted">{{ (b.created_at or '')[:16].replace('T',' ') }}</td>
-          <td>{% if b.error_file_id %}<a class="small" href="/leads/imports/{{ b.id }}/rejected">rejected.csv</a>{% endif %}</td>
+          <td style="text-align: right;">
+            {% if b.error_file_id %}
+              <a class="btn btn-sm btn-ghost" href="/leads/imports/{{ b.id }}/rejected">rejected.csv</a>
+            {% else %}
+              <span class="muted small">&mdash;</span>
+            {% endif %}
+          </td>
         </tr>
         {% else %}
-        <tr><td colspan="10" class="center muted">No imports yet.</td></tr>
+        <tr>
+          <td colspan="10">
+            <div class="empty-state" style="padding: 36px 0;">
+              <div class="empty-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </div>
+              <div class="empty-title" style="font-size: 15px;">No import batches recorded</div>
+              <p class="empty-sub" style="font-size: 13px;">Upload and map your customer or prospect datasets.</p>
+              {% if can_import %}
+              <a href="/leads/import" class="btn btn-primary btn-sm">Start First Ingest</a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
 
-<div class="pager">
+{% if pages > 1 %}
+<div class="pager" style="justify-content: flex-end; margin-top: 16px;">
   {% for p in range(1, pages + 1) %}
     {% if p <= 3 or p > pages - 2 or (p >= page - 1 and p <= page + 1) %}
       <a class="pager-item {% if p == page %}active{% endif %}" href="/leads/imports?page={{ p }}">{{ p }}</a>
     {% endif %}
   {% endfor %}
 </div>
+{% endif %}
 {% endblock %}

@@ -1,111 +1,162 @@
 {% extends "base.html" %}
-{% block title %}Exports — QBIT Connect{% endblock %}
+{% block title %}Exports — QBIT Connect AI Platform{% endblock %}
 {% block nav_exports %}active{% endblock %}
+{% block breadcrumb %}Workspace / Export Pipeline{% endblock %}
+
 {% block content %}
 <div class="page-head">
-  <div><h1>EXPORTS</h1><p class="muted">Every export is recorded. Files are stored via the local storage service and downloaded by file id only.</p></div>
+  <div>
+    <h1 class="page-title">Dataset Exports</h1>
+    <p class="page-subtitle">Historical export records and secure on-demand data downloads.</p>
+  </div>
 </div>
 
-{% if ok %}<div class="alert" style="background:rgba(46,168,111,.12);color:var(--ok)">{{ ok }}</div>{% endif %}
-{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+{% if ok %}
+<div class="alert alert-ok">{{ ok }}</div>
+{% endif %}
+{% if err %}
+<div class="alert alert-error">{{ err }}</div>
+{% endif %}
 
 {% if can_export %}
-<details class="adv-panel" open>
-  <summary>New export</summary>
+<details class="adv-panel card" open style="padding: 24px; margin-bottom: 24px;">
+  <summary style="font-weight: 700; font-size: 15px; color: var(--accent); margin-bottom: 16px;">
+    + Configure New Data Export
+  </summary>
   <form method="post" action="/leads/export">
-    <div class="section-grid">
-      <label>Scope
+    <div class="section-grid" style="margin-bottom: 16px;">
+      <div>
+        <label class="field-label">Export Scope</label>
         <select name="scope">
-          <option value="filtered">Current filtered results</option>
-          <option value="all">All matching leads (non-archived)</option>
-          <option value="selected">Selected ids (comma-separated below)</option>
+          <option value="filtered">Active Filtered Leads</option>
+          <option value="all">All Non-Archived Leads</option>
+          <option value="selected">Explicit Record IDs</option>
         </select>
-      </label>
-      <label>Format
+      </div>
+      <div>
+        <label class="field-label">File Format</label>
         <select name="format">
-          <option value="csv">CSV</option>
-          <option value="xlsx">XLSX</option>
-          <option value="json">JSON</option>
-          <option value="jsonl">JSONL</option>
+          <option value="csv">CSV (Comma-Separated)</option>
+          <option value="xlsx">XLSX (Microsoft Excel)</option>
+          <option value="json">JSON (Structured Array)</option>
+          <option value="jsonl">JSONL (Newline Delimited)</option>
         </select>
-      </label>
-      <label>Fields
+      </div>
+      <div>
+        <label class="field-label">Column Schema</label>
         <select name="fields_mode">
-          <option value="all">All fields</option>
-          <option value="custom">Custom (comma-separated below)</option>
+          <option value="all">Complete Schema (All Columns)</option>
+          <option value="custom">Custom Column Subset</option>
         </select>
-      </label>
-      <label>Custom fields / ids
-        <input type="text" name="fields" placeholder="business_name,phone,email" maxlength="1000">
-      </label>
+      </div>
+      <div>
+        <label class="field-label">Custom Fields / Explicit IDs</label>
+        <input type="text" name="fields" placeholder="business_name, phone, email, website" maxlength="1000">
+      </div>
     </div>
-    <div class="section-grid">
-      <label>Selected lead ids (scope=selected only)
-        <input type="text" name="ids" placeholder="uuid,uuid,…" maxlength="200000">
-      </label>
-      <label>Search
-        <input type="text" name="search" placeholder="text search" maxlength="200">
-      </label>
-      <label>Status
-        <input type="text" name="status" placeholder="e.g. NEW" maxlength="30">
-      </label>
-      <label>City
-        <input type="text" name="city" maxlength="100">
-      </label>
-      <label>State
-        <input type="text" name="state" maxlength="100">
-      </label>
-      <label>Tag
+
+    <div class="section-grid" style="margin-bottom: 16px;">
+      <div>
+        <label class="field-label">Search Query Filter</label>
+        <input type="text" name="search" placeholder="Text filter..." maxlength="200">
+      </div>
+      <div>
+        <label class="field-label">Status Filter</label>
+        <input type="text" name="status" placeholder="e.g. NEW, QUALIFIED" maxlength="30">
+      </div>
+      <div>
+        <label class="field-label">City</label>
+        <input type="text" name="city" placeholder="City filter..." maxlength="100">
+      </div>
+      <div>
+        <label class="field-label">Tag Filter</label>
         <select name="tag">
-          <option value="">any</option>
+          <option value="">Any Tag</option>
           {% for t in tags %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}
         </select>
-      </label>
+      </div>
     </div>
-    <label class="checkbox"><input type="checkbox" name="has_email" value="1"> has email</label>
-    <label class="checkbox"><input type="checkbox" name="has_phone" value="1"> has phone</label>
-    <div class="form-actions"><button class="btn btn-primary" type="submit">Generate export</button></div>
+
+    <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 20px;">
+      <label class="checkbox"><input type="checkbox" name="has_email" value="1"> <span>Must have verified email</span></label>
+      <label class="checkbox"><input type="checkbox" name="has_phone" value="1"> <span>Must have phone number</span></label>
+    </div>
+
+    <div class="form-actions" style="margin: 0; justify-content: flex-end;">
+      <button class="btn btn-primary btn-lg" type="submit">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Generate Export Artifact
+      </button>
+    </div>
   </form>
 </details>
 {% endif %}
 
+<!-- Export Table -->
 <div class="card table-card">
   <div class="table-scroll">
     <table>
-      <thead><tr><th>File</th><th>Format</th><th>Scope</th><th>Rows</th><th>Status</th><th>Created</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          <th>Export File Artifact</th>
+          <th>Format</th>
+          <th>Scope</th>
+          <th>Rows</th>
+          <th>Status</th>
+          <th>Timestamp</th>
+          <th style="text-align: right;">Action</th>
+        </tr>
+      </thead>
       <tbody>
         {% for e in exports %}
         <tr>
-          <td class="mono small">leads-export-{{ e.id[:8] }}</td>
-          <td class="mono">{{ e.format | upper }}</td>
-          <td>{{ e.scope }}</td>
-          <td>{{ e.row_count }}</td>
+          <td class="mono small" style="font-weight: 600;">leads-export-{{ e.id[:8] }}</td>
+          <td class="mono">
+            <span class="badge badge-registered">{{ e.format | upper }}</span>
+          </td>
+          <td>{{ e.scope|title }}</td>
+          <td class="mono">{{ e.row_count }}</td>
           <td>
             <span class="badge badge-{{ e.status | lower }}">{{ e.status }}</span>
-            {% if e.status == 'FAILED' %}<div class="small muted">{{ (e.error or '')[:120] }}</div>{% endif %}
+            {% if e.status == 'FAILED' %}<div class="small text-bad">{{ (e.error or '')[:120] }}</div>{% endif %}
           </td>
           <td class="mono small muted">{{ (e.created_at or '')[:16].replace('T',' ') }}</td>
-          <td>
+          <td style="text-align: right;">
             {% if e.file_id and can_export %}
-              <a class="btn btn-sm btn-ghost" href="/leads/exports/{{ e.id }}/download">Download</a>
+              <a class="btn btn-sm btn-ghost" href="/leads/exports/{{ e.id }}/download">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download
+              </a>
             {% elif e.status in ('QUEUED','PROCESSING') %}
-              <span class="muted small">processing…</span>
+              <span class="muted small">Compiling artifact…</span>
             {% endif %}
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="center muted">No exports yet.</td></tr>
+        <tr>
+          <td colspan="7">
+            <div class="empty-state" style="padding: 36px 0;">
+              <div class="empty-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </div>
+              <div class="empty-title" style="font-size: 15px;">No exports generated yet</div>
+              <p class="empty-sub" style="font-size: 13px;">Generate custom CSV or Excel files from your lead workspace above.</p>
+            </div>
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
 
-<div class="pager">
+{% if pages > 1 %}
+<div class="pager" style="justify-content: flex-end; margin-top: 16px;">
   {% for p in range(1, pages + 1) %}
     {% if p <= 3 or p > pages - 2 or (p >= page - 1 and p <= page + 1) %}
       <a class="pager-item {% if p == page %}active{% endif %}" href="/leads/exports?page={{ p }}">{{ p }}</a>
     {% endif %}
   {% endfor %}
 </div>
+{% endif %}
 {% endblock %}

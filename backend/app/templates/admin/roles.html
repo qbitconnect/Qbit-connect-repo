@@ -1,11 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Roles &amp; Permissions — Admin — QBIT Connect{% endblock %}
 {% block nav_admin_roles %}active{% endblock %}
+{% block breadcrumb %}Administration / Capability Matrix{% endblock %}
+
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>ROLES &amp; PERMISSIONS</h1>
-    <p class="muted">The enforced capability matrix. This view is read-only by design — the matrix ships with the platform and is validated by tests on every release.</p>
+    <h1 class="page-title">RBAC Capability Matrix</h1>
+    <p class="page-subtitle">Enforced system permissions per organizational role. Immutable release-level security contract.</p>
   </div>
 </div>
 
@@ -14,22 +16,25 @@
     <table class="matrix">
       <thead>
         <tr>
-          <th style="text-align:left">Permission</th>
+          <th style="text-align: left; min-width: 220px;">System Permission</th>
           {% for r in role_list %}
-          <th title="{{ user_counts.get(r, 0) }} user(s)">{{ r }}<div class="muted small">{{ user_counts.get(r, 0) }}u</div></th>
+          <th style="text-align: center;" title="{{ user_counts.get(r, 0) }} user(s)">
+            <div>{{ r }}</div>
+            <span class="badge badge-registered" style="font-size: 10px; margin-top: 4px;">{{ user_counts.get(r, 0) }} active</span>
+          </th>
           {% endfor %}
         </tr>
       </thead>
       <tbody>
         {% for p in all_permissions %}
         <tr>
-          <td>{{ p }}</td>
+          <td class="mono small" style="text-align: left;">{{ p }}</td>
           {% for r in role_list %}
           <td>
             {% if p in perms_by_role.get(r, []) %}
-            <span class="perm-yes">&#10003;</span>
+            <span class="perm-yes" style="font-weight: 800; font-size: 14px;">✓</span>
             {% else %}
-            <span class="perm-no">&#183;</span>
+            <span class="perm-no" style="font-size: 16px;">&middot;</span>
             {% endif %}
           </td>
           {% endfor %}

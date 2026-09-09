@@ -1,44 +1,169 @@
 {% extends "base.html" %}
-{% block title %}Scrapers — QBIT Connect{% endblock %}
+{% block title %}Scrapers — QBIT Connect AI Platform{% endblock %}
 {% block nav_scrapers %}active{% endblock %}
-{% block content %}
-<header class="page-head">
-  <div>
-    <h1>SEARCH SCRAPERS</h1>
-    <p class="muted">{{ scrapers|length }} scraper{{ scrapers|length != 1 and 's' or '' }} registered</p>
-  </div>
-  <form method="get" action="/scraping" class="search">
-    <input type="search" name="q" value="{{ q }}" placeholder="Search scrapers...">
-    <button class="btn btn-ghost">Search</button>
-  </form>
-</header>
+{% block breadcrumb %}Scrapers Library{% endblock %}
 
-<section class="cards">
+{% block content %}
+<!-- Hero Section -->
+<section class="hero">
+  <div class="hero-eyebrow">Enterprise Data Extraction</div>
+  <h1 class="hero-title">Turn the public web into structured data.</h1>
+  <p class="hero-sub">
+    Run internal collection tools, monitor execution pipelines, and sync enriched lead intelligence directly into your workspace.
+  </p>
+
+  <!-- Search Input -->
+  <form method="get" action="/scraping" class="hero-search" id="scraper-search-form">
+    <span class="hero-search-ico">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </span>
+    <input type="search" name="q" id="scraper-filter-input" value="{{ q }}" placeholder="Search scrapers by name, category, or capability...">
+    <span class="hero-search-shortcut">⌘K</span>
+  </form>
+
+  <div class="hero-count">
+    <b>{{ scrapers|length }}</b> data tool{{ scrapers|length != 1 and 's' or '' }} ready in local registry
+  </div>
+</section>
+
+<!-- Category Filter Pills -->
+<div class="category-pills" id="category-pills">
+  <button type="button" class="pill active" data-category="all">
+    <span>All Tools</span>
+    <span class="pill-count">{{ scrapers|length }}</span>
+  </button>
+  <button type="button" class="pill" data-category="business">
+    <span>Business Data</span>
+  </button>
+  <button type="button" class="pill" data-category="directory">
+    <span>Directories</span>
+  </button>
+  <button type="button" class="pill" data-category="email">
+    <span>Email Finder</span>
+  </button>
+  <button type="button" class="pill" data-category="public">
+    <span>Public Data</span>
+  </button>
+  <button type="button" class="pill" data-category="universal">
+    <span>Universal Web</span>
+  </button>
+  <button type="button" class="pill" data-category="website">
+    <span>Websites</span>
+  </button>
+</div>
+
+<!-- Scraper Cards Grid -->
+<section class="cards" id="scrapers-grid">
   {% for s in scrapers %}
-  <article class="card scraper-card">
-    <div class="card-top">
-      <span class="actor-ico">{{ s.name[:1] }}</span>
+  <article class="tool-card" data-category="{{ s.category.lower() }}" data-name="{{ s.name.lower() }}" data-desc="{{ s.description.lower() }}">
+    <div class="tool-card-header">
+      <div class="actor-ico">
+        {% if 'map' in s.id.lower() %}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        {% elif 'email' in s.id.lower() %}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+        {% elif 'directory' in s.id.lower() %}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
+        {% elif 'public' in s.id.lower() %}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        {% else %}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        {% endif %}
+      </div>
       <span class="badge badge-{{ s.status.lower() }}">{{ s.status }}</span>
     </div>
-    <h2>{{ s.name }}</h2>
-    <p class="actor-tag">{{ s.category.replace('_',' ')|title }} &middot; v{{ s.version }}</p>
-    <p class="muted">{{ s.description }}</p>
-    {% if s.status_detail and s.status != 'READY' %}
-      <p class="status-detail">{{ s.status_detail }}</p>
+
+    <div class="tool-card-meta">
+      <span class="actor-tag">{{ s.category.replace('_',' ')|title }} &middot; v{{ s.version }}</span>
+      <h2 class="tool-card-name">{{ s.name }}</h2>
+    </div>
+
+    <p class="tool-card-desc">{{ s.description }}</p>
+
+    {% if s.capabilities %}
+    <div class="cap-row">
+      {% for cap in s.capabilities %}
+      <span class="cap">{{ cap|replace('_', ' ')|title }}</span>
+      {% endfor %}
+    </div>
     {% endif %}
-    <div class="card-actions">
+
+    {% if s.status_detail and s.status != 'READY' %}
+      <div class="status-detail" style="display: flex; align-items: center; gap: 6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>{{ s.status_detail }}</span>
+      </div>
+    {% endif %}
+
+    <div class="card-actions" style="margin-top: auto;">
       {% if s.status == 'DISABLED' %}
         <button class="btn btn-ghost" disabled>Disabled</button>
       {% elif s.status == 'DEGRADED' %}
-        <a class="btn btn-ghost" href="/scraping/{{ s.id }}">Details</a>
-        <span class="muted small">needs configuration</span>
+        <a class="btn btn-ghost" href="/scraping/{{ s.id }}">Details &amp; Setup</a>
+        <span class="muted small" style="margin-left: auto;">Config required</span>
       {% else %}
-        <a class="btn btn-primary" href="/scraping/{{ s.id }}">Run</a>
+        <a class="btn btn-primary" href="/scraping/{{ s.id }}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Run Scraper
+        </a>
+        <a class="btn btn-ghost" href="/scraping/{{ s.id }}">Details</a>
       {% endif %}
     </div>
   </article>
   {% else %}
-  <p class="muted">No scrapers match your search.</p>
+  <div class="empty-state" style="grid-column: 1 / -1;">
+    <div class="empty-icon">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </div>
+    <div class="empty-title">No scrapers match your filter</div>
+    <p class="empty-sub">Try adjusting your search query or reset the category filter to explore all available tools.</p>
+    <a href="/scraping" class="btn btn-ghost">Reset Filters</a>
+  </div>
   {% endfor %}
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Client-side quick filter for category pills & search
+(function() {
+  const pills = document.querySelectorAll('#category-pills .pill');
+  const cards = document.querySelectorAll('#scrapers-grid .tool-card');
+  const searchInput = document.getElementById('scraper-filter-input');
+
+  let activeCategory = 'all';
+
+  function applyFilters() {
+    const q = (searchInput ? searchInput.value : '').toLowerCase().trim();
+
+    cards.forEach(card => {
+      const cat = card.getAttribute('data-category') || '';
+      const name = card.getAttribute('data-name') || '';
+      const desc = card.getAttribute('data-desc') || '';
+
+      const matchesCat = (activeCategory === 'all') || cat.includes(activeCategory);
+      const matchesQuery = !q || name.includes(q) || desc.includes(q) || cat.includes(q);
+
+      if (matchesCat && matchesQuery) {
+        card.style.display = 'flex';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+
+  pills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      pills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      activeCategory = pill.getAttribute('data-category');
+      applyFilters();
+    });
+  });
+
+  if (searchInput) {
+    searchInput.addEventListener('input', applyFilters);
+  }
+})();
+</script>
 {% endblock %}

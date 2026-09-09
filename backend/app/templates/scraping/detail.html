@@ -1,75 +1,186 @@
 {% extends "base.html" %}
-{% block title %}{{ actor.name }} — QBIT Connect{% endblock %}
+{% block title %}Execute {{ actor.name }} — QBIT Connect{% endblock %}
 {% block nav_scrapers %}active{% endblock %}
+{% block breadcrumb %}<a href="/scraping" style="color: inherit;">Scrapers</a> / {{ actor.name }}{% endblock %}
+
 {% block content %}
+<!-- Page Header -->
 <header class="page-head">
   <div>
-    <a class="crumb" href="/scraping">&larr; Scrapers</a>
-    <h1>{{ actor.name }}</h1>
-    <p class="muted">{{ actor.description }}</p>
-    <p class="actor-tag">v{{ actor.version }} &middot; {{ actor.category.replace('_',' ')|title }}
-      &middot; <span class="badge badge-{{ status.lower() }}">{{ status }}</span></p>
+    <a class="crumb" href="/scraping">&larr; Back to Scrapers Library</a>
+    <div style="display: flex; align-items: center; gap: 12px; margin-top: 4px;">
+      <h1 class="page-title">{{ actor.name }}</h1>
+      <span class="badge badge-{{ status.lower() }}">{{ status }}</span>
+    </div>
+    <p class="page-subtitle">{{ actor.description }}</p>
+  </div>
+  <div class="head-actions">
+    <a href="/scraping/jobs?actor_id={{ actor.id }}" class="btn btn-ghost btn-sm">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Execution History
+    </a>
   </div>
 </header>
 
 {% if status_detail and status != 'READY' %}
-<div class="alert alert-warn">{{ status_detail }}</div>
-{% endif %}
-
-<div class="cap-row">
-  {% for cap in actor.capabilities %}<span class="cap">{{ cap }}</span>{% endfor %}
+<div class="alert alert-warn" style="display: flex; align-items: center; gap: 10px; margin-bottom: 24px;">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+  <div>
+    <strong>Provider notice:</strong> {{ status_detail }}
+  </div>
 </div>
+{% endif %}
 
 {% if errors %}
-  <div class="alert alert-error">
-    <strong>Validation failed</strong>
-    <ul>{% for k, v in errors.items() %}<li><b>{{ k }}</b>: {{ v }}</li>{% endfor %}</ul>
-  </div>
+<div class="alert alert-error" style="margin-bottom: 24px;">
+  <div style="font-weight: 700; margin-bottom: 6px;">Configuration Validation Failed:</div>
+  <ul style="margin: 0; padding-left: 20px;">
+    {% for k, v in errors.items() %}
+    <li><b>{{ k }}</b>: {{ v }}</li>
+    {% endfor %}
+  </ul>
+</div>
 {% endif %}
 
-<section class="card form-card">
-  <h2>Run configuration</h2>
-  <form method="post" action="/scraping/{{ actor.id }}/run" id="run-form">
-    {% for f in fields %}
-      <label>{{ f.name }}{% if f.required %} <em>*</em>{% endif %}
-        {% if f.type == 'boolean' %}
-          <select name="input__{{ f.name }}">
-            <option value="true" {% if f.default %}selected{% endif %}>true</option>
-            <option value="false" {% if not f.default %}selected{% endif %}>false</option>
-          </select>
-        {% else %}
-          <input name="input__{{ f.name }}"
-                 type="{{ 'number' if f.type == 'integer' else 'text' }}"
-                 {% if f.required %}required{% endif %}
-                 {% if f.minimum is not none %}min="{{ f.minimum }}"{% endif %}
-                 {% if f.maximum is not none %}max="{{ f.maximum }}"{% endif %}
-                 value="{{ form_values.get(f.name, f.default if f.default is not none else '') }}">
-        {% endif %}
-      </label>
-    {% endfor %}
-
-    <details class="advanced">
-      <summary>Advanced settings</summary>
-      <div class="grid-2">
-        <label>max_pages <input name="config__max_pages" type="number" min="1" placeholder="default"></label>
-        <label>max_records <input name="config__max_records" type="number" min="1" placeholder="default"></label>
-        <label>max_runtime_seconds <input name="config__max_runtime_seconds" type="number" min="30" placeholder="3600"></label>
-        <label>request_timeout <input name="config__request_timeout" type="number" min="1" placeholder="20"></label>
-        <label>requests_per_second <input name="config__requests_per_second" type="number" step="0.1" min="0.1" placeholder="1.0"></label>
-        <label>concurrency <input name="config__concurrency" type="number" min="1" placeholder="4"></label>
-        <label>max_retries <input name="config__max_retries" type="number" min="0" placeholder="3"></label>
-        <label class="checkbox"><input type="checkbox" name="config__respect_robots" checked> respect robots.txt</label>
+<!-- Split Tool Interface -->
+<div style="display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 24px; align-items: start;">
+  <!-- Left Column: Tool Specs & Capabilities -->
+  <div class="stack">
+    <div class="card">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+        <div class="actor-ico" style="width: 48px; height: 48px; font-size: 20px;">
+          {% if 'map' in actor.id.lower() %}
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          {% elif 'email' in actor.id.lower() %}
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+          {% else %}
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          {% endif %}
+        </div>
+        <div>
+          <div style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em;">
+            {{ actor.category.replace('_',' ')|title }}
+          </div>
+          <div style="font-weight: 700; font-size: 15px;">v{{ actor.version }}</div>
+        </div>
       </div>
-    </details>
 
-    <div class="form-actions">
-      <button type="button" class="btn btn-ghost" id="validate-btn"
-              data-actor="{{ actor.id }}">Validate</button>
-      <button type="submit" class="btn btn-primary">Run</button>
+      <div style="border-top: 1px solid var(--border-soft); padding-top: 14px;">
+        <div style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">
+          Output Capabilities
+        </div>
+        <div class="cap-row" style="margin-bottom: 16px;">
+          {% for cap in actor.capabilities %}
+          <span class="cap">{{ cap|replace('_', ' ')|title }}</span>
+          {% endfor %}
+        </div>
+
+        <div style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">
+          Runtime Safety
+        </div>
+        <div style="font-size: 12px; color: var(--text-2); line-height: 1.5;">
+          Runs in isolated execution sandbox. Rate limited per destination host with built-in SSRF protection and robot-respect compliance.
+        </div>
+      </div>
     </div>
-    <div id="validate-result" class="validate-result" hidden></div>
-  </form>
-</section>
+  </div>
+
+  <!-- Right Column: Input Configuration Form -->
+  <section class="card" style="padding: 28px;">
+    <h2 style="font-size: 18px; margin-bottom: 4px;">Run Parameters</h2>
+    <p class="muted" style="margin-bottom: 24px; font-size: 13px;">
+      Configure query arguments for this extraction run.
+    </p>
+
+    <form method="post" action="/scraping/{{ actor.id }}/run" id="run-form">
+      <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
+        {% for f in fields %}
+          <div>
+            <label class="field-label" for="field-{{ f.name }}">
+              {{ f.name|replace('_', ' ')|title }}
+              {% if f.required %}<em title="Required field">*</em>{% endif %}
+            </label>
+
+            {% if f.type == 'boolean' %}
+              <select id="field-{{ f.name }}" name="input__{{ f.name }}">
+                <option value="true" {% if f.default %}selected{% endif %}>true</option>
+                <option value="false" {% if not f.default %}selected{% endif %}>false</option>
+              </select>
+            {% else %}
+              <input id="field-{{ f.name }}"
+                     name="input__{{ f.name }}"
+                     type="{{ 'number' if f.type == 'integer' else 'text' }}"
+                     {% if f.required %}required{% endif %}
+                     {% if f.minimum is not none %}min="{{ f.minimum }}"{% endif %}
+                     {% if f.maximum is not none %}max="{{ f.maximum }}"{% endif %}
+                     placeholder="{{ f.description or ('Enter ' + f.name) }}"
+                     value="{{ form_values.get(f.name, f.default if f.default is not none else '') }}">
+            {% endif %}
+            {% if f.description %}
+            <span class="field-hint">{{ f.description }}</span>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- Advanced Settings Panel -->
+      <details class="adv-panel" style="margin-bottom: 24px;">
+        <summary style="font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Advanced Engine Overrides
+        </summary>
+        <div class="grid-2" style="margin-top: 14px;">
+          <div>
+            <label class="field-label">Max Pages</label>
+            <input name="config__max_pages" type="number" min="1" placeholder="default">
+          </div>
+          <div>
+            <label class="field-label">Max Records</label>
+            <input name="config__max_records" type="number" min="1" placeholder="default">
+          </div>
+          <div>
+            <label class="field-label">Timeout (Seconds)</label>
+            <input name="config__max_runtime_seconds" type="number" min="30" placeholder="3600">
+          </div>
+          <div>
+            <label class="field-label">Request Timeout</label>
+            <input name="config__request_timeout" type="number" min="1" placeholder="20">
+          </div>
+          <div>
+            <label class="field-label">Requests / Sec</label>
+            <input name="config__requests_per_second" type="number" step="0.1" min="0.1" placeholder="1.0">
+          </div>
+          <div>
+            <label class="field-label">Concurrency</label>
+            <input name="config__concurrency" type="number" min="1" placeholder="4">
+          </div>
+          <div>
+            <label class="field-label">Max Retries</label>
+            <input name="config__max_retries" type="number" min="0" placeholder="3">
+          </div>
+          <div style="display: flex; align-items: center; padding-top: 24px;">
+            <label class="checkbox">
+              <input type="checkbox" name="config__respect_robots" checked>
+              <span>Respect robots.txt</span>
+            </label>
+          </div>
+        </div>
+      </details>
+
+      <div class="form-actions" style="justify-content: flex-end; align-items: center; gap: 12px; border-top: 1px solid var(--border-soft); padding-top: 20px;">
+        <button type="button" class="btn btn-ghost" id="validate-btn" data-actor="{{ actor.id }}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Dry Run / Validate
+        </button>
+        <button type="submit" class="btn btn-primary btn-lg">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          RUN SCRAPER
+        </button>
+      </div>
+      <div id="validate-result" class="validate-result" hidden style="margin-top: 14px;"></div>
+    </form>
+  </section>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -88,16 +199,25 @@
         else { const n = Number(v); if (!Number.isNaN(n)) config[k.slice(8)] = n; }
       }
     }
-    const res = await fetch('/scraping/' + btn.dataset.actor + '/validate', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({input, config})
-    });
-    const data = await res.json();
-    const box = document.getElementById('validate-result');
-    box.hidden = false;
-    box.className = 'validate-result ' + (data.valid ? 'ok' : 'bad');
-    box.textContent = data.valid ? 'Input is valid.' :
-      'Invalid: ' + Object.entries(data.errors).map(([k, v]) => k + ' — ' + v).join('; ');
+    btn.disabled = true;
+    btn.textContent = 'Validating...';
+    try {
+      const res = await fetch('/scraping/' + btn.dataset.actor + '/validate', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({input, config})
+      });
+      const data = await res.json();
+      const box = document.getElementById('validate-result');
+      box.hidden = false;
+      box.className = 'validate-result ' + (data.valid ? 'ok' : 'bad');
+      box.textContent = data.valid ? '✓ Input configuration is valid and ready to execute.' :
+        'Validation errors: ' + Object.entries(data.errors).map(([k, v]) => k + ' — ' + v).join('; ');
+    } catch(err) {
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Dry Run / Validate';
+    }
   });
 </script>
 {% endblock %}

@@ -1,28 +1,50 @@
 {% extends "base.html" %}
-{% block title %}Import leads — QBIT Connect{% endblock %}
+{% block title %}Import Leads — QBIT Connect{% endblock %}
 {% block nav_imports %}active{% endblock %}
-{% block content %}
-<div class="crumb"><a href="/leads">Leads</a> / Import</div>
-<h1>IMPORT LEADS</h1>
-<p class="muted">Upload a CSV, XLSX, JSON or JSONL file. You will map the columns next — nothing is imported until you confirm.</p>
+{% block breadcrumb %}<a href="/leads/import" style="color: inherit;">Imports</a> / Upload Wizard{% endblock %}
 
-<div class="wizard-steps">
-  <span class="wizard-step active">1 · Upload</span>
-  <span class="wizard-step">2 · Map columns</span>
-  <span class="wizard-step">3 · Options</span>
-  <span class="wizard-step">4 · Import</span>
-  <span class="wizard-step">5 · Results</span>
+{% block content %}
+<div class="crumb"><a href="/leads/import">&larr; Back to Ingest History</a></div>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Dataset Ingest Wizard</h1>
+    <p class="page-subtitle">Upload structured data files (CSV, XLSX, JSON, JSONL). Columns will be mapped in the next step before committing to database.</p>
+  </div>
 </div>
 
-{% if err %}<div class="alert alert-error">{{ err }}</div>{% endif %}
+<div class="wizard-steps">
+  <span class="wizard-step active">1 &middot; Upload File</span>
+  <span class="wizard-step">2 &middot; Column Mapping</span>
+  <span class="wizard-step">3 &middot; Conflict Strategy</span>
+  <span class="wizard-step">4 &middot; Execute</span>
+  <span class="wizard-step">5 &middot; Results Summary</span>
+</div>
 
-<div class="card form-card" style="max-width:560px">
+{% if err %}
+<div class="alert alert-error">{{ err }}</div>
+{% endif %}
+
+<div class="card form-card" style="max-width: 600px; padding: 28px;">
   <form method="post" action="/leads/import" enctype="multipart/form-data">
-    <label>File (CSV · XLSX · JSON · JSONL)
-      <input type="file" name="file" accept=".csv,.xlsx,.json,.jsonl" required>
-    </label>
-    <div class="form-actions"><button class="btn btn-primary" type="submit">Upload &amp; inspect</button></div>
+    <div style="border: 2px dashed var(--border-strong); border-radius: var(--r-xl); padding: 36px 24px; text-align: center; margin-bottom: 20px; background: rgba(255,255,255,0.01);">
+      <div style="width: 48px; height: 48px; border-radius: var(--r-md); background: var(--accent-dim); color: var(--accent); display: grid; place-items: center; margin: 0 auto 14px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </div>
+      <div style="font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 4px;">Choose a file to ingest</div>
+      <p class="muted small" style="margin-bottom: 16px;">Supports .csv, .xlsx, .json, and .jsonl files.</p>
+      <input type="file" name="file" accept=".csv,.xlsx,.json,.jsonl" required style="margin: 0 auto; max-width: 320px;">
+    </div>
+
+    <div class="form-actions" style="justify-content: flex-end; margin-top: 20px;">
+      <a href="/leads/import" class="btn btn-ghost">Cancel</a>
+      <button class="btn btn-primary btn-lg" type="submit">
+        Upload &amp; Continue &rarr;
+      </button>
+    </div>
   </form>
-  <p class="muted small">Max upload size is configured by QBIT_MAX_UPLOAD_MB. Files are stored via the encrypted-at-rest local storage service and referenced only by file id.</p>
+
+  <p class="muted small" style="margin-top: 16px; border-top: 1px solid var(--border-soft); padding-top: 14px;">
+    Files are stored via local encrypted storage, inspected for schema headers, and staged temporarily until you confirm the column mappings.
+  </p>
 </div>
 {% endblock %}
