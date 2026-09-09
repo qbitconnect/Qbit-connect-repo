@@ -19,10 +19,10 @@ from app.services.scraping.registry import ActorRegistry
 def test_builtin_actors_register_and_discover(registry: ActorRegistry):
     assert set(registry.discover()) == {
         "google-maps", "website", "email-finder", "business-directory",
-        "public-data", "universal-web",
+        "public-data", "universal-web", "sitemap-intelligence",
     }
     summary = registry.summary()
-    assert summary["total"] == 6
+    assert summary["total"] == 7
 
 
 def test_register_rejects_duplicate(registry: ActorRegistry):

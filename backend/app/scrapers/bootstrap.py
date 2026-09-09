@@ -24,12 +24,14 @@ def builtin_actor_classes() -> list[type[ScraperActor]]:
     from app.scrapers.actors.email_finder import EmailFinderActor
     from app.scrapers.actors.google_maps import GoogleMapsActor
     from app.scrapers.actors.public_data import PublicDataActor
+    from app.scrapers.actors.sitemap_intelligence import SitemapIntelligenceActor
     from app.scrapers.actors.universal import UniversalWebActor
     from app.scrapers.actors.website import WebsiteActor
 
     classes = [
         GoogleMapsActor,
         WebsiteActor,
+        SitemapIntelligenceActor,
         EmailFinderActor,
         BusinessDirectoryActor,
         PublicDataActor,

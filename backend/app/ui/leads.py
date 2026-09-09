@@ -384,6 +384,32 @@ async def lead_archive_ui(
     return RedirectResponse(url=f"/leads/{lead_id}?ok=Archived", status_code=303)
 
 
+@router.post("/leads/{lead_id}/enrich")
+async def lead_enrich_ui(
+    lead_id: uuid.UUID,
+    request: Request,
+    user: Annotated[object, Depends(require_leads_edit)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Re-check the lead's public website for contact data (spec §20).
+
+    Fills EMPTY fields only; consent is never implied. Redirects back with
+    an honest ok/err banner."""
+    from app.core.errors import QBITError
+    from app.services.scraping.enrichment import LeadEnrichmentService
+
+    lead = await _load_lead(session, lead_id)
+    settings = request.app.state.settings
+    service = LeadEnrichmentService(session, settings)
+    try:
+        updated = await service.enrich_lead(lead)
+    except QBITError as exc:
+        return RedirectResponse(url=f"/leads/{lead_id}?err={str(exc)[:150]}", status_code=303)
+    fields = ((updated.metadata_json or {}).get("enrichment") or {}).get("fields_updated") or []
+    msg = ("Enriched — updated: " + ", ".join(fields)) if fields else "Enrichment scan finished — nothing new found"
+    return RedirectResponse(url=f"/leads/{lead_id}?ok={msg}", status_code=303)
+
+
 @router.post("/leads/{lead_id}/restore")
 async def lead_restore_ui(
     lead_id: uuid.UUID,

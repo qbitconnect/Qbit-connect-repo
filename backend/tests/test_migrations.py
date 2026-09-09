@@ -32,6 +32,11 @@ SCRAPING_TABLES = {
     "scrape_jobs", "scrape_job_events", "scrape_job_checkpoints", "leads",
 }
 
+#: Actor platform foundation tables (migration 0012) — additive only.
+ACTOR_PLATFORM_TABLES = {
+    "scrape_schedules", "entity_links",
+}
+
 #: Phase 4 lead workspace tables (migration 0003) — additive only.
 LEAD_WORKSPACE_TABLES = {
     "lead_tags", "lead_tag_assignments", "lead_notes", "lead_activities",
@@ -174,7 +179,7 @@ def test_greenfield_repo_had_no_preexisting_schema(tmp_path: Path):
     assert set(Base.metadata.tables) == (
         CORE_TABLES | SCRAPING_TABLES | LEAD_WORKSPACE_TABLES | MARKETING_TABLES
         | MESSAGING_TABLES | EMAIL_TABLES | INBOX_TABLES | AUTOMATION_TABLES
-        | ANALYTICS_TABLES | ENTERPRISE_TABLES
+        | ANALYTICS_TABLES | ENTERPRISE_TABLES | ACTOR_PLATFORM_TABLES
     )
 
 

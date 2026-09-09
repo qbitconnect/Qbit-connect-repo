@@ -11,7 +11,7 @@
       &middot; <span class="badge badge-{{ status.lower() }}">{{ status }}</span></p>
   </div>
   <div class="head-actions">
-    <a class="btn btn-ghost" href="/scraping/jobs">View jobs</a>
+    <a class="btn btn-ghost" href="/scraping/jobs?actor={{ actor.id }}">View jobs</a>
   </div>
 </header>
 
@@ -19,6 +19,15 @@
 <div class="alert alert-warn">{{ status_detail }}</div>
 {% endif %}
 
+<nav class="tab-bar" role="tablist" aria-label="Actor sections">
+  <button class="tab active" data-tab="run" role="tab" aria-selected="true">Run</button>
+  <button class="tab" data-tab="history" role="tab" aria-selected="false">History</button>
+  <button class="tab" data-tab="schedule" role="tab" aria-selected="false">Schedule</button>
+  <button class="tab" data-tab="api" role="tab" aria-selected="false">API</button>
+</nav>
+
+{# ------------------------------------------------------------- RUN #}
+<section class="tab-panel active" id="tab-run" role="tabpanel">
 <div class="actor-layout">
   <aside class="actor-side">
     <div class="card">
@@ -91,10 +100,171 @@
     </section>
   </section>
 </div>
+</section>
+
+{# --------------------------------------------------------- HISTORY #}
+<section class="tab-panel" id="tab-history" role="tabpanel">
+  <section class="card">
+    <h2 style="margin-bottom:12px">Recent runs</h2>
+    {% if history %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>JOB</th><th>STATUS</th><th>FOUND</th><th>SAVED</th><th>UPDATED</th><th>CREATED</th><th></th></tr></thead>
+        <tbody>
+          {% for j in history %}
+          <tr>
+            <td><a href="/scraping/jobs/{{ j.id }}"><code>{{ j.short }}</code></a></td>
+            <td><span class="badge badge-{{ j.status.lower() }}">{{ j.status }}</span></td>
+            <td>{{ j.found }}</td>
+            <td>{{ j.saved }}</td>
+            <td>{{ j.updated }}</td>
+            <td class="muted">{{ j.created_at }}</td>
+            <td><a class="btn btn-ghost btn-sm" href="/scraping/jobs/{{ j.id }}">Open</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state compact">
+      <svg width="82" height="82" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+        <circle cx="50" cy="50" r="30" stroke="rgba(255,255,255,.14)" stroke-width="1.2"/>
+        <circle cx="50" cy="50" r="4" fill="rgba(93,140,255,.9)"/>
+      </svg>
+      <h3>No runs yet</h3>
+      <p>Launch this actor from the Run tab — every run lands here with its counters.</p>
+    </div>
+    {% endif %}
+  </section>
+</section>
+
+{# --------------------------------------------------------- SCHEDULE #}
+<section class="tab-panel" id="tab-schedule" role="tabpanel">
+  <div class="home-deck" style="grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); align-items:start">
+    <section class="card">
+      <h2 style="margin-bottom:12px">Recurring schedules</h2>
+      {% if schedules %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>NAME</th><th>TYPE</th><th>INPUT</th><th>NEXT RUN</th><th>RUNS</th><th></th></tr></thead>
+          <tbody>
+            {% for s in schedules %}
+            <tr>
+              <td>{{ s.name or s.short }}{% if not s.enabled %} <span class="badge badge-paused">paused</span>{% endif %}</td>
+              <td class="muted">{{ s.schedule_type }}{% if s.schedule_type == 'INTERVAL' and s.interval_seconds %} / {{ s.interval_seconds }}s{% elif s.schedule_type == 'DAILY' %} / {{ s.daily_time }} {{ s.timezone }}{% endif %}</td>
+              <td class="muted"><code style="font-size:11px">{{ s.input_summary }}</code></td>
+              <td class="muted">{{ s.next_run_at }}</td>
+              <td class="muted">{{ s.run_count }}{% if s.failure_count %} <span class="text-bad">({{ s.failure_count }} failed)</span>{% endif %}</td>
+              <td style="white-space:nowrap">
+                <form method="post" action="/scraping/schedules/{{ s.id }}/toggle" style="display:inline">
+                  <button class="btn btn-ghost btn-sm">{{ 'Pause' if s.enabled else 'Resume' }}</button>
+                </form>
+                <form method="post" action="/scraping/schedules/{{ s.id }}/run-now" style="display:inline">
+                  <button class="btn btn-ghost btn-sm">Run now</button>
+                </form>
+                <form method="post" action="/scraping/schedules/{{ s.id }}/delete" style="display:inline">
+                  <button class="btn btn-ghost btn-sm text-bad">Delete</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="muted small" style="margin:4px 0 0">No schedules yet. Set up recurring intelligence on the right —
+        e.g. every day at 08:00, or every 6 hours.</p>
+      {% endif %}
+    </section>
+
+    <section class="card form-card">
+      <h2>New schedule</h2>
+      <form method="post" action="/scraping/{{ actor.id }}/schedules/create">
+        <label>Name <input name="name" maxlength="200" placeholder="Optional label"></label>
+        <label>Schedule type
+          <select name="schedule_type" id="sched-type">
+            <option value="INTERVAL">Every N seconds</option>
+            <option value="DAILY">Daily at time</option>
+            <option value="ONCE">One time</option>
+          </select>
+        </label>
+        <div id="sched-interval-row"><label>interval_seconds <input name="interval_seconds" type="number" min="60" value="21600" placeholder="21600 (6 h)"></label></div>
+        <div id="sched-daily-row" hidden>
+          <div class="grid-2">
+            <label>daily_time <input name="daily_time" placeholder="08:00" maxlength="5"></label>
+            <label>timezone <input name="timezone" value="UTC" maxlength="64" placeholder="Asia/Kolkata"></label>
+          </div>
+        </div>
+        <h2 style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:14px 0 8px">Input</h2>
+        {% for f in fields %}
+          {% if f.type != 'boolean' %}
+          <label>{{ f.name }}{% if f.required %} <em>*</em>{% endif %}
+            <input name="sched_input__{{ f.name }}"
+                   type="{{ 'number' if f.type == 'integer' else 'text' }}"
+                   value="{{ f.default if f.default is not none else '' }}">
+          </label>
+          {% endif %}
+        {% endfor %}
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" style="min-width:140px">Create schedule</button>
+        </div>
+      </form>
+    </section>
+  </div>
+</section>
+
+{# ------------------------------------------------------------- API #}
+<section class="tab-panel" id="tab-api" role="tabpanel">
+  <section class="card">
+    <h2 style="margin-bottom:6px">Execute via API</h2>
+    <p class="muted small" style="margin:0 0 14px">
+      Same endpoints the UI uses. Authenticate with an API key
+      (<a href="/admin/api-keys">Admin → API Keys</a>) as
+      <code>Authorization: Bearer qbit_…</code>.
+    </p>
+    <ol class="muted small" style="line-height:2">
+      <li><span class="cap">POST</span> <code>/api/v1/scrapers/{{ actor.id }}/jobs</code> — validate + enqueue a run</li>
+      <li><span class="cap">GET</span> <code>/api/v1/scrape-jobs/{job_id}</code> — poll status &amp; counters</li>
+      <li><span class="cap">GET</span> <code>/api/v1/scrape-jobs/{job_id}/results</code> — paged normalized records</li>
+      <li><span class="cap">GET</span> <code>/api/v1/scrape-jobs/{job_id}/results/export?format=xlsx</code> — download</li>
+    </ol>
+    <pre class="code-block"><code>curl -sS -X POST https://your-qbit-host/api/v1/scrapers/{{ actor.id }}/jobs \
+  -H "Authorization: Bearer qbit_YOUR_KEY" -H "Content-Type: application/json" \
+  -d '{"input": {{ actor.input_example | tojson if actor.input_example else '{}' }}, "config": {"max_records": 100}}'</code></pre>
+  </section>
+</section>
 {% endblock %}
 
 {% block scripts %}
 <script>
+  // tab switching
+  document.querySelectorAll('.tab-bar .tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab-bar .tab').forEach(t => {
+        t.classList.remove('active'); t.setAttribute('aria-selected', 'false');
+      });
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active'); tab.setAttribute('aria-selected', 'true');
+      const panel = document.getElementById('tab-' + tab.dataset.tab);
+      if (panel) panel.classList.add('active');
+    });
+  });
+  // deep link (#tab-schedule etc.)
+  if (location.hash.startsWith('#tab-')) {
+    const btn = document.querySelector('.tab[data-tab="' + location.hash.slice(5) + '"]');
+    if (btn) btn.click();
+  }
+  // schedule type toggle
+  const stype = document.getElementById('sched-type');
+  if (stype) {
+    const sync = () => {
+      const v = stype.value;
+      document.getElementById('sched-interval-row').hidden = v !== 'INTERVAL';
+      document.getElementById('sched-daily-row').hidden = v !== 'DAILY';
+    };
+    stype.addEventListener('change', sync); sync();
+  }
+  // inline validation (unchanged behavior)
   const btn = document.getElementById('validate-btn');
   if (btn) btn.addEventListener('click', async () => {
     const form = document.getElementById('run-form');

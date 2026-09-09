@@ -9,11 +9,18 @@
     <p class="muted">
       <span class="badge badge-{{ lead_data.status | lower }}">{{ lead_data.status }}</span>
       &nbsp; Quality: <strong>{{ lead_data.quality_score if lead_data.quality_score is not none else '—' }}/100</strong>
+      {% if lead_data.enrichment_status and lead_data.enrichment_status != 'UNRICHED' %}
+      &nbsp; Enrichment: <span class="badge badge-{{ 'ready' if lead_data.enrichment_status == 'ENRICHED' else 'paused' }}">{{ lead_data.enrichment_status }}</span>
+      {% endif %}
+      {% if lead_data.confidence is not none %}&nbsp; Confidence: <strong>{{ lead_data.confidence }}/100</strong>{% endif %}
       &nbsp; Seen {{ lead_data.seen_count }}×
     </p>
   </div>
   <div class="head-actions">
     {% if can_edit %}
+    <form method="post" action="/leads/{{ lead.id }}/enrich" class="inline-form">
+      <button class="btn btn-sm btn-ghost" type="submit" title="Re-check the lead's public website for contact data — fills empty fields only">Enrich from website</button>
+    </form>
     <form method="post" action="/leads/{{ lead.id }}/status" class="inline-form">
       <select name="status">
         {% for s in statuses %}<option value="{{ s }}" {% if s == lead_data.status %}selected{% endif %}>{{ s }}</option>{% endfor %}

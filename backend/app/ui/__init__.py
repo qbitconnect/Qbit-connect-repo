@@ -33,11 +33,14 @@ from app.core.errors import QBITError
 from app.core.security import create_access_token, decode_access_token, verify_password
 from app.models.enterprise import Invitation, UserSession
 from app.models.scrape import JobStatus
+from app.models.scrape import ScrapeJob as ScrapeJobModel
 from app.models.user import User
 from app.services import login_guard
 from app.services.export import ExportService
 from app.services.leads import LeadService
+from app.models.scrape import ScrapeSchedule  # noqa: F401 (re-exported for routes)
 from app.services.scraping.engine import JobEngine, sanitize_job_config
+from app.services.scraping.scheduling import ScrapeScheduleService
 
 templates = Jinja2Templates(directory="app/templates")
 templates.env.globals["str"] = str  # str(x)[:8] slicing in templates
@@ -500,12 +503,171 @@ async def scraper_detail(
                 "maximum": prop.get("maximum"),
             }
         )
+    # Actor workbench data: run history + schedules for THIS actor
+    session_factory = request.app.state.db.session
+    async with session_factory() as db:
+        rows = await db.execute(
+            select(ScrapeJobModel)
+            .where(ScrapeJobModel.actor_id == actor_id)
+            .order_by(ScrapeJobModel.created_at.desc())
+            .limit(8)
+        )
+        history = [
+            {
+                "id": str(j.id),
+                "short": str(j.id)[:8],
+                "status": j.status,
+                "found": j.records_found,
+                "saved": j.records_saved,
+                "updated": j.records_updated,
+                "created_at": j.created_at.strftime("%Y-%m-%d %H:%M") if j.created_at else "",
+            }
+            for j in rows.scalars().all()
+        ]
+        srows = await db.execute(
+            select(ScrapeSchedule)
+            .where(ScrapeSchedule.actor_id == actor_id)
+            .order_by(ScrapeSchedule.created_at.desc())
+            .limit(10)
+        )
+        schedules = [
+            {
+                "id": str(s.id),
+                "short": str(s.id)[:8],
+                "name": s.name,
+                "schedule_type": s.schedule_type,
+                "interval_seconds": s.interval_seconds,
+                "daily_time": s.daily_time,
+                "timezone": s.timezone,
+                "enabled": s.enabled,
+                "run_count": s.run_count,
+                "failure_count": s.failure_count,
+                "next_run_at": s.next_run_at.strftime("%Y-%m-%d %H:%M") if s.next_run_at else "—",
+                "input_summary": _input_summary(s.input),
+            }
+            for s in srows.scalars().all()
+        ]
+
     return templates.TemplateResponse(
         request, "scraping/detail.html",
         _ctx(request, user, actor=meta, status=entry.public_status.value,
              status_detail=entry.detail, fields=fields,
-             form_values={}, errors={}),
+             form_values={}, errors={}, history=history, schedules=schedules),
     )
+
+
+def _input_summary(data: dict) -> str:
+    """One-line honest summary of a schedule's saved input."""
+    if not isinstance(data, dict):
+        return ""
+    for key in ("query", "url", "website", "domain", "adapter"):
+        if data.get(key):
+            return f"{key}={str(data[key])[:60]}"
+    parts = [f"{k}={str(v)[:24]}" for k, v in list(data.items())[:2]]
+    return " ".join(parts)
+
+
+
+
+# ------------------------------------------------------------- schedules (UI)
+
+
+@router.post("/scraping/{actor_id}/schedules/create")
+async def ui_schedule_create(
+    actor_id: str,
+    request: Request,
+    user: Annotated[User, Depends(require_ui_permission("scraping.run"))],
+):
+    """Create a recurring schedule from the actor workbench."""
+    registry = request.app.state.scraper_registry
+    if registry.entry(actor_id) is None:
+        raise UiRedirect("/scraping")
+    form = await request.form()
+    stype = str(form.get("schedule_type", "")).strip().upper()
+    interval_raw = str(form.get("interval_seconds", "")).strip()
+    daily_time = str(form.get("daily_time", "")).strip() or None
+    tz_name = str(form.get("timezone", "UTC")).strip() or "UTC"
+    input_data: dict = {}
+    for key in form:
+        if key.startswith("sched_input__"):
+            value = str(form[key]).strip()
+            if value:
+                input_data[key.removeprefix("sched_input__")] = value
+    interval_seconds: int | None = None
+    if interval_raw:
+        try:
+            interval_seconds = int(interval_raw)
+        except ValueError:
+            interval_seconds = None
+    from app.core.errors import QBITError as _QErr
+
+    async with request.app.state.db.session() as session:
+        try:
+            await ScrapeScheduleService(session).create(
+                actor_id=actor_id,
+                input=input_data,
+                schedule_type=stype,
+                name=str(form.get("name", "")).strip() or None,
+                interval_seconds=interval_seconds,
+                daily_time=daily_time,
+                timezone_name=tz_name,
+                created_by=user.id,
+                organization_id=getattr(user, "organization_id", None),
+            )
+        except _QErr as exc:
+            return RedirectResponse(
+                f"/scraping/{actor_id}#tab-schedule?schedule_error={str(exc)[:180]}",
+                status_code=303,
+            )
+    return RedirectResponse(f"/scraping/{actor_id}#tab-schedule", status_code=303)
+
+
+async def _owned_schedule(request: Request, schedule_id: str):
+    async with request.app.state.db.session() as session:
+        service = ScrapeScheduleService(session)
+        try:
+            schedule = await service.get(uuid.UUID(schedule_id))
+        except (ValueError, QBITError):
+            raise UiRedirect("/scraping")
+        return session, service, schedule
+
+
+@router.post("/scraping/schedules/{schedule_id}/toggle")
+async def ui_schedule_toggle(
+    schedule_id: str,
+    request: Request,
+    user: Annotated[User, Depends(require_ui_permission("scraping.run"))],
+):
+    session, service, schedule = await _owned_schedule(request, schedule_id)
+    await service.set_enabled(schedule.id, not schedule.enabled)
+    return RedirectResponse(f"/scraping/{schedule.actor_id}#tab-schedule", status_code=303)
+
+
+@router.post("/scraping/schedules/{schedule_id}/run-now")
+async def ui_schedule_run_now(
+    schedule_id: str,
+    request: Request,
+    user: Annotated[User, Depends(require_ui_permission("scraping.run"))],
+):
+    from datetime import datetime as _dt
+
+    session, service, schedule = await _owned_schedule(request, schedule_id)
+    if schedule.enabled:
+        schedule.next_run_at = _dt.now(timezone.utc)
+        await session.commit()
+    return RedirectResponse(f"/scraping/{schedule.actor_id}#tab-schedule", status_code=303)
+
+
+@router.post("/scraping/schedules/{schedule_id}/delete")
+async def ui_schedule_delete(
+    schedule_id: str,
+    request: Request,
+    user: Annotated[User, Depends(require_ui_permission("scraping.run"))],
+):
+    session, service, schedule = await _owned_schedule(request, schedule_id)
+    actor_id = schedule.actor_id
+    await service.delete(schedule.id)
+    return RedirectResponse(f"/scraping/{actor_id}#tab-schedule", status_code=303)
 
 
 @router.post("/scraping/{actor_id}/validate")
