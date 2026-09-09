@@ -238,6 +238,7 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     from app.api.v1 import notifications as notifications_routes
     from app.api.v1 import reports as reports_routes
     from app.api.v1 import scrape_jobs as scrape_jobs_routes
+    from app.api.v1 import scrape_schedules as scrape_schedules_routes
     from app.api.v1 import scrapers as scrapers_routes
     from app.api.v1 import sending_accounts as sending_accounts_routes
     from app.api.v1 import sessions as sessions_routes
@@ -257,6 +258,7 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     app.include_router(files.router, prefix=api_v1_prefix)
     app.include_router(scrapers_routes.router, prefix=api_v1_prefix)
     app.include_router(scrape_jobs_routes.router, prefix=api_v1_prefix)
+    app.include_router(scrape_schedules_routes.router, prefix=api_v1_prefix)
     app.include_router(leads.router, prefix=api_v1_prefix)
     app.include_router(campaigns_routes.router, prefix=api_v1_prefix)
     app.include_router(templates_routes.router, prefix=api_v1_prefix)

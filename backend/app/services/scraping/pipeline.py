@@ -119,13 +119,17 @@ class ResultPipeline:
                     self.session, item, match=match, merge=merge, commit=False
                 )
                 lead, created = result.lead, result.created
-                if created:
+                if result.flagged:
+                    # information-preserving MEDIUM insert: new lead carrying a
+                    # possible-duplicate flag (implies created — branch FIRST)
+                    flagged += 1
                     saved += 1
                     if self.ctx is not None:
                         self.ctx.progress.add_saved()
-                        await self.ctx.report("ITEM_SAVED", str(lead.id))
-                    if len(self.saved_ids) < 100000:
-                        self.saved_ids.append(lead.id)
+                    # Source graph (spec §QBIT DIFFERENTIATION #1/#2): store the
+                    # cross-record SAME_BUSINESS evidence for later resolution.
+                    if match.matched_on and match.matched_on != "fuzzy_name":
+                        await self._record_entity_link(match, lead)
                 elif merge:
                     duplicate += 1
                     if self.ctx is not None:
@@ -133,12 +137,13 @@ class ResultPipeline:
                         # Phase 4 §26: this item UPDATED an existing lead
                         self.ctx.progress.add_updated()
                         await self.ctx.report("ITEM_UPDATED", str(lead.id), {"matched_on": match.matched_on})
-                else:
-                    # new lead inserted but carries a possible-duplicate flag
-                    flagged += 1
+                elif created:
                     saved += 1
                     if self.ctx is not None:
                         self.ctx.progress.add_saved()
+                        await self.ctx.report("ITEM_SAVED", str(lead.id))
+                    if len(self.saved_ids) < 100000:
+                        self.saved_ids.append(lead.id)
                 self.dedup.note_decision(match, merged=(not created))
             await self.session.commit()
         except Exception:
@@ -147,6 +152,30 @@ class ResultPipeline:
         return {"saved": saved, "duplicate": duplicate, "flagged": flagged}
 
     # ------------------------------------------------------------------- end
+    async def _record_entity_link(self, match, new_lead) -> None:
+        """Best-effort source-graph evidence row; must never break the batch."""
+        try:
+            from app.models.scrape import EntityLink
+
+            existing_org = getattr(new_lead, "organization_id", None)
+            existing_lead = await self.session.get(type(new_lead), match.lead_id)
+            link = EntityLink(
+                lead_id=new_lead.id,
+                related_lead_id=match.lead_id,
+                relation="SAME_BUSINESS",
+                matched_by=match.matched_on or "name_key",
+                confidence=match.confidence.value if match.confidence else "MEDIUM",
+                status="ACTIVE",
+                # same convention as the leads themselves: the ACTOR THAT RAN
+                source_actor_a=getattr(new_lead, "source_actor_id", None),
+                source_actor_b=(getattr(existing_lead, "source_actor_id", None) if existing_lead else None),
+                detected_by_job_id=(self.ctx.job_id if self.ctx is not None else None),
+                organization_id=existing_org,
+            )
+            self.session.add(link)
+        except Exception:  # noqa: BLE001 — evidence is advisory
+            logger.warning("EntityLink recording skipped", exc_info=True)
+
     async def finish(self) -> dict:
         await self.process_batch()
         self.files.close()

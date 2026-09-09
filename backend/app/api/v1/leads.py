@@ -198,6 +198,33 @@ async def create_tag(
     return {"success": True, "data": tag.to_public_dict()}
 
 
+@router.post("/{lead_id}/enrich")
+async def enrich_lead(
+    lead_id: uuid.UUID,
+    request: Request,
+    session: DbSession,
+    audit: AuditDep,
+    user=Depends(require_permission("leads.edit")),
+):
+    """Re-check a lead's public website for contact data (spec §20).
+
+    Fills EMPTY fields only — existing values are never overwritten.
+    Consent is never implied; marketing eligibility is unchanged.
+    """
+    from app.services.scraping.enrichment import LeadEnrichmentService
+
+    lead = await _visible_lead(session, lead_id, user)
+    if lead.merged_into_id is not None:
+        raise ValidationError("This lead has been merged and is read-only")
+    service = LeadEnrichmentService(session, _settings(request))
+    updated = await service.enrich_lead(lead)
+    await audit.log(
+        session, action="lead.enriched", resource_type="lead", resource_id=str(lead.id),
+        actor_user_id=user.id,
+    )
+    return {"success": True, "data": updated.to_public_dict()}
+
+
 @router.patch("/tags/{tag_id}")
 async def update_tag(
     tag_id: uuid.UUID,

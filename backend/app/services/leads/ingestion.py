@@ -138,11 +138,12 @@ class LeadIngestionService:
                 user_id=self.created_by,
             )
 
-        flagged = bool(
-            not created
-            and not merge
-            and (lead.metadata_json or {}).get("possible_duplicate_of")
-        )
+        # The duplicate flag is written only on the information-preserving
+        # MEDIUM-insert path (confidence != NONE, merge=False), so its mere
+        # presence identifies a flagged record. (Previously this required
+        # `not created`, which is impossible on that path — flagged was
+        # always False and the pipeline counter never counted anything.)
+        flagged = bool((lead.metadata_json or {}).get("possible_duplicate_of"))
         return IngestionResult(lead, created, merge and not created, flagged, match)
 
 

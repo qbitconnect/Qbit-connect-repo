@@ -95,6 +95,7 @@ class ScrapeWorker:
         outbox_task = asyncio.create_task(self._inbox_outbox_loop())
         automation_task = asyncio.create_task(self._automation_loop())
         analytics_task = asyncio.create_task(self._analytics_loop())
+        schedules_task = asyncio.create_task(self._schedules_loop())
         heartbeat_file_task = asyncio.create_task(self._liveness_loop())
         backup_task = asyncio.create_task(self._backup_loop())
         try:
@@ -128,6 +129,7 @@ class ScrapeWorker:
             outbox_task.cancel()
             automation_task.cancel()
             analytics_task.cancel()
+            schedules_task.cancel()
             await self._drain()
             await self.queue.aclose()
             await self.db.close()
@@ -168,6 +170,78 @@ class ScrapeWorker:
     def _handle_signal(self) -> None:
         log_with(logger, 20, "Shutdown signal received; pausing in-flight jobs")
         self._shutdown.set()
+
+    async def _schedules_loop(self) -> None:
+        """Scrape schedule tick (spec §SCHEDULING) — claims due schedules and
+        enqueues jobs through the regular JobEngine path. The worker remains
+        the ONLY scheduler; a failing schedule never touches other loops."""
+        from app.services.scraping.scheduling import ScrapeScheduleService
+
+        poll = max(self.settings.QBIT_WORKER_POLL_SECONDS, 5.0)
+        try:
+            while not self._shutdown.is_set():
+                fired = 0
+                try:
+                    async with self.db.session() as session:
+                        service = ScrapeScheduleService(session)
+                        due = await service.due_schedules(limit=10)
+                    for schedule in due:
+                        fired += await self._fire_schedule(schedule)
+                except Exception:  # noqa: BLE001 — keep the loop alive
+                    logger.exception("Schedules loop iteration failed")
+                await asyncio.sleep(poll if fired else max(poll * 3, 15.0))
+        except asyncio.CancelledError:
+            return
+
+    async def _fire_schedule(self, schedule) -> int:
+        """Claim one due schedule and enqueue its job. Returns 1 on success."""
+        from app.services.scraping.engine import JobEngine
+        from app.services.scraping.scheduling import ScrapeScheduleService
+        owner = f"schedule-{uuid.uuid4().hex[:8]}"
+        async with self.db.session() as session:
+            service = ScrapeScheduleService(session)
+            claimed = await service.claim_due(schedule.id, owner=owner)
+            if claimed is None:
+                return 0
+            actor_id = claimed.actor_id
+            schedule_id = claimed.id
+            payload_input = dict(claimed.input or {})
+            payload_config = dict(claimed.config or {})
+        entry = self.registry.entry(actor_id)
+        if entry is None or not entry.enabled:
+            async with self.db.session() as session:
+                await ScrapeScheduleService(session).mark_outcome(
+                    schedule_id, ok=False,
+                    error=f"Actor {actor_id!r} is not registered or disabled",
+                )
+            return 0
+        try:
+            validated = entry.actor.validate_input(payload_input)
+            if not validated.valid:
+                raise ValueError("input validation failed: " + "; ".join(validated.errors))
+            async with self.db.session() as session:
+                engine = JobEngine(session, self.queue)
+                job = await engine.create_job(
+                    entry.actor,
+                    validated.normalized_input,
+                    payload_config,
+                    created_by=claimed.created_by,
+                )
+                job_id = job.id
+                await ScrapeScheduleService(session).mark_outcome(
+                    schedule_id, ok=True, job_id=job_id
+                )
+            log_with(
+                logger, 20, "Schedule fired",
+                schedule_id=str(schedule_id), actor_id=actor_id, job_id=str(job_id),
+            )
+            return 1
+        except Exception as exc:  # noqa: BLE001 — one bad schedule must not stop others
+            async with self.db.session() as session:
+                await ScrapeScheduleService(session).mark_outcome(
+                    schedule_id, ok=False, error=str(exc)
+                )
+            return 0
 
     async def _campaign_loop(self) -> None:
         """Phase 5: marketing engine loop — schedules, launches, sends.

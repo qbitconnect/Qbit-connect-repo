@@ -67,7 +67,14 @@ from app.models.messaging import (
     ProviderEvent,
 )
 from app.models.rbac import Permission, Role
-from app.models.scrape import Lead, ScrapeJob, ScrapeJobCheckpoint, ScrapeJobEvent
+from app.models.scrape import (
+    EntityLink,
+    Lead,
+    ScrapeJob,
+    ScrapeJobCheckpoint,
+    ScrapeJobEvent,
+    ScrapeSchedule,
+)
 from app.models.setting import SystemSetting
 from app.models.user import User
 
@@ -122,6 +129,8 @@ __all__ = [
     "ScrapeJob",
     "ScrapeJobCheckpoint",
     "ScrapeJobEvent",
+    "ScrapeSchedule",
+    "EntityLink",
     "SendingAccount",
     "SuppressionEntry",
     "SystemSetting",

@@ -17,6 +17,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
@@ -42,6 +43,23 @@ class JobStatus(str, enum.Enum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
+
+
+class EnrichmentStatus(str, enum.Enum):
+    """Lifecycle of the contact-enrichment layer for one lead (spec §20)."""
+
+    UNRICHED = "UNRICHED"
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    ENRICHED = "ENRICHED"
+    FAILED = "FAILED"
+    SKIPPED = "SKIPPED"  # no enrichment path available (e.g. no website)
+
+
+class ScheduleType(str, enum.Enum):
+    ONCE = "ONCE"
+    INTERVAL = "INTERVAL"
+    DAILY = "DAILY"
 
 
 #: Legal transitions (architecture doc 09 §2). Enforced by the job engine.
@@ -213,6 +231,7 @@ class Lead(Base):
         Index("ix_leads_organization", "organization_id"),
         Index("ix_leads_assigned_user", "assigned_user_id"),
         Index("ix_leads_assigned_team", "assigned_team_id"),
+        Index("ix_leads_enrichment_status", "enrichment_status"),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -269,6 +288,14 @@ class Lead(Base):
     #: soft-merge pointer — the surviving lead after a merge (never hard-delete history)
     merged_into_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: enrichment lifecycle (spec §20) — UNRICHED until the enrichment layer runs
+    enrichment_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=EnrichmentStatus.UNRICHED.value,
+        server_default=EnrichmentStatus.UNRICHED.value,
+    )
+    #: extracted/enriched-data confidence 0-100 (distinct from completeness
+    #: quality_score); set by the enrichment layer / high-confidence matches
+    confidence: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     # --- Phase 11: tenancy + assignment ------------------------------------------
     organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
@@ -315,6 +342,8 @@ class Lead(Base):
             "seen_count": self.seen_count,
             "status": self.status,
             "quality_score": self.quality_score,
+            "enrichment_status": self.enrichment_status,
+            "confidence": self.confidence,
             "last_verified_at": self.last_verified_at.isoformat() if self.last_verified_at else None,
             "merged_into_id": str(self.merged_into_id) if self.merged_into_id else None,
             "archived_at": self.archived_at.isoformat() if self.archived_at else None,
@@ -324,4 +353,128 @@ class Lead(Base):
             "organization_id": str(self.organization_id) if self.organization_id else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class ScrapeSchedule(Base):
+    """Recurring actor execution (spec §SCHEDULING, §RECURRING INTELLIGENCE).
+
+    Dependency-free recurrence: ONCE (next_run_at), INTERVAL (every N
+    seconds), DAILY (at hh:mm in an IANA timezone). The worker loop claims
+    due rows with a guarded UPDATE (same lease discipline as automation
+    executions) and enqueues a scrape job with the saved input/config.
+    """
+
+    __tablename__ = "scrape_schedules"
+    __table_args__ = (
+        Index("ix_scrape_schedules_next_run", "next_run_at"),
+        Index("ix_scrape_schedules_actor", "actor_id"),
+        Index("ix_scrape_schedules_organization", "organization_id"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    actor_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    input: Mapped[dict] = mapped_column(PortableJSON, nullable=False, default=dict)
+    config: Mapped[dict] = mapped_column(PortableJSON, nullable=False, default=dict)
+
+    schedule_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    interval_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    daily_time: Mapped[str | None] = mapped_column(String(5), nullable=True)  # "HH:MM"
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="UTC")
+
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_job_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+
+    run_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: stop after N runs (None = unlimited; ONCE schedules use 1)
+    max_runs: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = timestamp_columns()[0]
+    updated_at: Mapped[datetime] = timestamp_columns()[1]
+
+    def to_public_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "actor_id": self.actor_id,
+            "name": self.name,
+            "input": self.input or {},
+            "config": self.config or {},
+            "schedule_type": self.schedule_type,
+            "interval_seconds": self.interval_seconds,
+            "daily_time": self.daily_time,
+            "timezone": self.timezone,
+            "enabled": self.enabled,
+            "next_run_at": self.next_run_at.isoformat() if self.next_run_at else None,
+            "last_run_at": self.last_run_at.isoformat() if self.last_run_at else None,
+            "last_job_id": str(self.last_job_id) if self.last_job_id else None,
+            "run_count": self.run_count,
+            "failure_count": self.failure_count,
+            "max_runs": self.max_runs,
+            "last_error": self.last_error,
+            "created_by": str(self.created_by) if self.created_by else None,
+            "organization_id": str(self.organization_id) if self.organization_id else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class EntityLink(Base):
+    """Source-graph evidence (spec §QBIT DIFFERENTIATION #1/#2).
+
+    Records that two lead records — typically captured by DIFFERENT source
+    actors (e.g. google-maps + website + email-finder) — refer to the same
+    real-world business. Written by the dedup pipeline (MEDIUM matches stay
+    separate leads) and the workspace duplicate scan; merge resolves the
+    link (relation resolved_by=MERGED via leads.merged_into_id).
+    """
+
+    __tablename__ = "entity_links"
+    __table_args__ = (
+        Index("ix_entity_links_lead", "lead_id"),
+        Index("ix_entity_links_related", "related_lead_id"),
+        Index("ix_entity_links_organization", "organization_id"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    lead_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
+    )
+    related_lead_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
+    )
+    relation: Mapped[str] = mapped_column(String(30), nullable=False, default="SAME_BUSINESS")
+    #: evidence type: email | phone | website | name_key | manual
+    matched_by: Mapped[str] = mapped_column(String(30), nullable=False)
+    #: MatchConfidence bucket of the evidence (HIGH/MEDIUM/LOW)
+    confidence: Mapped[str] = mapped_column(String(10), nullable=False, default="MEDIUM")
+    status: Mapped[str] = mapped_column(String(12), nullable=False, default="ACTIVE")
+    resolved_by: Mapped[str | None] = mapped_column(String(20), nullable=True)  # MERGED/KEPT_BOTH
+    source_actor_a: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source_actor_b: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    detected_by_job_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = timestamp_columns()[0]
+
+    def to_public_dict(self) -> dict:
+        return {
+            "id": str(self.id),
+            "lead_id": str(self.lead_id),
+            "related_lead_id": str(self.related_lead_id),
+            "relation": self.relation,
+            "matched_by": self.matched_by,
+            "confidence": self.confidence,
+            "status": self.status,
+            "resolved_by": self.resolved_by,
+            "source_actor_a": self.source_actor_a,
+            "source_actor_b": self.source_actor_b,
+            "detected_by_job_id": str(self.detected_by_job_id) if self.detected_by_job_id else None,
+            "organization_id": str(self.organization_id) if self.organization_id else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
