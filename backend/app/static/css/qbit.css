@@ -925,7 +925,8 @@ td input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accen
   .search-trigger { min-width: 0; }
   .search-trigger .search-hint, .search-trigger .kbd { display: none; }
   .inbox-shell { grid-template-columns: 1fr; height: auto; }
-  .inbox-pane { max-height: 480px; }
+  .inbox-pane { max-height: none; overflow: visible; }
+  .inbox-list { max-height: 420px; }
   .grid-2 { grid-template-columns: 1fr; }
   .charts-grid { grid-template-columns: 1fr; }
   .page-head { align-items: flex-start; flex-direction: column; }
