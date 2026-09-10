@@ -37,6 +37,10 @@ class ActorCategory(str, enum.Enum):
     PUBLIC_DATA = "public_data"
     UNIVERSAL = "universal"
     EMAIL = "email"
+    # Actor Platform spec §25 catalog groups (additive)
+    SOCIAL_MEDIA = "social_media"
+    ADS = "ads"
+    ECOMMERCE = "ecommerce"
 
 
 class ActorStatus(str, enum.Enum):

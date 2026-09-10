@@ -1,8 +1,21 @@
-"""Universal Web actor schemas (brief §30)."""
+"""Universal Web actor schemas (brief §30; extended by Actor Platform §5).
+
+`fields`-driven deterministic extraction remains the core. NEW in the Actor
+Platform: `strategy: auto|selectors` — auto mode runs the layered engine
+(HTTP → HTML → JSON-LD/embedded JSON/meta → contacts → links/tables) and
+emits a best-effort record WITHOUT any declared fields.
+"""
 
 from __future__ import annotations
 
+from enum import Enum
+
 from pydantic import BaseModel, Field, HttpUrl, field_validator
+
+
+class ExtractStrategy(str, Enum):
+    AUTO = "auto"          # layered auto-detect (spec §5)
+    SELECTORS = "selectors"  # classic declared fields (brief §30)
 
 
 class FieldSpec(BaseModel):
@@ -15,8 +28,9 @@ class FieldSpec(BaseModel):
 
 class UniversalWebInput(BaseModel):
     url: HttpUrl
+    strategy: ExtractStrategy = ExtractStrategy.SELECTORS
     item_selector: str | None = Field(default=None, max_length=200)
-    fields: list[FieldSpec] = Field(min_length=1, max_length=30)
+    fields: list[FieldSpec] = Field(default_factory=list, max_length=30)
     max_pages: int = Field(default=1, ge=1, le=50)
     pagination_next_selector: str | None = Field(default=None, max_length=200)
     follow_same_domain: bool = False
@@ -25,7 +39,10 @@ class UniversalWebInput(BaseModel):
 
     @field_validator("fields")
     @classmethod
-    def _unique_names(cls, v: list[FieldSpec]) -> list[FieldSpec]:
+    def _fields_required_for_selectors(cls, v: list[FieldSpec], info) -> list[FieldSpec]:
+        strategy = info.data.get("strategy", ExtractStrategy.SELECTORS)
+        if strategy == ExtractStrategy.SELECTORS and not v:
+            raise ValueError("fields are required for the selectors strategy")
         names = [f.name for f in v]
         if len(names) != len(set(names)):
             raise ValueError("Field names must be unique")

@@ -20,9 +20,11 @@ def test_builtin_actors_register_and_discover(registry: ActorRegistry):
     assert set(registry.discover()) == {
         "google-maps", "website", "email-finder", "business-directory",
         "public-data", "universal-web", "sitemap-intelligence",
+        # Actor Platform (spec §7): social / ads / india-lead actors
+        "instagram", "meta-ads-library", "linkedin-public", "justdial", "indiamart",
     }
     summary = registry.summary()
-    assert summary["total"] == 7
+    assert summary["total"] == 12
 
 
 def test_register_rejects_duplicate(registry: ActorRegistry):

@@ -23,6 +23,11 @@ def builtin_actor_classes() -> list[type[ScraperActor]]:
     from app.scrapers.actors.business_directory import BusinessDirectoryActor
     from app.scrapers.actors.email_finder import EmailFinderActor
     from app.scrapers.actors.google_maps import GoogleMapsActor
+    from app.scrapers.actors.indiamart import IndiaMartActor
+    from app.scrapers.actors.instagram import InstagramActor
+    from app.scrapers.actors.justdial import JustDialActor
+    from app.scrapers.actors.linkedin import LinkedInActor
+    from app.scrapers.actors.meta_ads_library import MetaAdsLibraryActor
     from app.scrapers.actors.public_data import PublicDataActor
     from app.scrapers.actors.sitemap_intelligence import SitemapIntelligenceActor
     from app.scrapers.actors.universal import UniversalWebActor
@@ -36,6 +41,12 @@ def builtin_actor_classes() -> list[type[ScraperActor]]:
         BusinessDirectoryActor,
         PublicDataActor,
         UniversalWebActor,
+        # --- Actor Platform (spec §7): social / ads / india-lead actors ---
+        InstagramActor,
+        MetaAdsLibraryActor,
+        LinkedInActor,
+        JustDialActor,
+        IndiaMartActor,
     ]
     return classes
 
