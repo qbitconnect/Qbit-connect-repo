@@ -96,6 +96,8 @@ class ScrapeWorker:
         automation_task = asyncio.create_task(self._automation_loop())
         analytics_task = asyncio.create_task(self._analytics_loop())
         schedules_task = asyncio.create_task(self._schedules_loop())
+        run_webhooks_task = asyncio.create_task(self._run_webhooks_loop())
+        actor_health_task = asyncio.create_task(self._actor_health_loop())
         heartbeat_file_task = asyncio.create_task(self._liveness_loop())
         backup_task = asyncio.create_task(self._backup_loop())
         try:
@@ -128,6 +130,8 @@ class ScrapeWorker:
             campaign_task.cancel()
             outbox_task.cancel()
             automation_task.cancel()
+            run_webhooks_task.cancel()
+            actor_health_task.cancel()
             analytics_task.cancel()
             schedules_task.cancel()
             await self._drain()
@@ -193,6 +197,45 @@ class ScrapeWorker:
         except asyncio.CancelledError:
             return
 
+    async def _run_webhooks_loop(self) -> None:
+        """Actor Platform spec §22 — deliver queued run-lifecycle webhooks.
+        Delivery is bounded per tick; a failing webhook retries with backoff
+        and never blocks other deliveries (each row carries its own state)."""
+        from app.services.scraping.run_webhooks import deliver_pending_webhooks
+
+        poll = max(self.settings.QBIT_RUN_WEBHOOK_POLL_SECONDS, 1.0)
+        try:
+            while not self._shutdown.is_set():
+                try:
+                    await deliver_pending_webhooks(self.db.session_factory)
+                except Exception:  # noqa: BLE001 — keep the loop alive
+                    logger.exception("Run-webhook delivery tick failed")
+                await asyncio.sleep(poll)
+        except asyncio.CancelledError:
+            return
+
+    async def _actor_health_loop(self) -> None:
+        """Actor Platform spec §26 — periodic health checks with history."""
+        interval = int(getattr(self.settings, "QBIT_ACTOR_HEALTH_INTERVAL_SECONDS", 300))
+        if interval <= 0:
+            return
+        from app.services.scraping.health_monitor import HealthMonitor
+
+        try:
+            while not self._shutdown.is_set():
+                try:
+                    async with self.db.session() as session:
+                        monitor = HealthMonitor(session)
+                        for entry in self.registry.list():
+                            if entry.enabled:
+                                await monitor.check_actor(entry.actor)
+                        await session.commit()
+                except Exception:  # noqa: BLE001 — keep the loop alive
+                    logger.exception("Actor health tick failed")
+                await asyncio.sleep(max(interval, 30))
+        except asyncio.CancelledError:
+            return
+
     async def _fire_schedule(self, schedule) -> int:
         """Claim one due schedule and enqueue its job. Returns 1 on success."""
         from app.services.scraping.engine import JobEngine
@@ -207,6 +250,9 @@ class ScrapeWorker:
             schedule_id = claimed.id
             payload_input = dict(claimed.input or {})
             payload_config = dict(claimed.config or {})
+            schedule_name_hint = (
+                claimed.name or f"schedule {claimed.id}" if claimed else None
+            )
         entry = self.registry.entry(actor_id)
         if entry is None or not entry.enabled:
             async with self.db.session() as session:
@@ -226,6 +272,8 @@ class ScrapeWorker:
                     validated.normalized_input,
                     payload_config,
                     created_by=claimed.created_by,
+                    name=schedule_name_hint,
+                    trigger="SCHEDULE",
                 )
                 job_id = job.id
                 await ScrapeScheduleService(session).mark_outcome(

@@ -35,6 +35,10 @@ SCRAPING_TABLES = {
 #: Actor platform foundation tables (migration 0012) — additive only.
 ACTOR_PLATFORM_TABLES = {
     "scrape_schedules", "entity_links",
+    # migration 0013 — actor platform storage (spec §10-§14, §20, §22, §26)
+    "actor_tasks", "actor_datasets", "actor_dataset_items", "actor_kv_entries",
+    "actor_request_queue", "actor_health_checks", "run_webhooks",
+    "run_webhook_deliveries",
 }
 
 #: Phase 4 lead workspace tables (migration 0003) — additive only.

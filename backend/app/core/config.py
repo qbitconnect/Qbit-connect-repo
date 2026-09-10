@@ -123,6 +123,11 @@ class Settings(BaseSettings):
     QBIT_SCRAPER_BATCH_SIZE: int = Field(default=100, ge=1)
     QBIT_SCRAPER_CHECKPOINT_INTERVAL_SECONDS: float = Field(default=5.0, ge=1)
     QBIT_SCRAPER_PAGE_EVENT_EVERY: int = Field(default=50, ge=1)
+    # --- Actor Platform (spec §26/§22) ---------------------------------------
+    #: 0 disables the periodic health monitor; otherwise seconds between runs
+    QBIT_ACTOR_HEALTH_INTERVAL_SECONDS: int = Field(default=300, ge=0)
+    #: delivery poll cadence for run-lifecycle webhooks
+    QBIT_RUN_WEBHOOK_POLL_SECONDS: float = Field(default=5.0, ge=1)
     QBIT_SCRAPER_MAX_PAGES_DEFAULT: int = Field(default=100, ge=1)
     QBIT_SCRAPER_MAX_RECORDS_DEFAULT: int = Field(default=10000, ge=1)
     #: NEVER enable in production — only for isolated test environments.

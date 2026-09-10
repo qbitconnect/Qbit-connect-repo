@@ -67,6 +67,18 @@ from app.models.messaging import (
     ProviderEvent,
 )
 from app.models.rbac import Permission, Role
+from app.models.actor_platform import (
+    ActorDataset,
+    ActorDatasetItem,
+    ActorHealthCheck,
+    ActorKvEntry,
+    ActorRequestQueueItem,
+    ActorTask,
+    DatasetStatus,
+    QueueItemStatus,
+    RunWebhook,
+    RunWebhookDelivery,
+)
 from app.models.scrape import (
     EntityLink,
     Lead,
@@ -79,6 +91,12 @@ from app.models.setting import SystemSetting
 from app.models.user import User
 
 __all__ = [
+    "ActorDataset",
+    "ActorDatasetItem",
+    "ActorHealthCheck",
+    "ActorKvEntry",
+    "ActorRequestQueueItem",
+    "ActorTask",
     "AnalyticsAggregationRun",
     "AnalyticsDailyAutomation",
     "AnalyticsDailyCampaign",
@@ -125,6 +143,8 @@ __all__ = [
     "ReportRun",
     "ReportSnapshot",
     "Role",
+    "RunWebhook",
+    "RunWebhookDelivery",
     "SavedView",
     "ScrapeJob",
     "ScrapeJobCheckpoint",

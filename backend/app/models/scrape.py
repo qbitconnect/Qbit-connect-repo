@@ -45,6 +45,30 @@ class JobStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"
 
 
+class RunOutcome(str, enum.Enum):
+    """Terminal-run outcome refinement (Actor Platform spec §11).
+
+    `status` stays the workflow state machine (arch doc 09); `outcome` records
+    HOW a run ended, derived from real events only (spec §42 — no faking):
+    - SUCCEEDED: ran to natural completion
+    - PARTIAL:   completed, but stopped early by a configured limit
+    - TIMED_OUT: paused at a checkpoint because the wall-clock budget expired
+                 (resumable — the run can continue)
+    """
+
+    SUCCEEDED = "SUCCEEDED"
+    PARTIAL = "PARTIAL"
+    TIMED_OUT = "TIMED_OUT"
+
+
+class JobTrigger(str, enum.Enum):
+    MANUAL = "MANUAL"
+    TASK = "TASK"
+    SCHEDULE = "SCHEDULE"
+    API = "API"
+    RETRY = "RETRY"
+
+
 class EnrichmentStatus(str, enum.Enum):
     """Lifecycle of the contact-enrichment layer for one lead (spec §20)."""
 
@@ -106,6 +130,20 @@ class ScrapeJob(Base):
     records_updated: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     records_duplicate: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     records_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    #: --- Actor Platform (spec §11/§20): run identity + outcome -------------
+    #: optional operator label (from a Task or the API)
+    name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    #: saved configuration that produced this run (nullable FK)
+    task_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("actor_tasks.id", ondelete="SET NULL"), nullable=True
+    )
+    #: MANUAL | TASK | SCHEDULE | API | RETRY
+    trigger: Mapped[str] = mapped_column(
+        String(12), nullable=False, default=JobTrigger.MANUAL.value,
+        server_default=JobTrigger.MANUAL.value,
+    )
+    #: SUCCEEDED | PARTIAL | TIMED_OUT — only ever set from real run events
+    outcome: Mapped[str | None] = mapped_column(String(12), nullable=True)
     attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     resumed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -141,6 +179,10 @@ class ScrapeJob(Base):
             "actor_id": self.actor_id,
             "actor_version": self.actor_version,
             "status": self.status,
+            "name": self.name,
+            "task_id": str(self.task_id) if self.task_id else None,
+            "trigger": self.trigger,
+            "outcome": self.outcome,
             "input": self.input or {},
             "config": self.config or {},
             "progress": self.progress,

@@ -23,6 +23,7 @@ from app.core.logging import get_logger, log_with
 from app.models.scrape import (
     LEGAL_TRANSITIONS,
     JobStatus,
+    JobTrigger,
     ScrapeJob,
     ScrapeJobEvent,
 )
@@ -95,6 +96,10 @@ class JobEngine:
         config: dict | None,
         created_by: uuid.UUID | None,
         max_attempts: int = 3,
+        name: str | None = None,
+        trigger: str | None = None,
+        task_id: uuid.UUID | None = None,
+        organization_id: uuid.UUID | None = None,
     ) -> ScrapeJob:
         from app.core.config import Settings
 
@@ -108,6 +113,10 @@ class JobEngine:
             config=config,
             max_attempts=max(1, max_attempts),
             created_by=created_by,
+            name=name,
+            trigger=trigger or JobTrigger.MANUAL.value,
+            task_id=task_id,
+            organization_id=organization_id,
             created_at=now,
             updated_at=now,
         )
@@ -116,6 +125,10 @@ class JobEngine:
         await self._event(
             job.id, "JOB_CREATED", f"Job created for actor {actor.id}",
             {"actor": actor.id, "version": actor.version},
+        )
+        await _emit_webhook(
+            self.session, event="RUN_CREATED", job_id=job.id,
+            actor_id=actor.id, payload={"actor": actor.id, "version": actor.version},
         )
         await self.session.commit()
         await self.session.refresh(job)
@@ -374,3 +387,22 @@ def job_error_from_exception(exc: Exception) -> tuple[str, str]:
     if isinstance(exc, ScraperError):
         return exc.code, exc.message[:2000]
     return "INTERNAL_ERROR", f"{type(exc).__name__}: {exc}"[:2000]
+
+
+async def _emit_webhook(
+    session: AsyncSession,
+    *,
+    event: str,
+    job_id: uuid.UUID,
+    actor_id: str,
+    payload: dict,
+) -> None:
+    """Best-effort run-webhook emission (spec §22) — never breaks the caller."""
+    try:
+        from app.services.scraping.run_webhooks import RunWebhookService
+
+        await RunWebhookService(session).emit(
+            event=event, job_id=job_id, actor_id=actor_id, payload=payload
+        )
+    except Exception:  # noqa: BLE001 — webhooks must never break runs
+        pass

@@ -28,7 +28,8 @@ from sqlalchemy import func, select, update
 
 from app.core.config import Settings
 from app.core.logging import get_logger, log_with
-from app.models.scrape import JobStatus, ScrapeJob
+from app.models.actor_platform import DatasetStatus
+from app.models.scrape import JobStatus, RunOutcome, ScrapeJob
 from app.scrapers.core.context import JobLimits, ScraperContext
 from app.scrapers.core.exceptions import (
     ScraperCancelledError,
@@ -100,6 +101,7 @@ class JobRunner:
                     attempt=func.coalesce(ScrapeJob.attempt, 0) + 1,
                     deadline_at=deadline,
                     stop_requested="NONE",
+                    outcome=None,  # a resumed run re-earns its outcome honestly
                     updated_at=now,
                 )
             )
@@ -113,6 +115,13 @@ class JobRunner:
                     "JOB_STARTED",
                     f"Claimed by {self.owner} (attempt {job.attempt})",
                 )
+            )
+            from app.services.scraping.engine import _emit_webhook
+
+            await _emit_webhook(
+                session, event="RUN_STARTED", job_id=job.id,
+                actor_id=job.actor_id,
+                payload={"actor": job.actor_id, "attempt": job.attempt},
             )
             await session.commit()
             await self.queue.renew_lease(str(job.id), self.owner, self.lease_seconds)
@@ -163,6 +172,23 @@ class JobRunner:
         dedup = Deduplicator(policy=(job.config or {}).get("dedup_policy", "auto"))
 
         async with self.session_factory() as pipeline_session:
+            dataset_id: uuid.UUID | None = None
+            try:
+                from app.services.scraping.datasets import DatasetService
+
+                dataset = await DatasetService(pipeline_session).create_for_job(
+                    job_id=job.id,
+                    actor_id=job.actor_id,
+                    actor_version=job.actor_version,
+                    name=job.name,
+                    organization_id=getattr(job, "organization_id", None),
+                    created_by=job.created_by,
+                )
+                dataset_id = dataset.id  # capture BEFORE commit expires the row
+                await pipeline_session.commit()
+            except Exception:  # noqa: BLE001 — dataset is an addition, not a gate
+                dataset_id = None
+                await pipeline_session.rollback()
             pipeline = ResultPipeline(
                 pipeline_session,
                 actor_id=job.actor_id,
@@ -172,6 +198,7 @@ class JobRunner:
                 dedup=dedup,
                 created_by=job.created_by,
                 batch_size=self.settings.QBIT_SCRAPER_BATCH_SIZE,
+                dataset_id=dataset_id,
             )
             ctx = ScraperContext(
                 job_id=job.id,
@@ -210,10 +237,12 @@ class JobRunner:
                 await checkpoint.clear()
                 await ctx.close()
                 await self._finish_success(job)
+                await self._finalize_dataset(dataset_id, DatasetStatus.READY, "clean")
                 return JobStatus.COMPLETED
             except ScraperCancelledError:
                 await self._safe_finalize(pipeline, progress, events, ctx, checkpoint)
                 await self._finish_cancelled(job)
+                await self._finalize_dataset(dataset_id, DatasetStatus.READY, "partial")
                 return JobStatus.CANCELLED
             except ScraperPausedError:
                 await self._safe_finalize(pipeline, progress, events, ctx, checkpoint)
@@ -224,7 +253,8 @@ class JobRunner:
                 await self._safe_finalize(pipeline, progress, events, ctx, checkpoint)
                 await ctx.close()
                 await self._finish_paused(
-                    job, message=f"Paused: {exc.message}", event_code=exc.code
+                    job, message=f"Paused: {exc.message}", event_code=exc.code,
+                    outcome=RunOutcome.TIMED_OUT.value,
                 )
                 return JobStatus.PAUSED
             except ScraperLimitReachedError as exc:
@@ -232,8 +262,10 @@ class JobRunner:
                 await self._safe_finalize(pipeline, progress, events, ctx, checkpoint)
                 await ctx.close()
                 await self._finish_success(
-                    job, extra_event=("LIMIT_REACHED", exc.message)
+                    job, extra_event=("LIMIT_REACHED", exc.message),
+                    outcome=RunOutcome.PARTIAL.value,
                 )
+                await self._finalize_dataset(dataset_id, DatasetStatus.READY, "partial")
                 return JobStatus.COMPLETED
             except ScraperError as exc:
                 await progress.flush()
@@ -243,6 +275,7 @@ class JobRunner:
                 if exc.retryable:
                     return await self._schedule_retry(job, exc)
                 await self._finish_failed(job, exc)
+                await self._finalize_dataset(dataset_id, DatasetStatus.FAILED, "clean")
                 return JobStatus.FAILED
             except asyncio.CancelledError:
                 # graceful worker shutdown: checkpoint and pause (not fail)
@@ -262,6 +295,7 @@ class JobRunner:
                 await progress.flush()
                 await events.flush()
                 await ctx.close()
+                await self._finalize_dataset(dataset_id, DatasetStatus.FAILED, "clean")
                 return await self._schedule_retry(job, exc)
             finally:
                 heartbeat.cancel()
@@ -282,7 +316,9 @@ class JobRunner:
         await ctx.save_checkpoint(force=True)
         await ctx.close()
 
-    async def _finish_success(self, job: ScrapeJob, *, extra_event=None) -> None:
+    async def _finish_success(
+        self, job: ScrapeJob, *, extra_event=None, outcome: str | None = None
+    ) -> None:
         async with self.session_factory() as session:
             fresh = await session.get(ScrapeJob, job.id)
             if fresh.status not in (JobStatus.RUNNING,):
@@ -292,6 +328,7 @@ class JobRunner:
             fresh.progress = 100.0
             fresh.stop_requested = "NONE"
             fresh.stage = "completed"
+            fresh.outcome = outcome or RunOutcome.SUCCEEDED.value
             session.add(
                 _event_row(
                     job.id, "JOB_COMPLETED",
@@ -307,6 +344,22 @@ class JobRunner:
             )
             if extra_event:
                 session.add(_event_row(job.id, extra_event[0], extra_event[1], {}))
+            from app.services.scraping.engine import _emit_webhook
+
+            await _emit_webhook(
+                session,
+                event="RUN_SUCCEEDED",
+                job_id=job.id,
+                actor_id=fresh.actor_id,
+                payload={
+                    "outcome": fresh.outcome,
+                    "records_found": fresh.records_found,
+                    "records_saved": fresh.records_saved,
+                    "records_updated": getattr(fresh, "records_updated", 0),
+                    "records_duplicate": fresh.records_duplicate,
+                    "records_failed": fresh.records_failed,
+                },
+            )
             # Phase 9 §55: SCRAPE_JOB_COMPLETED event (best-effort intake)
             await _emit_automation(
                 session, job_id=str(job.id),
@@ -358,10 +411,23 @@ class JobRunner:
                     resource_type="scrape_job",
                     resource_id=str(job.id),
                 )
+            from app.services.scraping.engine import _emit_webhook
+
+            await _emit_webhook(
+                session, event="RUN_FAILED", job_id=job.id,
+                actor_id=fresh.actor_id,
+                payload={
+                    "error": message,
+                    "error_code": code,
+                    "records_found": fresh.records_found,
+                    "records_saved": fresh.records_saved,
+                },
+            )
             await session.commit()
 
     async def _finish_paused(
-        self, job: ScrapeJob, *, message: str = "Job paused", event_code: str | None = None
+        self, job: ScrapeJob, *, message: str = "Job paused", event_code: str | None = None,
+        outcome: str | None = None,
     ) -> None:
         async with self.session_factory() as session:
             fresh = await session.get(ScrapeJob, job.id)
@@ -371,7 +437,17 @@ class JobRunner:
             fresh.paused_at = datetime.now(timezone.utc)
             fresh.stop_requested = "NONE"
             fresh.error = message if event_code else fresh.error
+            if outcome:
+                fresh.outcome = outcome  # TIMED_OUT — resumable, spec §11
             session.add(_event_row(job.id, "JOB_PAUSED", message, {}))
+            if outcome == RunOutcome.TIMED_OUT.value:
+                from app.services.scraping.engine import _emit_webhook
+
+                await _emit_webhook(
+                    session, event="RUN_TIMED_OUT", job_id=job.id,
+                    actor_id=fresh.actor_id,
+                    payload={"message": message, "resumable": True},
+                )
             await session.commit()
             await self.queue.clear_control(str(job.id))
 
@@ -385,8 +461,34 @@ class JobRunner:
             fresh.completed_at = datetime.now(timezone.utc)
             fresh.stop_requested = "NONE"
             session.add(_event_row(job.id, "JOB_CANCELLED", "Cancelled at a safe point", {}))
+            from app.services.scraping.engine import _emit_webhook
+
+            await _emit_webhook(
+                session, event="RUN_ABORTED", job_id=job.id,
+                actor_id=fresh.actor_id,
+                payload={"records_found": fresh.records_found, "records_saved": fresh.records_saved},
+            )
             await session.commit()
             await self.queue.clear_control(str(job.id))
+
+    async def _finalize_dataset(self, dataset_id: uuid.UUID | None, status, clean_status: str) -> None:
+        """Terminal dataset state from the REAL run outcome (spec §10/§42)."""
+        if dataset_id is None:
+            return
+        try:
+            from app.services.scraping.datasets import DatasetService
+
+            async with self.session_factory() as session:
+                svc = DatasetService(session)
+                row = await svc.get(dataset_id)
+                if row is None:
+                    return
+                if row.item_count == 0 and status == DatasetStatus.READY:
+                    status = DatasetStatus.EMPTY
+                await svc.finalize(dataset_id, status=status, clean_status=clean_status)
+                await session.commit()
+        except Exception:  # noqa: BLE001 — never mask the run's own outcome
+            logger.warning("Dataset finalize failed", exc_info=True)
 
     async def _schedule_retry(self, job: ScrapeJob, exc: Exception) -> str:
         """Retryable failure: requeue with exponential backoff + jitter (§16)."""

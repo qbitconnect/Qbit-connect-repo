@@ -42,6 +42,7 @@ class ResultPipeline:
         batch_size: int = 100,
         created_by: uuid.UUID | None = None,
         ctx=None,  # ScraperContext for stop checks + counters (optional in tests)
+        dataset_id: uuid.UUID | None = None,  # Actor Platform spec §10
     ) -> None:
         self.session = session
         self.actor_id = actor_id
@@ -53,6 +54,7 @@ class ResultPipeline:
         self.batch_size = batch_size
         self.created_by = created_by
         self.ctx = ctx
+        self.dataset_id = dataset_id
         self.ingestion = LeadIngestionService(
             actor_id=actor_id,
             actor_version=actor_version,
@@ -61,6 +63,7 @@ class ResultPipeline:
             created_by=created_by,
         )
         self._batch: list[dict] = []
+        self._ds_batch: list[dict] = []
         self.saved_ids: list[uuid.UUID] = []
 
     # ------------------------------------------------------------------ feed
@@ -85,6 +88,10 @@ class ResultPipeline:
         )
         self.files.write_normalized(normalized)
         self._batch.append(normalized)
+        if self.dataset_id is not None:
+            # Dataset capture (spec §10): every normalized item lands in the
+            # run's dataset; flushed in the same batch transaction below.
+            self._ds_batch.append(normalized)
         if len(self._batch) >= self.batch_size:
             await self.process_batch()
         return {"outcome": "queued"}
@@ -103,10 +110,15 @@ class ResultPipeline:
         stop decision was already made and flushing must complete.
         """
         batch, self._batch = self._batch, []
-        if not batch:
+        ds_batch, self._ds_batch = self._ds_batch, []
+        if not batch and not ds_batch:
             return {"saved": 0, "duplicate": 0, "flagged": 0}
         saved = duplicate = flagged = 0
         try:
+            if ds_batch and self.dataset_id is not None:
+                from app.services.scraping.datasets import DatasetService
+
+                await DatasetService(self.session).add_items(self.dataset_id, ds_batch)
             for item in batch:
                 if stop_checks and self.ctx is not None:
                     await self.ctx.check_stopped()  # cooperative stop between items
