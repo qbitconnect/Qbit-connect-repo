@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Datasets — QBIT Connect{% endblock %}
+{% block nav_datasets %}active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>DATASETS</h1>
+    <p class="muted">Every run captures its normalized output as a queryable, exportable dataset — {{ total }} total.</p>
+  </div>
+</header>
+
+<section class="card table-card">
+  <table>
+    <thead>
+      <tr><th>Dataset</th><th>Actor</th><th>Status</th><th>Items</th><th>Completeness</th><th>Created</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      {% set d = row.dataset %}
+      <tr>
+        <td class="mono"><a href="/datasets/{{ d.id }}">{{ str(d.id)[:8] }}</a>
+          {% if d.name %}<span class="muted small">· {{ d.name }}</span>{% endif %}</td>
+        <td>{{ row.actor_name }}</td>
+        <td><span class="badge badge-{{ d.status.lower() }}">{{ d.status }}</span></td>
+        <td class="mono">{{ d.item_count }}</td>
+        <td>{% if d.clean_status == 'partial' %}<span class="badge badge-partial">PARTIAL</span>{% else %}<span class="badge badge-ready">CLEAN</span>{% endif %}</td>
+        <td>{{ d.created_at.strftime('%Y-%m-%d %H:%M') if d.created_at }}</td>
+        <td><a class="btn btn-sm btn-ghost" href="/datasets/{{ d.id }}">Browse</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">
+        <div class="empty-state">
+          <h3>No datasets yet</h3>
+          <p>Run an actor — every run automatically produces a dataset.</p>
+          <a class="btn btn-primary" href="/actors">Browse actors</a>
+        </div>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% if pages > 1 %}
+<nav class="pager">
+  {% if page > 1 %}<a class="btn btn-ghost btn-sm" href="/datasets?page={{ page - 1 }}">← Prev</a>{% endif %}
+  <span class="muted mono">page {{ page }} / {{ pages }}</span>
+  {% if page < pages %}<a class="btn btn-ghost btn-sm" href="/datasets?page={{ page + 1 }}">Next →</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

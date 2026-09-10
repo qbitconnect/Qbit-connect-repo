@@ -1169,3 +1169,28 @@ td input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accen
   font-family: var(--font-mono, ui-monospace, monospace); font-size: 12.5px;
   color: var(--text-2, #c9d4e8); line-height: 1.6; margin: 8px 0 0;
 }
+
+/* --- Actor Platform console (spec §24/§41) -------------------------------- */
+.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 18px; }
+.stat-card {
+  background: var(--card, rgba(255,255,255,0.03)); border: 1px solid var(--edge);
+  border-radius: var(--r-sm); padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+.stat-card .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); }
+.stat-card .stat-value.small { font-size: 13px; line-height: 1.5; word-break: break-all; }
+.btn-row { display: inline-flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.actor-card { display: flex; flex-direction: column; gap: 10px; padding: 18px; }
+.actor-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.actor-card-head h3 { margin: 0; font-size: 16px; letter-spacing: -0.01em; }
+.actor-card-head h3 a { color: var(--text); text-decoration: none; }
+.actor-card-head h3 a:hover { color: var(--accent-bright); }
+.actor-card p { margin: 0; }
+.actor-card-stats { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); }
+.actor-card-health { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.actor-card-health .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.actor-card-caps { display: flex; gap: 6px; flex-wrap: wrap; }
+.actor-card-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 4px; }
+.dataset-cell { max-width: 640px; overflow-wrap: anywhere; }
+.dataset-cell .pill { font-size: 10.5px; margin-right: 6px; }
+.data-table td { vertical-align: top; }

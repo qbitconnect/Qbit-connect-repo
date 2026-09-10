@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Webhook {{ hook.name }} — QBIT Connect{% endblock %}
+{% block nav_webhooks %}active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>WEBHOOK <span class="mono">{{ hook.name }}</span></h1>
+    <p class="muted">{{ hook.url }} · scope: {{ actor_name }} · <span class="badge badge-{{ 'ready' if hook.enabled else 'disabled' }}">{{ 'ENABLED' if hook.enabled else 'DISABLED' }}</span></p>
+  </div>
+  <a class="btn btn-ghost" href="/run-webhooks">← All webhooks</a>
+</header>
+
+<section class="card">
+  <h2>Subscribed events</h2>
+  <div class="actor-card-caps">
+    {% for e in hook.events %}<span class="pill">{{ e }}</span>{% else %}<span class="muted">All events</span>{% endfor %}
+  </div>
+</section>
+
+<section class="card table-card" style="margin-top:1rem">
+  <h2>Delivery log (latest 50)</h2>
+  <table>
+    <thead><tr><th>Event</th><th>Status</th><th>Attempts</th><th>Last code</th><th>Next retry</th><th>When</th></tr></thead>
+    <tbody>
+      {% for d in deliveries %}
+      <tr>
+        <td class="mono">{{ d.event }}</td>
+        <td><span class="badge badge-{{ 'ready' if d.status == 'DELIVERED' else ('failed' if d.status == 'FAILED' else 'running') }}">{{ d.status }}</span></td>
+        <td class="mono">{{ d.attempts }}</td>
+        <td class="mono">{{ d.last_status_code or '—' }}</td>
+        <td>{{ d.next_retry_at.strftime('%H:%M:%S') if d.next_retry_at else '—' }}</td>
+        <td>{{ d.created_at.strftime('%Y-%m-%d %H:%M:%S') if d.created_at }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6"><p class="muted">No deliveries yet. Events are recorded as runs happen; the worker delivers within seconds.</p></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Dataset {{ str(dataset.id)[:8] }} — QBIT Connect{% endblock %}
+{% block nav_datasets %}active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>DATASET <span class="mono">{{ str(dataset.id)[:8] }}</span></h1>
+    <p class="muted">
+      {{ actor_name }} · {{ dataset.status }}
+      {% if dataset.clean_status == 'partial' %}<span class="badge badge-partial">PARTIAL — stopped early by a limit</span>{% endif %}
+      {% if dataset.job_id %}· run <a class="mono" href="/scraping/jobs/{{ dataset.job_id }}">{{ str(dataset.job_id)[:8] }}</a>{% endif %}
+    </p>
+  </div>
+  <div class="btn-row">
+    {% for fmt in ('csv', 'json', 'jsonl', 'xlsx') %}
+    <form method="post" action="/datasets/{{ dataset.id }}/export">
+      <input type="hidden" name="format" value="{{ fmt }}">
+      <button class="btn btn-sm btn-ghost" type="submit">Export {{ fmt|upper }}</button>
+    </form>
+    {% endfor %}
+  </div>
+</header>
+
+<section class="card stat-row">
+  <div class="stat-card"><span class="stat-value mono">{{ dataset.item_count }}</span><span class="stat-label">Items</span></div>
+  <div class="stat-card"><span class="stat-value mono">{{ dataset.schema_fields|length }}</span><span class="stat-label">Fields detected</span></div>
+  <div class="stat-card"><span class="stat-value mono small">{{ dataset.schema_fields[:6]|join(', ') }}{% if dataset.schema_fields|length > 6 %}, …{% endif %}</span><span class="stat-label">Schema preview</span></div>
+</section>
+
+<form method="get" action="/datasets/{{ dataset.id }}" class="search" style="margin-bottom:1rem">
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <input type="hidden" name="order" value="{{ order }}">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search across all dataset fields...">
+  <button class="btn btn-ghost">Search</button>
+  {% if q %}<a class="btn btn-ghost" href="/datasets/{{ dataset.id }}">Clear</a>{% endif %}
+</form>
+
+<section class="card table-card">
+  <table class="data-table">
+    <thead>
+      <tr><th>#</th><th>Row data (first 3 fields)</th></tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td class="mono muted">{{ item.idx }}</td>
+        <td class="dataset-cell">
+          {% set keys = item.data.keys()|list[:3] %}
+          {% for k in keys %}
+            <span class="pill">{{ k }}</span>
+            <span class="mono small">{{ (item.data[k] | string)[:120] if item.data[k] is not none else '—' }}</span><br>
+          {% endfor %}
+          {% if item.data.keys()|list|length > 3 %}<span class="muted small">+ {{ item.data.keys()|list|length - 3 }} more fields</span>{% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="2">
+        <div class="empty-state">
+          <h3>{{ 'No rows match the search' if q else 'No items captured' }}</h3>
+          <p>{{ 'Try a different search term.' if q else 'This run produced no normalized output.' }}</p>
+        </div>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<nav class="pager">
+  {% set base = "/datasets/" ~ dataset.id ~ "?q=" ~ q ~ "&sort=" ~ sort ~ "&order=" ~ order %}
+  {% if page > 1 %}<a class="btn btn-ghost btn-sm" href="{{ base }}&page={{ page - 1 }}">← Prev</a>{% endif %}
+  <span class="muted mono">page {{ page }} / {{ pages }} · {{ total }} rows</span>
+  {% if page < pages %}<a class="btn btn-ghost btn-sm" href="{{ base }}&page={{ page + 1 }}">Next →</a>{% endif %}
+</nav>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Run Webhooks — QBIT Connect{% endblock %}
+{% block nav_webhooks %}active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>RUN WEBHOOKS</h1>
+    <p class="muted">Signed HTTP notifications for run lifecycle events — created, started, succeeded, failed, aborted, timed out. Failed deliveries retry with exponential backoff.</p>
+  </div>
+  <button class="btn btn-primary" type="button" onclick="document.getElementById('hook-create').toggleAttribute('hidden')">+ New Webhook</button>
+</header>
+
+{% if request.query_params.get('error') %}
+<div class="alert alert-warn">{{ request.query_params.get('error') }}</div>
+{% endif %}
+
+<section class="card" id="hook-create" {% if not request.query_params.get('error') %}hidden{% endif %}>
+  <h2>Create Webhook</h2>
+  <form method="post" action="/run-webhooks/create" class="form-grid">
+    <label>Name <input name="name" required maxlength="200" placeholder="CRM sync on run completion"></label>
+    <label>Endpoint URL <input name="url" required placeholder="https://internal.example.com/hooks/qbit"></label>
+    <label>Signing secret <input name="secret" placeholder="Leave empty to auto-generate (revealed once)"></label>
+    <label>Actor filter <input name="actor_id" placeholder="Empty = all actors, e.g. instagram"></label>
+    <label>Events (comma-separated, empty = all)
+      <input name="events" placeholder="{{ events | join(', ') }}">
+    </label>
+    <div class="btn-row"><button class="btn btn-primary" type="submit">Create</button></div>
+  </form>
+  <p class="muted small">Deliveries are signed with <code>X-QBIT-Signature: t=&lt;ts&gt;,v1=&lt;hmac-sha256(ts.body)&gt;</code> — verify with your secret before trusting payloads.</p>
+</section>
+
+<section class="card table-card">
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Endpoint</th><th>Scope</th><th>Events</th><th>Deliveries</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for row in hooks %}
+      {% set h = row.hook %}
+      <tr>
+        <td><a href="/run-webhooks/{{ h.id }}"><strong>{{ h.name }}</strong></a></td>
+        <td class="mono small">{{ h.url[:60] }}</td>
+        <td>{{ row.actor_name }}</td>
+        <td class="small">{{ h.events | length }} event{{ h.events|length != 1 and 's' or '' }}</td>
+        <td class="mono">{{ row.delivered }} / {{ row.deliveries }}</td>
+        <td><span class="badge badge-{{ 'ready' if h.enabled else 'disabled' }}">{{ 'ENABLED' if h.enabled else 'DISABLED' }}</span></td>
+        <td class="btn-row">
+          <form method="post" action="/run-webhooks/{{ h.id }}/toggle"><button class="btn btn-sm btn-ghost">{{ 'Disable' if h.enabled else 'Enable' }}</button></form>
+          <form method="post" action="/run-webhooks/{{ h.id }}/delete"><button class="btn btn-sm btn-danger">Delete</button></form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">
+        <div class="empty-state">
+          <h3>No webhooks configured</h3>
+          <p>Subscribe an internal endpoint to run lifecycle events.</p>
+        </div>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

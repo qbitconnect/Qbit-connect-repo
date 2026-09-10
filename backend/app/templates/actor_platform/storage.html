@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Storage — QBIT Connect{% endblock %}
+{% block nav_storage %}active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>ACTOR STORAGE</h1>
+    <p class="muted">Key-value store for actor state and persistent request queues — DB-backed, survives restarts.</p>
+  </div>
+</header>
+
+<section class="card">
+  <h2>Request queues</h2>
+  <table>
+    <thead><tr><th>Queue</th><th>Total</th><th>Pending</th><th>Processing</th><th>Done</th><th>Failed</th></tr></thead>
+    <tbody>
+      {% for q in queues %}
+      <tr>
+        <td class="mono">{{ q.queue_name[:36] }}</td>
+        <td class="mono">{{ q.total }}</td>
+        <td class="mono">{{ q.pending }}</td>
+        <td class="mono">{{ q.processing }}</td>
+        <td class="mono">{{ q.done }}</td>
+        <td class="mono">{{ q.failed }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6"><p class="muted">No queues yet — crawlers register their URL queues here.</p></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card table-card" style="margin-top:1rem">
+  <h2>Key-value store <span class="muted small">({{ kv_total }} entries)</span></h2>
+  <table>
+    <thead><tr><th>Scope</th><th>Key</th><th>Value</th><th>Updated</th></tr></thead>
+    <tbody>
+      {% for kv in kv_rows %}
+      <tr>
+        <td class="mono">{{ kv.scope }}</td>
+        <td class="mono">{{ kv.key }}</td>
+        <td class="mono small">{{ (kv.value | tojson)[:120] }}</td>
+        <td>{{ kv.updated_at.strftime('%Y-%m-%d %H:%M') if kv.updated_at }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4"><p class="muted">No entries — actor checkpoints and state documents land here.</p></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

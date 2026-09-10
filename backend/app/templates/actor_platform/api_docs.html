@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}API — QBIT Connect{% endblock %}
+{% block nav_apidocs %}active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>ACTOR PLATFORM API</h1>
+    <p class="muted">REST surface for the actor platform — every endpoint is permission-gated and audit-logged. Spec-path aliases are served without the <code>/v1</code> prefix (e.g. <code>POST /api/actors/{slug}/runs</code>).</p>
+  </div>
+</header>
+
+<section class="card table-card">
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Purpose</th><th>Permission</th></tr></thead>
+    <tbody>
+      {% for method, path, purpose, perm in endpoints %}
+      <tr>
+        <td class="mono small"><strong>{{ method }}</strong></td>
+        <td class="mono small">{{ path }}</td>
+        <td class="small">{{ purpose }}</td>
+        <td class="mono small muted">{{ perm }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card" style="margin-top:1rem">
+  <h2>Quickstart</h2>
+  <pre class="mono small"># validate input before spending a run
+curl -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"url": "https://example.com", "strategy": "auto"}}' \
+     {{ request.base_url }}api/v1/actors/universal-web/validate
+
+# start a run
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"input": {"url": "https://example.com", "strategy": "auto"}, "name": "my first run"}' \
+     {{ request.base_url }}api/v1/actors/universal-web/runs
+
+# poll the run, then read the dataset
+curl -H "Authorization: Bearer $TOKEN" {{ request.base_url }}api/v1/runs/{run_id}
+curl -H "Authorization: Bearer $TOKEN" {{ request.base_url }}api/v1/datasets/{dataset_id}/items
+
+# export
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+     -d '{"format": "csv"}' {{ request.base_url }}api/v1/datasets/{dataset_id}/export</pre>
+</section>
+{% endblock %}

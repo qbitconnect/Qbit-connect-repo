@@ -307,9 +307,12 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     from app.ui.connections_email import router as connections_email_ui_router
     from app.ui.inbox import router as inbox_ui_router
     from app.ui.leads import router as leads_ui_router
+    from app.ui.actor_platform import router as actor_platform_ui_router
 
     app.include_router(ui_router)
     app.include_router(leads_ui_router)
+    # Actor Platform console (spec §24): actors / datasets / tasks / webhooks / storage / api-docs
+    app.include_router(actor_platform_ui_router)
     app.include_router(campaigns_ui_router)
     app.include_router(connections_ui_router)
     app.include_router(connections_email_ui_router)

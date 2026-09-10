@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Tasks — QBIT Connect{% endblock %}
+{% block nav_tasks %}active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>ACTOR TASKS</h1>
+    <p class="muted">Saved actor configurations — run, duplicate or delete. A Task always re-runs with its saved input.</p>
+  </div>
+  <button class="btn btn-primary" type="button" onclick="document.getElementById('task-create').toggleAttribute('hidden')">+ New Task</button>
+</header>
+
+{% if request.query_params.get('error') %}
+<div class="alert alert-warn">{{ request.query_params.get('error') }}</div>
+{% endif %}
+
+<section class="card" id="task-create" {% if not request.query_params.get('error') %}hidden{% endif %}>
+  <h2>Create Task</h2>
+  <form method="post" action="/tasks/create" class="form-grid">
+    <label>Actor
+      <select name="actor_id" required>
+        {% for a in actors %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Task name <input name="name" required maxlength="200" placeholder="Competitor monitoring — weekly"></label>
+    <label>Input (JSON) <textarea name="input_json" rows="5" placeholder='{"url": "https://example.com"}'></textarea></label>
+    <label>Advanced config (JSON, optional) <textarea name="config_json" rows="3" placeholder='{"max_records": 100, "max_runtime_seconds": 600}'></textarea></label>
+    <div class="btn-row"><button class="btn btn-primary" type="submit">Save Task</button></div>
+  </form>
+</section>
+
+<section class="card table-card">
+  <table>
+    <thead>
+      <tr><th>Task</th><th>Actor</th><th>Saved input</th><th>Runs</th><th>Last run</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for row in tasks %}
+      {% set t = row.task %}
+      <tr>
+        <td><strong>{{ t.name }}</strong></td>
+        <td>{{ row.actor_name }}</td>
+        <td class="mono small">{{ row.input_hint }}</td>
+        <td class="mono">{{ t.run_count }}</td>
+        <td>{{ t.last_run_at.strftime('%Y-%m-%d %H:%M') if t.last_run_at else '—' }}</td>
+        <td class="btn-row">
+          <form method="post" action="/tasks/{{ t.id }}/run"><button class="btn btn-sm btn-primary">Run</button></form>
+          <form method="post" action="/tasks/{{ t.id }}/duplicate"><button class="btn btn-sm btn-ghost">Duplicate</button></form>
+          <form method="post" action="/tasks/{{ t.id }}/delete"><button class="btn btn-sm btn-danger">Delete</button></form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">
+        <div class="empty-state">
+          <h3>No saved tasks</h3>
+          <p>Tasks store an actor's input + advanced config so recurring work is one click.</p>
+        </div>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

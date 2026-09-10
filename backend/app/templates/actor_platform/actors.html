@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Actors — QBIT Connect{% endblock %}
+{% block nav_actors %}active{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>ACTOR PLATFORM</h1>
+    <p class="muted">Internal catalog of {{ platform.total_runs and platform and actors|length or actors|length }} actors — schema-driven input, run history, health monitoring.</p>
+  </div>
+  <form method="get" action="/actors" class="search">
+    <input type="hidden" name="category" value="{{ category }}">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search actors, capabilities...">
+    <button class="btn btn-ghost">Search</button>
+  </form>
+</header>
+
+<section class="stat-row">
+  <div class="stat-card"><span class="stat-value mono">{{ platform.total_runs }}</span><span class="stat-label">Total runs</span></div>
+  <div class="stat-card"><span class="stat-value mono">{{ platform.runs_last_24h }}</span><span class="stat-label">Runs · 24h</span></div>
+  <div class="stat-card"><span class="stat-value mono">{{ platform.items_saved_total }}</span><span class="stat-label">Items saved</span></div>
+  <div class="stat-card"><span class="stat-value mono">{{ actors|length }}</span><span class="stat-label">Actors registered</span></div>
+</section>
+
+<nav class="tabs">
+  <a class="tab {{ 'active' if not category }}" href="/actors?q={{ q }}">All</a>
+  {% for c in categories %}
+  <a class="tab {{ 'active' if category == c }}" href="/actors?category={{ c }}&q={{ q }}">{{ {'business_leads':'Business Leads','website':'Website','directory':'Directory','public_data':'Public Data','universal':'Universal','email':'Email','social_media':'Social Media','ads':'Ads','ecommerce':'E-commerce'}.get(c, c) }}</a>
+  {% endfor %}
+</nav>
+
+<section class="card-grid">
+  {% for a in actors %}
+  <article class="card actor-card">
+    <div class="actor-card-head">
+      <h3><a href="/scraping/{{ a.id }}">{{ a.name }}</a></h3>
+      <span class="badge badge-{{ 'ready' if a.status == 'READY' else a.status.lower() }}">{{ a.status }}</span>
+    </div>
+    <p class="muted small">{{ a.description[:180] }}{% if a.description|length > 180 %}…{% endif %}</p>
+    <div class="actor-card-stats mono">
+      <span title="Success rate">{{ '—' if a.stats.success_rate is none else ((a.stats.success_rate * 100)|round(1)) ~ '%' }}</span>
+      <span title="Runs">{{ a.stats.total_runs }} runs</span>
+      <span title="Average runtime">{{ '—' if a.stats.avg_runtime_seconds is none else (a.stats.avg_runtime_seconds|round(1)) ~ 's avg' }}</span>
+      <span class="muted" title="Version">v{{ a.version }}</span>
+    </div>
+    {% if a.health %}
+    <div class="actor-card-health small">
+      <span class="badge badge-{{ a.health.status.lower() }}">{{ a.health.status }}</span>
+      <span class="muted">{{ a.health.detail[:80] if a.health.detail }}</span>
+    </div>
+    {% endif %}
+    <div class="actor-card-caps">
+      {% for cap in a.capabilities %}<span class="pill">{{ cap }}</span>{% endfor %}
+    </div>
+    <div class="actor-card-actions">
+      <a class="btn btn-primary btn-sm" href="/scraping/{{ a.id }}">Open workbench</a>
+      <a class="btn btn-ghost btn-sm" href="/scraping/{{ a.id }}#history">History</a>
+    </div>
+  </article>
+  {% else %}
+  <div class="empty-state">
+    <h3>No actors match</h3>
+    <p>Adjust the search or category filter.</p>
+    <a class="btn btn-primary" href="/actors">Show all</a>
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}
