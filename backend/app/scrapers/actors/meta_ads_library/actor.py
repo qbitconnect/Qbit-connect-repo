@@ -45,6 +45,10 @@ class MetaAdsLibraryActor(ScraperActor):
         "snapshot hashing for change detection",
     )
     supports_pause = True
+
+    def validate_policy(self, model) -> dict[str, str]:
+        return model.validate_policy()
+
     input_schema = MetaAdsInput
     output_fields = OUTPUT_FIELDS
 

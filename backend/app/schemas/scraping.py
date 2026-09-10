@@ -45,6 +45,10 @@ class ScrapeJobOut(BaseModel):
     actor_id: str
     actor_version: str
     status: str
+    name: str | None = None
+    task_id: str | None = None
+    trigger: str = "MANUAL"
+    outcome: str | None = None
     input: dict
     config: dict
     progress: float

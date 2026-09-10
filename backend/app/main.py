@@ -248,6 +248,7 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     from app.api.v1 import templates as templates_routes
     from app.api.v1 import webhooks as webhooks_routes
     from app.api.v1 import webhooks_email as webhooks_email_routes
+    from app.api.v1 import actor_platform as actor_platform_routes
 
     api_v1_prefix = "/api/v1"
     app.include_router(health_routes.router)  # /health, /health/database, ...
@@ -258,6 +259,11 @@ def create_app(settings: Settings | None = None, *, db: DatabaseManager | None =
     app.include_router(files.router, prefix=api_v1_prefix)
     app.include_router(scrapers_routes.router, prefix=api_v1_prefix)
     app.include_router(scrape_jobs_routes.router, prefix=api_v1_prefix)
+    # Actor Platform (spec §23): /api/v1/actors|runs|datasets|tasks|...
+    app.include_router(actor_platform_routes.router, prefix=api_v1_prefix)
+    # Spec-path aliases WITHOUT the version prefix (POST /api/actors/{a}/runs,
+    # GET /api/runs/{id}, GET /api/datasets/{id}, ... — documented surface).
+    app.include_router(actor_platform_routes.router, prefix="/api")
     app.include_router(scrape_schedules_routes.router, prefix=api_v1_prefix)
     app.include_router(leads.router, prefix=api_v1_prefix)
     app.include_router(campaigns_routes.router, prefix=api_v1_prefix)

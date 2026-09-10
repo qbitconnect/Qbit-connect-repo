@@ -48,6 +48,10 @@ class IndiaMartActor(ScraperActor):
         "price / MOQ hints",
     )
     supports_pause = True
+
+    def validate_policy(self, model) -> dict[str, str]:
+        return model.validate_policy()
+
     input_schema = IndiaMartInput
     output_fields = OUTPUT_FIELDS
 

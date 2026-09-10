@@ -51,6 +51,10 @@ class JustDialActor(ScraperActor):
         "reviews/ratings capture",
     )
     supports_pause = True
+
+    def validate_policy(self, model) -> dict[str, str]:
+        return model.validate_policy()
+
     input_schema = JustDialInput
     output_fields = OUTPUT_FIELDS
 
