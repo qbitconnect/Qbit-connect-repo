@@ -40,7 +40,7 @@
         <td class="mono">{{ kv.scope }}</td>
         <td class="mono">{{ kv.key }}</td>
         <td class="mono small">{{ (kv.value | tojson)[:120] }}</td>
-        <td>{{ kv.updated_at.strftime('%Y-%m-%d %H:%M') if kv.updated_at }}</td>
+        <td class="mono small">{{ (kv.updated_at or '')[:16].replace('T', ' ') }}</td>
       </tr>
       {% else %}
       <tr><td colspan="4"><p class="muted">No entries — actor checkpoints and state documents land here.</p></td></tr>

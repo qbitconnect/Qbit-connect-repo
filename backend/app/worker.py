@@ -44,7 +44,9 @@ class ScrapeWorker:
         setup_logging(self.settings)
         self.db = DatabaseManager(self.settings)
         self.redis = RedisManager(self.settings)
-        self.queue = build_queue_backend(self.settings, self.redis)
+        self.queue = build_queue_backend(
+            self.settings, self.redis, session_factory=self.db.session
+        )
         self.registry = ActorRegistry()
         self.runner = JobRunner(
             settings=self.settings,

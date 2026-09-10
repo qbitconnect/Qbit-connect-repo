@@ -382,3 +382,44 @@ async def test_spec_paths_without_version_prefix(client, admin_headers):
     assert resp2.status_code == 200
     resp3 = await client.get("/api/runs", headers=admin_headers)
     assert resp3.status_code == 200
+
+
+async def test_inprocess_queue_discovers_queued_rows(app):
+    """Cross-process discovery (docs/31 §6): a QUEUED row inserted by 'another
+    process' (raw DB insert) is discovered by the worker-side backend."""
+    import time as _time
+    import uuid as _uuid
+    from datetime import datetime, timedelta, timezone as _tz
+
+    from app.models.scrape import ScrapeJob
+    from app.services.scraping.queue import InProcessQueueBackend
+
+    backend = InProcessQueueBackend()
+    backend.attach_db_discovery(app.state.db.session)
+
+    async with app.state.db.session() as session:
+        stale = ScrapeJob(
+            actor_id="universal-web", actor_version="2.0.0",
+            status="QUEUED", input={}, config={}, trigger="API",
+            created_at=datetime.now(_tz.utc) - timedelta(seconds=30),
+            updated_at=datetime.now(_tz.utc),
+        )
+        fresh = ScrapeJob(
+            actor_id="universal-web", actor_version="2.0.0",
+            status="QUEUED", input={}, config={}, trigger="API",
+            created_at=datetime.now(_tz.utc),  # inside the 5s commit grace
+            updated_at=datetime.now(_tz.utc),
+        )
+        session.add_all([stale, fresh])
+        await session.commit()
+        stale_id, fresh_id = str(stale.id), str(fresh.id)
+
+    backend._last_db_poll = 0.0
+    discovered = await backend._discover_queued()
+    # oldest DISCOVERABLE job wins; the fresh row is inside the grace window
+    assert discovered in (stale_id, fresh_id)
+    if discovered == stale_id:
+        backend._db_suppressed[discovered] = _time.monotonic()
+        second = await backend._discover_queued()
+        assert second != stale_id  # suppressed → the next candidate
+    await backend.aclose()

@@ -24,7 +24,7 @@
 <section class="card stat-row">
   <div class="stat-card"><span class="stat-value mono">{{ dataset.item_count }}</span><span class="stat-label">Items</span></div>
   <div class="stat-card"><span class="stat-value mono">{{ dataset.schema_fields|length }}</span><span class="stat-label">Fields detected</span></div>
-  <div class="stat-card"><span class="stat-value mono small">{{ dataset.schema_fields[:6]|join(', ') }}{% if dataset.schema_fields|length > 6 %}, …{% endif %}</span><span class="stat-label">Schema preview</span></div>
+  <div class="stat-card"><span class="stat-value mono small">{{ (dataset.schema_fields[0:6])|join(', ') }}{% if dataset.schema_fields|length > 6 %}, …{% endif %}</span><span class="stat-label">Schema preview</span></div>
 </section>
 
 <form method="get" action="/datasets/{{ dataset.id }}" class="search" style="margin-bottom:1rem">
@@ -45,7 +45,7 @@
       <tr>
         <td class="mono muted">{{ item.idx }}</td>
         <td class="dataset-cell">
-          {% set keys = item.data.keys()|list[:3] %}
+          {% set keys = (item.data.keys()|list)[0:3] %}
           {% for k in keys %}
             <span class="pill">{{ k }}</span>
             <span class="mono small">{{ (item.data[k] | string)[:120] if item.data[k] is not none else '—' }}</span><br>
