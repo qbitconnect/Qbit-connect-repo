@@ -387,14 +387,17 @@ def upgrade() -> None:
                        SELECT 1 FROM user_roles ur
                        JOIN roles r ON r.id = ur.role_id
                        WHERE ur.user_id = u.id AND r.code = 'SUPER_ADMIN'
-                   ) THEN 1 ELSE 0 END,
+                   ) THEN TRUE ELSE FALSE END,
                    :ts, :ts
             FROM users u
             WHERE NOT EXISTS (
                 SELECT 1 FROM organization_members m WHERE m.user_id = u.id
             )
             """
-        ).bindparams(org_id=DEFAULT_ORG_ID.hex, ts=NOW, mid=uuid_module.uuid4().hex)
+        ).bindparams(
+            sa.bindparam("org_id", DEFAULT_ORG_ID, type_=sa.Uuid()),
+            sa.bindparam("mid", uuid_module.uuid4(), type_=sa.Uuid()),
+        ).bindparams(ts=NOW)
     )
 
     # link every existing tenant-scoped record to the default organization
@@ -406,7 +409,7 @@ def upgrade() -> None:
         bind.execute(
             sa.text(
                 f"UPDATE {table} SET organization_id = :org_id WHERE organization_id IS NULL"
-            ).bindparams(org_id=DEFAULT_ORG_ID.hex)
+            ).bindparams(sa.bindparam("org_id", DEFAULT_ORG_ID, type_=sa.Uuid()))
         )
     # preserve current ownership semantics on campaigns
     bind.execute(sa.text("UPDATE campaigns SET owner_id = created_by WHERE owner_id IS NULL"))
@@ -427,11 +430,11 @@ def upgrade() -> None:
         "INSERT INTO permissions (id, code, description, created_at, updated_at) "
         "SELECT :id, :code, :description, :ts, :ts "
         "WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code = :code)"
-    )
+    ).bindparams(sa.bindparam("id", type_=sa.Uuid()))
     for code, description in NEW_PERMISSIONS:
         bind.execute(
             perm_insert.bindparams(
-                id=uuid_module.uuid4().hex, code=code, description=description, ts=NOW
+                id=uuid_module.uuid4(), code=code, description=description, ts=NOW
             )
         )
     matrix_insert = sa.text(

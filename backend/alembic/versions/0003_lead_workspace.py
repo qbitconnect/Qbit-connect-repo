@@ -224,7 +224,7 @@ def _create_tables() -> None:
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column("name", sa.String(100), nullable=False, unique=True),
         sa.Column("color", sa.String(20), nullable=True),
-        sa.Column("is_system", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("is_system", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("created_by", sa.Uuid(), nullable=True),
         *_datetime_columns(),
     )
