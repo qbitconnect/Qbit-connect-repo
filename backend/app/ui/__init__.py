@@ -476,7 +476,22 @@ async def jobs_list(
     )
 
 
-# ----------------------------------------------------------- agent orchestration (UI)
+# ----------------------------------------------------------- URL analyzer & agent orchestration (UI)
+@router.post("/scraping/analyze-url")
+async def ui_analyze_url(
+    request: Request,
+    user: Annotated[User, Depends(ui_user)],
+):
+    """Analyze pasted target URL to extract source, query, and configuration."""
+    data = await request.json()
+    url = str(data.get("url", "")).strip()
+    if not url:
+        return JSONResponse({"error": "URL is required"}, status_code=400)
+    from app.services.orchestration.url_analyzer import UrlAnalyzer
+    result = UrlAnalyzer.analyze(url)
+    return JSONResponse(result.to_dict())
+
+
 @router.post("/scraping/agent/plan")
 async def ui_agent_plan(
     request: Request,
@@ -636,12 +651,15 @@ async def scraper_detail(
     from app.services.orchestration.tool_registry import ToolRegistry
     all_tools = [t.to_dict() for t in ToolRegistry(registry).list_tools()]
 
+    maps_provider = getattr(request.app.state.settings, "QBIT_MAPS_PROVIDER", "none")
+    maps_provider_configured = maps_provider not in ("none", "", None)
+
     return templates.TemplateResponse(
         request, "scraping/detail.html",
         _ctx(request, user, actor=meta, status=entry.public_status.value,
              status_detail=entry.detail, fields=fields,
              form_values={}, errors={}, history=history, schedules=schedules,
-             all_tools=all_tools),
+             all_tools=all_tools, maps_provider_configured=maps_provider_configured),
     )
 
 
@@ -826,13 +844,18 @@ async def scraper_run(
 
     report = actor.validate_input(input_data)
     if not report.valid:
+        from app.services.orchestration.tool_registry import ToolRegistry
+        all_tools = [t.to_dict() for t in ToolRegistry(registry).list_tools()]
+        maps_provider = getattr(request.app.state.settings, "QBIT_MAPS_PROVIDER", "none")
+        maps_provider_configured = maps_provider not in ("none", "", None)
         return templates.TemplateResponse(
             request, "scraping/detail.html",
             _ctx(request, user,
                  actor=actor.metadata(), status=entry.public_status.value,
                  status_detail=entry.detail,
                  fields=_form_fields(actor), errors=report.errors,
-                 form_values=input_data),
+                 form_values=input_data, history=[], schedules=[],
+                 all_tools=all_tools, maps_provider_configured=maps_provider_configured),
             status_code=422,
         )
     try:

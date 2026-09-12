@@ -6,6 +6,7 @@ from app.services.orchestration.interpreter import InterpretedTask, TaskInterpre
 from app.services.orchestration.orchestrator import ScrapingOrchestrator
 from app.services.orchestration.planner import ExecutionPlan, ExecutionPlanner, PlanStep
 from app.services.orchestration.tool_registry import ToolCapabilityDefinition, ToolRegistry
+from app.services.orchestration.url_analyzer import UrlAnalysisResult, UrlAnalyzer
 from app.services.orchestration.validation import ConfidenceScore, RecordQuality, RecordValidator, ValidationResult
 
 __all__ = [
@@ -26,5 +27,7 @@ __all__ = [
     "TaskInterpreter",
     "ToolCapabilityDefinition",
     "ToolRegistry",
+    "UrlAnalysisResult",
+    "UrlAnalyzer",
     "ValidationResult",
 ]

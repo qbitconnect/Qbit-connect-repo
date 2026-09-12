@@ -26,6 +26,29 @@
   </div>
 </header>
 
+{% if job.status == 'FAILED' and (job.error_code == 'SCRAPER_TARGET_BLOCKED' or (diagnostics and diagnostics.error_code == 'SCRAPER_TARGET_BLOCKED') or 'blocked' in (job.error or '').lower() or '403' in (job.error or '')) %}
+<div class="alert alert-error" id="blocked-target-banner" style="margin-bottom:20px;border-left:4px solid #ef4444;background:rgba(239,68,68,0.12);padding:16px 20px;border-radius:8px">
+  <div style="display:flex;align-items:flex-start;gap:12px">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+    <div style="flex:1">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <strong style="color:#f87171;font-size:15px">Scraping Could Not Continue: Target Blocked Automated Access</strong>
+        <span class="badge badge-failed" style="font-size:11px;font-family:monospace">SCRAPER_TARGET_BLOCKED</span>
+      </div>
+      <p style="margin:0 0 8px;font-size:13px;color:rgba(255,255,255,0.9);line-height:1.4">
+        Scraping could not continue because the target blocked automated access (anti-bot challenge, Cloudflare, or rate limit protection).
+        QBIT Connect strictly enforces <strong>Source Lock</strong> and compliant data extraction &mdash; it does not bypass access controls or silently swap data sources.
+      </p>
+      <div style="font-size:12px;color:rgba(255,255,255,0.7);display:flex;gap:16px">
+        <span><strong>Saved records:</strong> 0</span>
+        <span><strong>Status:</strong> Blocked honestly reported</span>
+        <span><strong>Silent Fallback:</strong> Disabled</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <section class="stat-grid">
   <div class="stat card"><span class="stat-label">STATUS</span>
     <span class="badge badge-{{ job.status.lower() }}" id="job-status">{{ job.status }}</span>
@@ -141,41 +164,66 @@
 </section>
 
 {% if job.status in ['COMPLETED', 'FAILED', 'CANCELLED'] %}
-<section class="card results-card">
-  <h2>Results</h2>
-  <div class="result-grid">
+<section class="card results-card" id="results-section">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+    <div>
+      <h2 style="margin:0">Execution Results</h2>
+      <p class="muted small" style="margin:2px 0 0">Verified record counters derived strictly from the persistence layer</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      {% if leads %}
+      <a class="btn btn-ghost btn-sm" href="#leads-table-view">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:-2px"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        View Results
+      </a>
+      {% endif %}
+      <a class="btn btn-ghost btn-sm" href="/leads?source_job_id={{ job.id }}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:-2px"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg>
+        Save to Leads
+      </a>
+      {% if can_export %}
+      <a class="btn btn-ghost btn-sm" href="/scraping/jobs/{{ job.id }}/export?format=csv">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export CSV
+      </a>
+      <a class="btn btn-ghost btn-sm" href="/scraping/jobs/{{ job.id }}/export?format=xlsx">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export Excel
+      </a>
+      <a class="btn btn-ghost btn-sm" href="/scraping/jobs/{{ job.id }}/export?format=json">Export JSON</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="result-grid" style="margin-bottom:16px">
     <div><span class="muted small">TOTAL FOUND</span><span class="stat-value mono">{{ job.records_found }}</span></div>
-    <div><span class="muted small">SAVED</span><span class="stat-value mono">{{ job.records_saved }}</span></div>
+    <div><span class="muted small">VALID SAVED</span><span class="stat-value mono" style="color:#70a0ff">{{ job.records_saved }}</span></div>
     <div><span class="muted small">UPDATED</span><span class="stat-value mono">{{ job.records_updated }}</span></div>
     <div><span class="muted small">DUPLICATES</span><span class="stat-value mono">{{ job.records_duplicate }}</span></div>
-    <div><span class="muted small">FAILED</span><span class="stat-value mono">{{ job.records_failed }}</span></div>
+    <div><span class="muted small">FAILED / INVALID</span><span class="stat-value mono" style="color:var(--bad, #f87171)">{{ job.records_failed }}</span></div>
+    <div><span class="muted small">PERSISTED</span><span class="stat-value mono" style="color:#34d399">{{ job.records_saved + job.records_updated }}</span></div>
   </div>
-  {% if can_export %}
-  <div class="export-row">
-    <a class="btn btn-ghost" href="/scraping/jobs/{{ job.id }}/export?format=csv">Export CSV</a>
-    <a class="btn btn-ghost" href="/scraping/jobs/{{ job.id }}/export?format=xlsx">Export XLSX</a>
-    <a class="btn btn-ghost" href="/scraping/jobs/{{ job.id }}/export?format=json">Export JSON</a>
-  </div>
-  {% endif %}
 
   {% if leads %}
-  <h3>Leads <span class="muted small">({{ leads_total }} total, first 20)</span></h3>
-  <div class="table-scroll">
-  <table>
-    <thead><tr><th>Business</th><th>Email</th><th>Phone</th><th>Website</th><th>City</th><th>Source</th></tr></thead>
-    <tbody>
-      {% for l in leads %}
-      <tr>
-        <td>{{ l.business_name or '&mdash;' }}</td>
-        <td class="mono">{{ l.email or '&mdash;' }}</td>
-        <td class="mono">{{ l.phone or '&mdash;' }}</td>
-        <td class="mono">{{ (l.website or '&mdash;')|truncate(40) }}</td>
-        <td>{{ l.city or '&mdash;' }}</td>
-        <td><a href="{{ l.source_url }}" target="_blank" rel="noopener noreferrer" class="mono small">{{ l.source }}</a></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div id="leads-table-view" style="margin-top:16px">
+    <h3>Leads <span class="muted small">({{ leads_total }} total, first 20)</span></h3>
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>Business</th><th>Email</th><th>Phone</th><th>Website</th><th>City</th><th>Source</th></tr></thead>
+      <tbody>
+        {% for l in leads %}
+        <tr>
+          <td>{{ l.business_name or '&mdash;' }}</td>
+          <td class="mono">{{ l.email or '&mdash;' }}</td>
+          <td class="mono">{{ l.phone or '&mdash;' }}</td>
+          <td class="mono">{{ (l.website or '&mdash;')|truncate(40) }}</td>
+          <td>{{ l.city or '&mdash;' }}</td>
+          <td><a href="{{ l.source_url }}" target="_blank" rel="noopener noreferrer" class="mono small">{{ l.source }}</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
   </div>
   {% endif %}
 </section>

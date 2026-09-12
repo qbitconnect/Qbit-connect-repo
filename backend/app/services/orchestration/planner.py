@@ -58,7 +58,9 @@ class ExecutionPlan:
             "fields": self.fields,
             "mode": self.mode,
             "rationale": self.rationale,
+            "orchestration_strategy": self.rationale,
             "steps": [s.to_dict() for s in self.steps],
+            "query_decomposition": [{"sub_query": s.description, **s.to_dict()} for s in self.steps],
             "input_payload": self.input_payload,
             "estimated_pages": self.estimated_pages,
             "max_runtime_seconds": self.max_runtime_seconds,
@@ -293,6 +295,82 @@ class ExecutionPlanner:
                     parameters=dict(input_payload),
                     target_records=target_count,
                     description=f"Email Finder domain crawl on '{input_payload['domain']}'",
+                )
+            )
+
+        elif primary_tool == "sitemap-intelligence":
+            input_payload = {
+                "url": task.keywords if task.keywords.startswith("http") else f"https://{task.keywords}",
+                "max_records": target_count,
+            }
+            steps.append(
+                PlanStep(
+                    step_id=1,
+                    actor_id="sitemap-intelligence",
+                    action="sitemap_audit",
+                    parameters=dict(input_payload),
+                    target_records=target_count,
+                    description=f"Sitemap inspection for '{input_payload['url']}'",
+                )
+            )
+
+        elif primary_tool == "business-directory":
+            url = task.keywords if task.keywords.startswith("http") else f"https://{task.keywords}"
+            input_payload = {
+                "config": {
+                    "list_url": url,
+                    "item_selector": "div",
+                    "fields": {"business_name": "h1, h2, .title, .name"},
+                },
+                "max_results": target_count,
+            }
+            steps.append(
+                PlanStep(
+                    step_id=1,
+                    actor_id="business-directory",
+                    action="directory_scrape",
+                    parameters=dict(input_payload),
+                    target_records=target_count,
+                    description=f"Directory crawl for '{url}'",
+                )
+            )
+
+        elif primary_tool == "public-data":
+            url = task.keywords if task.keywords.startswith("http") else f"https://{task.keywords}"
+            fmt = "csv" if url.endswith((".csv", ".tsv")) else "json"
+            input_payload = {
+                "url": url,
+                "format": fmt,
+                "max_records": target_count,
+            }
+            steps.append(
+                PlanStep(
+                    step_id=1,
+                    actor_id="public-data",
+                    action="dataset_ingest",
+                    parameters=dict(input_payload),
+                    target_records=target_count,
+                    description=f"Public data ingestion from '{url}'",
+                )
+            )
+
+        elif primary_tool == "website":
+            url = task.keywords if task.keywords.startswith("http") else f"https://{task.keywords}"
+            input_payload = {
+                "start_url": url,
+                "max_depth": 2,
+                "extract_emails": True,
+                "extract_phones": True,
+                "extract_social_links": True,
+            }
+            steps.append(
+                PlanStep(
+                    step_id=1,
+                    actor_id="website",
+                    action="website_crawl",
+                    parameters=dict(input_payload),
+                    target_records=target_count,
+                    description=f"Website crawl for '{url}'",
                 )
             )
 

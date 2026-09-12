@@ -48,20 +48,243 @@
   </aside>
 
   <section>
-    <!-- Execution Mode Toggle -->
+    {% if actor.id == 'google-maps' and not maps_provider_configured %}
+    <!-- Google Maps Provider Unconfigured Honest Notice -->
+    <div class="alert alert-warn" style="margin-bottom:16px;border-left:4px solid #f59e0b;background:rgba(245,158,11,0.08);padding:14px 16px;border-radius:8px">
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <strong style="color:#f59e0b;font-size:14px">Google Maps Provider Not Configured</strong>
+            <span class="badge" style="background:rgba(245,158,11,0.2);color:#fbbf24;font-size:10px">SETUP REQUIRED</span>
+          </div>
+          <p style="margin:0 0 8px;font-size:12px;color:rgba(255,255,255,0.85);line-height:1.4">
+            Direct automated scraping or bot evasion against Google Maps is not supported by design to comply with access policies. A compliant external provider adapter is required for execution.
+          </p>
+          <div style="font-size:11px;color:rgba(255,255,255,0.7);background:rgba(0,0,0,0.3);padding:8px 12px;border-radius:4px;font-family:monospace;line-height:1.5">
+            To configure, add to your backend environment variables:<br>
+            <span style="color:#38bdf8">QBIT_MAPS_PROVIDER</span>=http<br>
+            <span style="color:#38bdf8">QBIT_MAPS_PROVIDER_URL</span>=https://your-maps-provider-endpoint
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 3-Workflow Execution Mode Selector -->
     <div class="mode-toggle-bar" style="display:flex;gap:8px;margin-bottom:16px;background:rgba(255,255,255,0.03);padding:6px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);">
-      <button type="button" class="btn btn-sm mode-btn active" id="btn-mode-manual" style="flex:1" onclick="switchExecutionMode('manual')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;vertical-align:-2px"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
-        Manual Scraper
+      <button type="button" class="btn btn-sm mode-btn active" id="btn-mode-search" style="flex:1" onclick="switchExecutionMode('search')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;vertical-align:-2px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Intelligent Search
       </button>
-      <button type="button" class="btn btn-sm btn-ghost mode-btn" id="btn-mode-agent" style="flex:1" onclick="switchExecutionMode('agent')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;vertical-align:-2px"><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><rect x="4" y="10" width="16" height="12" rx="2"/><circle cx="9" cy="15" r="1"/><circle cx="15" cy="15" r="1"/></svg>
-        Intelligent Agent
+      <button type="button" class="btn btn-sm btn-ghost mode-btn" id="btn-mode-url" style="flex:1" onclick="switchExecutionMode('url')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;vertical-align:-2px"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        Scrape from URL
+      </button>
+      <button type="button" class="btn btn-sm btn-ghost mode-btn" id="btn-mode-manual" style="flex:1" onclick="switchExecutionMode('manual')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;vertical-align:-2px"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
+        Direct Schema
       </button>
     </div>
 
-    <!-- Manual Execution Panel -->
-    <div id="panel-manual-run">
+    <!-- WORKFLOW A: Intelligent Search Panel -->
+    <div id="panel-search-run">
+      <section class="card form-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+          <div>
+            <h2 style="margin:0 0 4px">Intelligent Search & Extraction</h2>
+            <p class="muted small" style="margin:0">Decomposes natural language queries, validates quality criteria, and guarantees deterministic completion counters.</p>
+          </div>
+          <span class="badge" id="agent-source-badge" style="background:rgba(93,140,255,0.15);color:#70a0ff;border:1px solid rgba(93,140,255,0.3);padding:4px 10px;font-size:11px;font-weight:600">
+            🔒 SOURCE LOCKED: {{ actor.name|upper }}
+          </span>
+        </div>
+
+        <form id="agent-run-form" onsubmit="handleAgentSubmit(event)">
+          <div class="grid-2" style="margin-bottom:12px">
+            <label>Search / Business Objective <em>*</em>
+              <input type="text" id="search-query" placeholder="e.g. shoe wholesalers, textile manufacturers" oninput="syncPromptFromInputs()" style="width:100%">
+            </label>
+            <label>City / Location (Optional)
+              <input type="text" id="search-location" placeholder="e.g. Modinagar, Surat, Delhi" oninput="syncPromptFromInputs()" style="width:100%">
+            </label>
+          </div>
+
+          <label style="margin-bottom:14px">Full Objective / Prompt
+            <textarea id="agent-prompt" name="prompt" rows="2" required placeholder="e.g. Find shoe wholesalers in Modinagar with verified phone numbers" style="width:100%;resize:vertical;font-size:13px;padding:8px 12px;background:var(--bg-input, rgba(0,0,0,0.3));border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#fff"></textarea>
+          </label>
+
+          <div class="grid-2" style="margin-bottom:14px">
+            <label>Source Control / Execution Mode
+              <select id="agent-source" name="source" onchange="updateAgentBadge()">
+                <option value="{{ actor.id }}" selected>Lock to {{ actor.name }} (Strict — No Silent Fallback)</option>
+                <option value="auto">Auto Selection (Intelligent Routing)</option>
+                {% if all_tools %}
+                  <optgroup label="Other Available Sources">
+                    {% for tool in all_tools %}
+                      {% if tool.id != actor.id %}
+                        <option value="{{ tool.id }}">Lock to {{ tool.name }}</option>
+                      {% endif %}
+                    {% endfor %}
+                  </optgroup>
+                {% endif %}
+              </select>
+            </label>
+            <label>Target Records
+              <input id="agent-target-count" name="target_count" type="number" min="1" max="5000" value="50" placeholder="50">
+            </label>
+          </div>
+
+          <!-- Pre-flight Execution Plan Preview Card -->
+          <div id="agent-plan-preview" class="card" style="display:none;margin:16px 0;background:rgba(255,255,255,0.02);border:1px solid rgba(93,140,255,0.3);border-radius:8px;padding:14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+              <h3 style="margin:0;font-size:14px;color:#70a0ff;display:flex;align-items:center;gap:6px">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                Pre-Flight Execution Plan Preview
+              </h3>
+              <span class="mono small muted" id="plan-mode-label">MODE: SOURCE LOCK</span>
+            </div>
+
+            <div style="font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px" class="plan-details-grid">
+              <div><span class="muted">Primary Source:</span> <b class="mono" id="plan-primary-tool">—</b></div>
+              <div><span class="muted">Fallback Source:</span> <b class="mono" id="plan-fallback-tool">—</b></div>
+              <div><span class="muted">Target Records:</span> <b class="mono" id="plan-target-records">—</b></div>
+              <div><span class="muted">Estimated Pages:</span> <b class="mono" id="plan-estimated-pages">—</b></div>
+            </div>
+
+            <div style="margin-bottom:10px">
+              <span class="muted small" style="display:block;margin-bottom:4px">Orchestration Strategy:</span>
+              <p id="plan-rationale" class="small" style="margin:0;color:rgba(255,255,255,0.85);line-height:1.4"></p>
+            </div>
+
+            <div id="plan-substeps-wrap" style="display:none;margin-bottom:10px">
+              <span class="muted small" style="display:block;margin-bottom:6px">Query Decomposition Sub-steps:</span>
+              <div id="plan-substeps-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+            </div>
+
+            <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08)">
+              <span class="muted small" style="display:block;margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:0.05em">Pipeline Workflow:</span>
+              <div style="display:flex;align-items:center;gap:6px;font-size:11px;flex-wrap:wrap">
+                <span class="cap" style="background:rgba(93,140,255,0.15);color:#70a0ff;padding:2px 8px;border-radius:4px">1. Discovery</span>
+                <span class="muted">&rarr;</span>
+                <span class="cap" style="background:rgba(93,140,255,0.15);color:#70a0ff;padding:2px 8px;border-radius:4px">2. Extraction</span>
+                <span class="muted">&rarr;</span>
+                <span class="cap" style="background:rgba(93,140,255,0.15);color:#70a0ff;padding:2px 8px;border-radius:4px">3. Quality Validation</span>
+                <span class="muted">&rarr;</span>
+                <span class="cap" style="background:rgba(93,140,255,0.15);color:#70a0ff;padding:2px 8px;border-radius:4px">4. Deduplication</span>
+                <span class="muted">&rarr;</span>
+                <span class="cap" style="background:rgba(78,201,176,0.15);color:#4ec9b0;padding:2px 8px;border-radius:4px">5. Leads Workspace</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions" style="margin-top:16px">
+            <button type="button" class="btn btn-ghost" id="agent-plan-btn" onclick="previewAgentPlan()" style="min-width:160px;height:40px">
+              Generate Plan
+            </button>
+            <button type="submit" class="btn btn-primary" id="agent-launch-btn" style="min-width:160px;height:40px">
+              Run Job
+            </button>
+          </div>
+          <div id="agent-status-msg" class="validate-result" hidden style="margin-top:12px"></div>
+        </form>
+      </section>
+    </div>
+
+    <!-- WORKFLOW B & C: Scrape from URL Panel -->
+    <div id="panel-url-run" hidden>
+      <section class="card form-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+          <div>
+            <h2 style="margin:0 0 4px">Scrape from Target URL</h2>
+            <p class="muted small" style="margin:0">Provide a search result URL, category listing, sitemap XML, or company website. The system parses and inspects the URL automatically.</p>
+          </div>
+          <span class="badge" id="url-source-badge" style="background:rgba(78,201,176,0.15);color:#4ec9b0;border:1px solid rgba(78,201,176,0.3);padding:4px 10px;font-size:11px;font-weight:600">
+            AUTO URL DETECTOR
+          </span>
+        </div>
+
+        <form id="url-run-form" onsubmit="handleUrlSubmit(event)">
+          <label style="margin-bottom:12px">Target URL <em>*</em>
+            <input type="url" id="target-url-input" required placeholder="e.g. https://www.google.com/maps/search/shoe+wholesalers+in+modinagar or https://www.justdial.com/Delhi/Textile-Merchants" style="width:100%" oninput="resetUrlAnalysis()">
+          </label>
+
+          <div class="grid-2" style="margin-bottom:14px">
+            <label>Extraction Mode
+              <select id="url-extraction-mode">
+                <option value="auto" selected>Auto-detect from URL structure</option>
+                <option value="contacts">Contact info (phone, email, social links)</option>
+                <option value="directory">Directory / Catalog pagination</option>
+                <option value="sitemap">Sitemap / Inventory audit</option>
+              </select>
+            </label>
+            <label>Target Records
+              <input id="url-target-count" type="number" min="1" max="5000" value="50" placeholder="50">
+            </label>
+          </div>
+
+          <!-- URL Analysis & Pre-Flight Card -->
+          <div id="url-analysis-card" class="card" style="display:none;margin:16px 0;background:rgba(255,255,255,0.02);border:1px solid rgba(78,201,176,0.3);border-radius:8px;padding:14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+              <h3 style="margin:0;font-size:14px;color:#4ec9b0;display:flex;align-items:center;gap:6px">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                URL Analysis &amp; Execution Preview
+              </h3>
+              <span class="badge" id="url-confidence-badge" style="font-size:11px;font-family:monospace">CONFIDENCE: 95%</span>
+            </div>
+
+            <div style="font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+              <div><span class="muted">Detected Source:</span> <b id="url-detected-source" class="mono">—</b></div>
+              <div><span class="muted">Input Type:</span> <b id="url-detected-type" class="mono">—</b></div>
+              <div><span class="muted">Extracted Query:</span> <b id="url-extracted-query" class="mono">—</b></div>
+              <div><span class="muted">Extracted Location:</span> <b id="url-extracted-location" class="mono">—</b></div>
+            </div>
+
+            <div style="margin-bottom:10px">
+              <span class="muted small" style="display:block;margin-bottom:2px">Normalized URL:</span>
+              <code id="url-normalized-text" style="font-size:11px;word-break:break-all;color:#70a0ff;display:block;padding:4px 8px;background:rgba(0,0,0,0.25);border-radius:4px"></code>
+            </div>
+
+            <div style="margin-bottom:10px">
+              <span class="muted small" style="display:block;margin-bottom:2px">Extraction Strategy:</span>
+              <p id="url-strategy-text" class="small" style="margin:0;color:rgba(255,255,255,0.85);line-height:1.4"></p>
+            </div>
+
+            <div id="url-maps-warning" class="alert alert-warn" style="display:none;margin-top:10px;padding:8px 12px;font-size:12px">
+              ⚠️ Google Maps provider is not configured in this environment. Execution requires QBIT_MAPS_PROVIDER=http.
+            </div>
+
+            <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08)">
+              <span class="muted small" style="display:block;margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:0.05em">Pipeline Workflow:</span>
+              <div style="display:flex;align-items:center;gap:6px;font-size:11px;flex-wrap:wrap">
+                <span class="cap" style="background:rgba(78,201,176,0.15);color:#4ec9b0;padding:2px 8px;border-radius:4px">1. Discovery</span>
+                <span class="muted">&rarr;</span>
+                <span class="cap" style="background:rgba(78,201,176,0.15);color:#4ec9b0;padding:2px 8px;border-radius:4px">2. Extraction</span>
+                <span class="muted">&rarr;</span>
+                <span class="cap" style="background:rgba(78,201,176,0.15);color:#4ec9b0;padding:2px 8px;border-radius:4px">3. Quality Validation</span>
+                <span class="muted">&rarr;</span>
+                <span class="cap" style="background:rgba(78,201,176,0.15);color:#4ec9b0;padding:2px 8px;border-radius:4px">4. Deduplication</span>
+                <span class="muted">&rarr;</span>
+                <span class="cap" style="background:rgba(78,201,176,0.15);color:#4ec9b0;padding:2px 8px;border-radius:4px">5. Leads Workspace</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions" style="margin-top:16px">
+            <button type="button" class="btn btn-ghost" id="url-analyze-btn" onclick="analyzeUrlInput()" style="min-width:160px;height:40px">
+              Analyze URL
+            </button>
+            <button type="submit" class="btn btn-primary" id="url-launch-btn" style="min-width:160px;height:40px">
+              Run Scraper
+            </button>
+          </div>
+          <div id="url-status-msg" class="validate-result" hidden style="margin-top:12px"></div>
+        </form>
+      </section>
+    </div>
+
+    <!-- WORKFLOW MANUAL: Direct Schema Panel -->
+    <div id="panel-manual-run" hidden>
       {% if errors %}
         <div class="alert alert-error">
           <strong>Validation failed</strong>
@@ -71,6 +294,7 @@
 
       <section class="card form-card">
         <h2>Run configuration</h2>
+        <p class="muted small" style="margin:0 0 14px">Fine-tune actor-specific parameters, network timeouts, and concurrency settings directly.</p>
         <form method="post" action="/scraping/{{ actor.id }}/run" id="run-form">
           {% for f in fields %}
             <label style="margin-bottom:14px">{{ f.name }}{% if f.required %} <em>*</em>{% endif %}
@@ -110,86 +334,6 @@
                     data-actor="{{ actor.id }}">Validate</button>
           </div>
           <div id="validate-result" class="validate-result" hidden></div>
-        </form>
-      </section>
-    </div>
-
-    <!-- Intelligent Agent Panel -->
-    <div id="panel-agent-run" hidden>
-      <section class="card form-card">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
-          <div>
-            <h2 style="margin:0 0 4px">Autonomous Scraping Agent</h2>
-            <p class="muted small" style="margin:0">Decomposes natural language queries, validates quality criteria, and guarantees deterministic completion counters.</p>
-          </div>
-          <span class="badge" id="agent-source-badge" style="background:rgba(93,140,255,0.15);color:#70a0ff;border:1px solid rgba(93,140,255,0.3);padding:4px 10px;font-size:11px;font-weight:600">
-            🔒 SOURCE LOCKED: {{ actor.name|upper }}
-          </span>
-        </div>
-
-        <form id="agent-run-form" onsubmit="handleAgentSubmit(event)">
-          <label style="margin-bottom:14px">Target Objective / Natural Language Prompt <em>*</em>
-            <textarea id="agent-prompt" name="prompt" rows="3" required placeholder="e.g. Find 50 verified textile manufacturers in Surat with phone and email" style="width:100%;resize:vertical;font-size:13px;padding:8px 12px;background:var(--bg-input, rgba(0,0,0,0.3));border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#fff"></textarea>
-          </label>
-
-          <div class="grid-2" style="margin-bottom:14px">
-            <label>Source Control / Execution Mode
-              <select id="agent-source" name="source" onchange="updateAgentBadge()">
-                <option value="{{ actor.id }}" selected>Lock to {{ actor.name }} (Strict — No Silent Fallback)</option>
-                <option value="auto">Auto Selection (Intelligent Routing)</option>
-                {% if all_tools %}
-                  <optgroup label="Other Available Sources">
-                    {% for tool in all_tools %}
-                      {% if tool.id != actor.id %}
-                        <option value="{{ tool.id }}">Lock to {{ tool.name }}</option>
-                      {% endif %}
-                    {% endfor %}
-                  </optgroup>
-                {% endif %}
-              </select>
-            </label>
-            <label>Target Records
-              <input id="agent-target-count" name="target_count" type="number" min="1" max="5000" value="50" placeholder="50">
-            </label>
-          </div>
-
-          <!-- Live Execution Plan Preview Card -->
-          <div id="agent-plan-preview" class="card" style="display:none;margin:16px 0;background:rgba(255,255,255,0.02);border:1px solid rgba(93,140,255,0.3);border-radius:8px;padding:14px">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-              <h3 style="margin:0;font-size:14px;color:#70a0ff;display:flex;align-items:center;gap:6px">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                Execution Plan Preview
-              </h3>
-              <span class="mono small muted" id="plan-mode-label">MODE: SOURCE LOCK</span>
-            </div>
-
-            <div style="font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px" class="plan-details-grid">
-              <div><span class="muted">Primary Tool:</span> <b class="mono" id="plan-primary-tool">—</b></div>
-              <div><span class="muted">Fallback Tool:</span> <b class="mono" id="plan-fallback-tool">—</b></div>
-              <div><span class="muted">Target Records:</span> <b class="mono" id="plan-target-records">—</b></div>
-              <div><span class="muted">Estimated Pages:</span> <b class="mono" id="plan-estimated-pages">—</b></div>
-            </div>
-
-            <div style="margin-bottom:10px">
-              <span class="muted small" style="display:block;margin-bottom:4px">Orchestration Strategy & Rationale:</span>
-              <p id="plan-rationale" class="small" style="margin:0;color:rgba(255,255,255,0.85);line-height:1.4"></p>
-            </div>
-
-            <div id="plan-substeps-wrap" style="display:none">
-              <span class="muted small" style="display:block;margin-bottom:6px">Query Decomposition Sub-steps:</span>
-              <div id="plan-substeps-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
-            </div>
-          </div>
-
-          <div class="form-actions" style="margin-top:16px">
-            <button type="button" class="btn btn-ghost" id="agent-plan-btn" onclick="previewAgentPlan()" style="min-width:140px;height:40px">
-              Generate Plan
-            </button>
-            <button type="submit" class="btn btn-primary" id="agent-launch-btn" style="min-width:160px;height:40px">
-              Launch Agent Plan
-            </button>
-          </div>
-          <div id="agent-status-msg" class="validate-result" hidden style="margin-top:12px"></div>
         </form>
       </section>
     </div>
@@ -386,7 +530,11 @@
       'Invalid: ' + Object.entries(data.errors).map(([k, v]) => k + ' — ' + v).join('; ');
   });
 
-  // ------------------------------------------------------------- Agent Workbench
+  // ------------------------------------------------------------- Agent Workbench & 3-Workflow Handlers
+  const mapsConfigured = {{ 'true' if maps_provider_configured else 'false' }};
+  const currentActorId = '{{ actor.id }}';
+  let lastAnalyzedUrlResult = null;
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
@@ -394,15 +542,157 @@
   }
 
   function switchExecutionMode(mode) {
+    const isSearch = mode === 'search';
+    const isUrl = mode === 'url';
     const isManual = mode === 'manual';
+
+    const searchBtn = document.getElementById('btn-mode-search');
+    const urlBtn = document.getElementById('btn-mode-url');
     const manualBtn = document.getElementById('btn-mode-manual');
-    const agentBtn = document.getElementById('btn-mode-agent');
+
+    if (searchBtn) searchBtn.className = 'btn btn-sm mode-btn ' + (isSearch ? 'active' : 'btn-ghost');
+    if (urlBtn) urlBtn.className = 'btn btn-sm mode-btn ' + (isUrl ? 'active' : 'btn-ghost');
     if (manualBtn) manualBtn.className = 'btn btn-sm mode-btn ' + (isManual ? 'active' : 'btn-ghost');
-    if (agentBtn) agentBtn.className = 'btn btn-sm mode-btn ' + (!isManual ? 'active' : 'btn-ghost');
+
+    const searchPanel = document.getElementById('panel-search-run');
+    const urlPanel = document.getElementById('panel-url-run');
     const manualPanel = document.getElementById('panel-manual-run');
-    const agentPanel = document.getElementById('panel-agent-run');
+
+    if (searchPanel) searchPanel.hidden = !isSearch;
+    if (urlPanel) urlPanel.hidden = !isUrl;
     if (manualPanel) manualPanel.hidden = !isManual;
-    if (agentPanel) agentPanel.hidden = isManual;
+  }
+
+  function syncPromptFromInputs() {
+    const q = document.getElementById('search-query').value.trim();
+    const loc = document.getElementById('search-location').value.trim();
+    const promptBox = document.getElementById('agent-prompt');
+    if (!promptBox) return;
+    if (q && loc) {
+      promptBox.value = `Find ${q} in ${loc} with verified phone and contact details`;
+    } else if (q) {
+      promptBox.value = `Find ${q} with verified phone and contact details`;
+    }
+  }
+
+  function resetUrlAnalysis() {
+    lastAnalyzedUrlResult = null;
+    const card = document.getElementById('url-analysis-card');
+    if (card) card.style.display = 'none';
+    const msg = document.getElementById('url-status-msg');
+    if (msg) msg.hidden = true;
+  }
+
+  async function analyzeUrlInput() {
+    const urlInput = document.getElementById('target-url-input');
+    const u = urlInput.value.trim();
+    const msg = document.getElementById('url-status-msg');
+    const card = document.getElementById('url-analysis-card');
+
+    if (!u) {
+      msg.hidden = false;
+      msg.className = 'validate-result bad';
+      msg.textContent = 'Please enter a target URL to analyze.';
+      return;
+    }
+    msg.hidden = false;
+    msg.className = 'validate-result';
+    msg.textContent = 'Analyzing URL structure and detecting source…';
+
+    try {
+      const res = await fetch('/scraping/analyze-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: u })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to analyze URL');
+      }
+      const data = await res.json();
+      lastAnalyzedUrlResult = data;
+
+      document.getElementById('url-detected-source').textContent = data.source_name || data.source || 'Generic Web Crawler';
+      document.getElementById('url-detected-type').textContent = data.input_type || 'direct_url';
+      document.getElementById('url-extracted-query').textContent = data.query || '—';
+      document.getElementById('url-extracted-location').textContent = data.location || '—';
+      document.getElementById('url-normalized-text').textContent = data.normalized_url || u;
+      document.getElementById('url-strategy-text').textContent = data.message || 'URL analyzed and ready for structured extraction.';
+      document.getElementById('url-confidence-badge').textContent = `CONFIDENCE: ${Math.round((data.confidence || 0.9) * 100)}%`;
+
+      const mapsWarn = document.getElementById('url-maps-warning');
+      if (mapsWarn) {
+        mapsWarn.style.display = (data.source === 'google-maps' && !mapsConfigured) ? 'block' : 'none';
+      }
+
+      msg.hidden = true;
+      card.style.display = 'block';
+    } catch (e) {
+      msg.hidden = false;
+      msg.className = 'validate-result bad';
+      msg.textContent = 'Analysis Error: ' + e.message;
+    }
+  }
+
+  async function handleUrlSubmit(e) {
+    e.preventDefault();
+    const urlInput = document.getElementById('target-url-input');
+    const u = urlInput.value.trim();
+    const msg = document.getElementById('url-status-msg');
+    const launchBtn = document.getElementById('url-launch-btn');
+
+    if (!u) {
+      msg.hidden = false;
+      msg.className = 'validate-result bad';
+      msg.textContent = 'Please enter a target URL.';
+      return;
+    }
+
+    if (!lastAnalyzedUrlResult) {
+      await analyzeUrlInput();
+      if (!lastAnalyzedUrlResult) return;
+    }
+
+    const detectedSource = lastAnalyzedUrlResult.source || currentActorId;
+    if (detectedSource === 'google-maps' && !mapsConfigured) {
+      msg.hidden = false;
+      msg.className = 'validate-result bad';
+      msg.textContent = 'Cannot run: Google Maps provider is not configured in this environment (QBIT_MAPS_PROVIDER=none). Set QBIT_MAPS_PROVIDER=http to enable.';
+      return;
+    }
+
+    launchBtn.disabled = true;
+    launchBtn.textContent = 'Dispatching Scraper…';
+
+    const targetCount = document.getElementById('url-target-count').value;
+    const query = lastAnalyzedUrlResult.query || '';
+    const location = lastAnalyzedUrlResult.location || '';
+    let prompt = `Scrape ${query || 'data'} ${location ? 'in ' + location : ''} from ${u}`.trim();
+
+    try {
+      const res = await fetch('/scraping/agent/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: prompt,
+          source: detectedSource,
+          target_count: targetCount ? Number(targetCount) : null
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to dispatch scraping job');
+      }
+      if (data.redirect_url) {
+        window.location.href = data.redirect_url;
+      }
+    } catch (err) {
+      launchBtn.disabled = false;
+      launchBtn.textContent = 'Run Scraper';
+      msg.hidden = false;
+      msg.className = 'validate-result bad';
+      msg.textContent = 'Execution Error: ' + err.message;
+    }
   }
 
   function updateAgentBadge() {
@@ -430,7 +720,7 @@
     if (!prompt) {
       statusMsg.hidden = false;
       statusMsg.className = 'validate-result bad';
-      statusMsg.textContent = 'Please enter a target objective prompt.';
+      statusMsg.textContent = 'Please enter a target objective or search query.';
       return;
     }
     statusMsg.hidden = true;
@@ -480,14 +770,21 @@
     if (!prompt) {
       statusMsg.hidden = false;
       statusMsg.className = 'validate-result bad';
-      statusMsg.textContent = 'Please enter a target objective prompt.';
+      statusMsg.textContent = 'Please enter a target objective or search query.';
       return;
     }
+    const source = document.getElementById('agent-source').value;
+    if (source === 'google-maps' && !mapsConfigured) {
+      statusMsg.hidden = false;
+      statusMsg.className = 'validate-result bad';
+      statusMsg.textContent = 'Cannot run: Google Maps provider is not configured in this environment (QBIT_MAPS_PROVIDER=none). Set QBIT_MAPS_PROVIDER=http to enable.';
+      return;
+    }
+
     const launchBtn = document.getElementById('agent-launch-btn');
     launchBtn.disabled = true;
     launchBtn.textContent = 'Dispatching Plan…';
 
-    const source = document.getElementById('agent-source').value;
     const targetCount = document.getElementById('agent-target-count').value;
 
     try {
@@ -505,7 +802,7 @@
       }
     } catch (err) {
       launchBtn.disabled = false;
-      launchBtn.textContent = 'Launch Agent Plan';
+      launchBtn.textContent = 'Run Job';
       statusMsg.hidden = false;
       statusMsg.className = 'validate-result bad';
       statusMsg.textContent = 'Execution Error: ' + err.message;
