@@ -476,6 +476,91 @@ async def jobs_list(
     )
 
 
+# ----------------------------------------------------------- agent orchestration (UI)
+@router.post("/scraping/agent/plan")
+async def ui_agent_plan(
+    request: Request,
+    user: Annotated[User, Depends(ui_user)],
+):
+    """Generate execution plan preview for the Intelligent Agent workbench."""
+    data = await request.json()
+    prompt = str(data.get("prompt", "")).strip()
+    if not prompt:
+        return JSONResponse({"error": "Prompt is required"}, status_code=400)
+    source = data.get("source")
+    if source == "auto" or not source:
+        source = None
+    target_count = data.get("target_count")
+    if target_count is not None and str(target_count).strip():
+        try:
+            target_count = int(target_count)
+        except (ValueError, TypeError):
+            target_count = None
+    else:
+        target_count = None
+
+    from app.services.orchestration.orchestrator import ScrapingOrchestrator
+    orchestrator = ScrapingOrchestrator(request.app.state.scraper_registry, queue=request.app.state.queue)
+    interpreted = orchestrator.interpret(prompt, explicit_source=source, target_count=target_count)
+    plan = orchestrator.create_plan(interpreted)
+    return JSONResponse(plan.to_dict())
+
+
+@router.post("/scraping/agent/run")
+async def ui_agent_run(
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(require_ui_permission("scraping.run"))],
+):
+    """Execute plan created by the agent orchestrator."""
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        data = await request.json()
+        prompt = str(data.get("prompt", "")).strip()
+        source = data.get("source")
+        target_count = data.get("target_count")
+    else:
+        form = await request.form()
+        prompt = str(form.get("prompt", "")).strip()
+        source = form.get("source")
+        target_count = form.get("target_count")
+
+    if not prompt:
+        return JSONResponse({"error": "Prompt is required"}, status_code=400)
+
+    if target_count is not None and str(target_count).strip():
+        try:
+            target_count = int(target_count)
+        except (ValueError, TypeError):
+            target_count = None
+    else:
+        target_count = None
+
+    if source == "auto" or not source:
+        source = None
+
+    from app.services.orchestration.orchestrator import ScrapingOrchestrator
+    orchestrator = ScrapingOrchestrator(request.app.state.scraper_registry, queue=request.app.state.queue)
+    interpreted = orchestrator.interpret(prompt, explicit_source=source, target_count=target_count)
+    plan = orchestrator.create_plan(interpreted)
+
+    try:
+        job = await orchestrator.execute_plan(
+            plan,
+            session,
+            user_id=user.id,
+            organization_id=getattr(user, "organization_id", None),
+        )
+    except Exception as exc:
+        if "application/json" in content_type:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        raise
+
+    if "application/json" in content_type:
+        return JSONResponse({"job_id": str(job.id), "redirect_url": f"/scraping/jobs/{job.id}"})
+    return RedirectResponse(f"/scraping/jobs/{job.id}", status_code=303)
+
+
 @router.get("/scraping/{actor_id}", response_class=HTMLResponse)
 async def scraper_detail(
     actor_id: str,
@@ -548,11 +633,15 @@ async def scraper_detail(
             for s in srows.scalars().all()
         ]
 
+    from app.services.orchestration.tool_registry import ToolRegistry
+    all_tools = [t.to_dict() for t in ToolRegistry(registry).list_tools()]
+
     return templates.TemplateResponse(
         request, "scraping/detail.html",
         _ctx(request, user, actor=meta, status=entry.public_status.value,
              status_detail=entry.detail, fields=fields,
-             form_values={}, errors={}, history=history, schedules=schedules),
+             form_values={}, errors={}, history=history, schedules=schedules,
+             all_tools=all_tools),
     )
 
 
@@ -804,11 +893,23 @@ async def job_detail(
     if job.started_at:
         seconds = max(0, int((end_ref - job.started_at).total_seconds()))
         elapsed_display = f"{seconds // 60}m {seconds % 60}s"
+
+    from app.services.orchestration.orchestrator import ScrapingOrchestrator
+    orchestrator = ScrapingOrchestrator(registry, queue=request.app.state.queue)
+    snapshot = await orchestrator.evaluate_job_progress(job)
+    diagnostics = (
+        orchestrator.diagnose_job_failure(job)
+        if job.status == JobStatus.FAILED.value or (job.error and job.error.strip())
+        else None
+    )
+
     return templates.TemplateResponse(
         request, "jobs/detail.html",
         _ctx(request, user, job=job, actor_name=actor_name, actor_meta=actor_meta,
              leads=[lead.to_public_dict() for lead in leads_page], leads_total=total,
              elapsed_display=elapsed_display,
+             snapshot=snapshot.to_dict(),
+             diagnostics=diagnostics.to_dict() if diagnostics else None,
              can_pause="scraping.pause" in perms,
              can_cancel="scraping.cancel" in perms,
              can_retry="scraping.run" in perms,
@@ -824,7 +925,7 @@ async def job_live(
     session: Annotated[AsyncSession, Depends(get_db)],
     after_log: int = 0,
 ):
-    """Lightweight poll endpoint: job counters + recent events (§35, §38)."""
+    """Lightweight poll endpoint: job counters + recent events (§35, §38) + deterministic snapshot & diagnostics."""
     engine = JobEngine(session, request.app.state.queue)
     try:
         job = await engine.get_job(job_id)
@@ -847,10 +948,22 @@ async def job_live(
         }
         for e in reversed(rows)
     ]
+
+    from app.services.orchestration.orchestrator import ScrapingOrchestrator
+    orchestrator = ScrapingOrchestrator(request.app.state.scraper_registry, queue=request.app.state.queue)
+    snapshot = await orchestrator.evaluate_job_progress(job)
+    diagnostics = (
+        orchestrator.diagnose_job_failure(job)
+        if job.status == JobStatus.FAILED.value or (job.error and job.error.strip())
+        else None
+    )
+
     return JSONResponse(
         {
             "job": job.to_public_dict(),
             "events": events,
+            "snapshot": snapshot.to_dict(),
+            "diagnostics": diagnostics.to_dict() if diagnostics else None,
         }
     )
 

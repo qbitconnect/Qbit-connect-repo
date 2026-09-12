@@ -56,6 +56,83 @@
   </div>
 </section>
 
+<!-- Deterministic Completion Engine Card -->
+{% if snapshot %}
+<section class="card" id="completion-engine-card" style="margin-bottom:20px;border:1px solid rgba(93,140,255,0.25);background:rgba(20,26,45,0.4)">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div>
+      <h2 style="font-size:14px;letter-spacing:.05em;text-transform:uppercase;color:var(--text-secondary);margin:0;display:flex;align-items:center;gap:8px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#70a0ff" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Deterministic Completion Engine
+      </h2>
+      <p class="muted small" style="margin:2px 0 0">Verified record counters derived strictly from the database &middot; Zero LLM hallucination</p>
+    </div>
+    <span class="badge badge-{{ 'completed' if snapshot.status == 'TARGET_REACHED' else ('failed' if snapshot.status in ['FAILED','SOURCE_EXHAUSTED'] else 'running') }}" id="completion-status-badge" style="font-size:11px;font-weight:700">
+      {{ snapshot.status }}
+    </span>
+  </div>
+
+  <div class="result-grid" style="margin-bottom:12px">
+    <div><span class="muted small">TARGET</span><span class="stat-value mono" id="snap-target">{{ snapshot.target }}</span></div>
+    <div><span class="muted small">UNIQUE VALID</span><span class="stat-value mono" style="color:#70a0ff" id="snap-unique">{{ snapshot.unique_valid_records }}</span></div>
+    <div><span class="muted small">DUPLICATES</span><span class="stat-value mono" id="snap-dup">{{ snapshot.duplicate_records }}</span></div>
+    <div><span class="muted small">SYNTAX INVALID</span><span class="stat-value mono" style="color:var(--bad, #f87171)" id="snap-invalid">{{ snapshot.invalid_records }}</span></div>
+    <div><span class="muted small">REMAINING</span><span class="stat-value mono" id="snap-remaining">{{ snapshot.remaining_to_target }}</span></div>
+  </div>
+
+  <div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px">
+      <span>Target Completion: <b id="snap-pct" class="mono">{{ snapshot.completion_percentage }}%</b></span>
+      <span id="snap-reason" class="mono">{{ snapshot.status_reason }}</span>
+    </div>
+    <span class="score-bar" style="width:100%;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;display:block">
+      <span id="snap-bar" style="width: {{ [snapshot.completion_percentage, 100]|min }}%;height:100%;background:linear-gradient(90deg, #3b82f6, #60a5fa);border-radius:3px;display:block"></span>
+    </span>
+  </div>
+</section>
+{% endif %}
+
+<!-- Structured Diagnostics Card -->
+<section class="card" id="diagnostics-card" style="margin-bottom:20px;border:1px solid rgba(239,68,68,0.3);background:rgba(40,15,20,0.35);{% if not diagnostics and job.status != 'FAILED' %}display:none;{% endif %}">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <h2 style="font-size:14px;letter-spacing:.05em;text-transform:uppercase;color:#f87171;margin:0;display:flex;align-items:center;gap:8px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Structured Scraper Diagnostics
+    </h2>
+    <span class="badge badge-failed" id="diag-category">{{ diagnostics.category if diagnostics else 'FAILURE' }}</span>
+  </div>
+
+  <div style="font-size:12px;margin-bottom:10px;line-height:1.5">
+    <div style="margin-bottom:4px"><strong style="color:#fff">Stage:</strong> <span class="mono muted" id="diag-stage">{{ diagnostics.stage if diagnostics else (job.stage or 'runner') }}</span> &middot; <strong style="color:#fff">Error Code:</strong> <span class="mono muted" id="diag-code">{{ diagnostics.error_code if diagnostics else (job.error_code or 'ERROR') }}</span></div>
+    <div><strong style="color:#fff">Root Cause:</strong> <span id="diag-cause" style="color:rgba(255,255,255,0.9)">{{ diagnostics.root_cause_explanation if diagnostics else (job.error or 'Scraper execution encountered an unexpected error.') }}</span></div>
+  </div>
+
+  <div class="grid-2" style="gap:14px;font-size:12px;margin-top:10px;border-top:1px solid rgba(255,255,255,0.08);padding-top:10px">
+    <div>
+      <span class="muted small" style="display:block;margin-bottom:4px;font-weight:600">POSSIBLE CAUSES:</span>
+      <ul id="diag-causes-list" style="margin:0;padding-left:18px;color:rgba(255,255,255,0.8);line-height:1.4">
+        {% if diagnostics and diagnostics.possible_causes %}
+          {% for c in diagnostics.possible_causes %}<li>{{ c }}</li>{% endfor %}
+        {% else %}
+          <li>Target website blocked request or rate limited worker IP</li>
+          <li>HTML structure changed or search endpoint returned unexpected response</li>
+        {% endif %}
+      </ul>
+    </div>
+    <div>
+      <span class="muted small" style="display:block;margin-bottom:4px;font-weight:600">RECOMMENDED ACTIONS:</span>
+      <ul id="diag-actions-list" style="margin:0;padding-left:18px;color:rgba(255,255,255,0.8);line-height:1.4">
+        {% if diagnostics and diagnostics.recommended_actions %}
+          {% for a in diagnostics.recommended_actions %}<li>{{ a }}</li>{% endfor %}
+        {% else %}
+          <li>Wait 60s and retry with decreased concurrency</li>
+          <li>Check website availability and verify search term directly in browser</li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</section>
+
 <section class="card log-card">
   <h2>Live log</h2>
   <div class="log" id="log-box">
@@ -132,6 +209,47 @@
       document.getElementById('job-failed').textContent = j.records_failed;
       if (j.progress) document.getElementById('job-progress').textContent = j.progress + '%';
       if (j.stage) document.getElementById('job-stage').textContent = j.stage;
+
+      // Update deterministic snapshot
+      if (data.snapshot) {
+        const s = data.snapshot;
+        const sBadge = document.getElementById('completion-status-badge');
+        if (sBadge) {
+          sBadge.textContent = s.status;
+          sBadge.className = 'badge badge-' + (s.status === 'TARGET_REACHED' ? 'completed' : (['FAILED','SOURCE_EXHAUSTED'].includes(s.status) ? 'failed' : 'running'));
+        }
+        const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+        setVal('snap-target', s.target);
+        setVal('snap-unique', s.unique_valid_records);
+        setVal('snap-dup', s.duplicate_records);
+        setVal('snap-invalid', s.invalid_records);
+        setVal('snap-remaining', s.remaining_to_target);
+        setVal('snap-pct', s.completion_percentage + '%');
+        setVal('snap-reason', s.status_reason);
+        const bar = document.getElementById('snap-bar');
+        if (bar) bar.style.width = Math.min(s.completion_percentage, 100) + '%';
+      }
+
+      // Update structured diagnostics
+      if (data.diagnostics) {
+        const d = data.diagnostics;
+        const dCard = document.getElementById('diagnostics-card');
+        if (dCard) dCard.style.display = 'block';
+        const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+        setVal('diag-category', d.category);
+        setVal('diag-stage', d.stage);
+        setVal('diag-code', d.error_code);
+        setVal('diag-cause', d.root_cause_explanation);
+        if (d.possible_causes && d.possible_causes.length) {
+          const el = document.getElementById('diag-causes-list');
+          if (el) el.innerHTML = d.possible_causes.map(c => `<li>${esc(c)}</li>`).join('');
+        }
+        if (d.recommended_actions && d.recommended_actions.length) {
+          const el = document.getElementById('diag-actions-list');
+          if (el) el.innerHTML = d.recommended_actions.map(a => `<li>${esc(a)}</li>`).join('');
+        }
+      }
+
       const box = document.getElementById('log-box');
       box.innerHTML = data.events.map(e =>
         `<div class="log-line"><span class="log-time">${esc(e.at)}</span>` +

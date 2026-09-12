@@ -160,3 +160,45 @@ async def test_viewer_can_view_but_not_run(app, ui_client):
     )
     assert resp.status_code == 303  # UiRedirect → /403
     assert resp.headers["location"] == "/403"
+
+
+async def test_ui_agent_plan_and_run(ui_client):
+    await _login(ui_client, ADMIN_EMAIL, ADMIN_PASSWORD)
+
+    # 1. Preview Agent Plan
+    plan_resp = await ui_client.post(
+        "/scraping/agent/plan",
+        json={"prompt": "Find 50 textile suppliers in Surat on indiamart", "source": "indiamart", "target_count": 50},
+    )
+    assert plan_resp.status_code == 200
+    plan_data = plan_resp.json()
+    assert plan_data["primary_tool"] == "indiamart"
+    assert plan_data["source_locked"] is True
+    assert plan_data["fallback_tool"] is None
+    assert plan_data["target_count"] == 50
+
+    # 2. Run Agent Plan via UI
+    run_resp = await ui_client.post(
+        "/scraping/agent/run",
+        json={"prompt": "Find 50 textile suppliers in Surat on indiamart", "source": "indiamart", "target_count": 50},
+    )
+    assert run_resp.status_code == 200, f"Got {run_resp.status_code}, location={run_resp.headers.get('location')}"
+    run_data = run_resp.json()
+    assert "job_id" in run_data
+    assert "redirect_url" in run_data
+
+    # 3. View Job Detail with Deterministic Completion Card
+    detail_resp = await ui_client.get(run_data["redirect_url"])
+    assert detail_resp.status_code == 200
+    assert "Deterministic Completion Engine" in detail_resp.text
+    assert "UNIQUE VALID" in detail_resp.text
+    assert "SYNTAX INVALID" in detail_resp.text
+
+    # 4. Check Live Polling JSON
+    live_resp = await ui_client.get(f"{run_data['redirect_url']}/live")
+    assert live_resp.status_code == 200
+    live_data = live_resp.json()
+    assert "snapshot" in live_data
+    assert live_data["snapshot"]["target"] == 50
+    assert "status" in live_data["snapshot"]
+
