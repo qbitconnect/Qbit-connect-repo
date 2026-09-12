@@ -1,0 +1,551 @@
+{
+  "results": {
+    "implementation_audit": "PASS",
+    "inventory_audit": "PASS",
+    "source_lock": "PASS",
+    "auto_mode": "PASS",
+    "completion_engine": "PASS",
+    "deduplication": "PASS",
+    "diagnostics": "PASS",
+    "validation": "PASS"
+  },
+  "evidence": {
+    "implementation_files": {
+      "backend/app/services/orchestration/tool_registry.py": {
+        "exists": true,
+        "size_bytes": 10514
+      },
+      "backend/app/services/orchestration/interpreter.py": {
+        "exists": true,
+        "size_bytes": 7080
+      },
+      "backend/app/services/orchestration/planner.py": {
+        "exists": true,
+        "size_bytes": 13174
+      },
+      "backend/app/services/orchestration/orchestrator.py": {
+        "exists": true,
+        "size_bytes": 6475
+      },
+      "backend/app/services/orchestration/completion.py": {
+        "exists": true,
+        "size_bytes": 5006
+      },
+      "backend/app/services/orchestration/validation.py": {
+        "exists": true,
+        "size_bytes": 5252
+      },
+      "backend/app/services/orchestration/diagnostics.py": {
+        "exists": true,
+        "size_bytes": 5948
+      },
+      "backend/app/api/v1/orchestration.py": {
+        "exists": true,
+        "size_bytes": 6095
+      }
+    },
+    "inventory": {
+      "business-directory": {
+        "name": "Business Directory",
+        "category": "directory",
+        "version": "1.0.0",
+        "supports_pause": true,
+        "capabilities": [
+          "pluggable source adapters",
+          "declarative CSS extraction",
+          "pagination support",
+          "same-listing-page scope",
+          "robots.txt respect"
+        ],
+        "target_entities": [
+          "business_lead",
+          "directory_entry"
+        ],
+        "supported_modes": [
+          "adapter_config"
+        ]
+      },
+      "email-finder": {
+        "name": "Email Finder",
+        "category": "email",
+        "version": "1.0.0",
+        "supports_pause": true,
+        "capabilities": [
+          "public email discovery",
+          "contact page prioritization",
+          "type + confidence classification",
+          "source-page provenance",
+          "same-domain restriction",
+          "robots.txt respect"
+        ],
+        "target_entities": [
+          "business_email",
+          "contact"
+        ],
+        "supported_modes": [
+          "domain_crawl"
+        ]
+      },
+      "google-maps": {
+        "name": "Google Maps",
+        "category": "business_leads",
+        "version": "1.0.0",
+        "supports_pause": true,
+        "capabilities": [
+          "business listing fields",
+          "provider-based (configurable)",
+          "pagination checkpoints",
+          "compliant access only"
+        ],
+        "target_entities": [
+          "local_business",
+          "business_lead",
+          "poi",
+          "shop",
+          "restaurant",
+          "clinic"
+        ],
+        "supported_modes": [
+          "query_location"
+        ]
+      },
+      "indiamart": {
+        "name": "IndiaMART Supplier & Product Finder",
+        "category": "ecommerce",
+        "version": "1.0.0",
+        "supports_pause": true,
+        "capabilities": [
+          "product search",
+          "supplier search",
+          "supplier/product URL parsing",
+          "bulk URLs",
+          "pagination",
+          "detail enrichment",
+          "price / MOQ hints"
+        ],
+        "target_entities": [
+          "supplier",
+          "product",
+          "business_lead",
+          "wholesale"
+        ],
+        "supported_modes": [
+          "product_search",
+          "supplier_search",
+          "urls"
+        ]
+      },
+      "instagram": {
+        "name": "Instagram Intelligence",
+        "category": "social_media",
+        "version": "1.0.0",
+        "supports_pause": true,
+        "capabilities": [
+          "public profile intelligence (followers/bio/category)",
+          "public posts + captions where served",
+          "hashtag pages",
+          "topsearch discovery (public endpoint)",
+          "bulk usernames",
+          "public business contact extraction",
+          "login-wall detection (honest block reporting)"
+        ],
+        "target_entities": [
+          "social_profile",
+          "influencer",
+          "brand",
+          "hashtag_posts"
+        ],
+        "supported_modes": [
+          "profile",
+          "posts",
+          "hashtag",
+          "search"
+        ]
+      },
+      "justdial": {
+        "name": "JustDial Lead Finder",
+        "category": "directory",
+        "version": "1.0.0",
+        "supports_pause": true,
+        "capabilities": [
+          "category + city search",
+          "search URL passthrough",
+          "business page parsing",
+          "bulk URLs",
+          "detail enrichment",
+          "public phone presentation decoding",
+          "reviews/ratings capture"
+        ],
+        "target_entities": [
+          "local_business",
+          "business_lead",
+          "store",
+          "vendor",
+          "directory_lead"
+        ],
+        "supported_modes": [
+          "category_city",
+          "url",
+          "bulk_urls"
+        ]
+      },
+      "linkedin-public": {
+        "name": "LinkedIn Public Intelligence",
+        "category": "social_media",
+        "version": "1.0.0",
+        "supports_pause": true,
+        "capabilities": [
+          "public company pages",
+          "public profile headline/name",
+          "bulk public URLs",
+          "company slug discovery",
+          "authwall detection (honest block reporting)"
+        ],
+        "target_entities": [
+          "company",
+          "public_profile"
+        ],
+        "supported_modes": [
+          "company",
+          "profile",
+          "slug"
+        ]
+      },
+      "meta-ads-library": {
+        "name": "Meta Ads Library",
+        "category": "ads",
+        "version": "1.0.0",
+        "supports_pause": true,
+        "capabilities": [
+          "ad library keyword / page / URL search",
+          "ad copy, CTA, landing URL, media",
+          "advertiser + page identity",
+          "platforms and date bounds",
+          "permanent archive URL per ad",
+          "snapshot hashing for change detection"
+        ],
+        "target_entities": [
+          "ad_creative",
+          "advertiser",
+          "campaign_intelligence"
+        ],
+        "supported_modes": [
+          "keyword_search",
+          "page_search",
+          "url"
+        ]
+      },
+      "public-data": {
+        "name": "Public Data",
+        "category": "public_data",
+        "version": "1.0.0",
+        "supports_pause": true,
+        "capabilities": [
+          "public JSON datasets",
+          "public CSV datasets",
+          "declarative field mapping",
+          "streaming row processing"
+        ],
+        "target_entities": [
+          "open_dataset",
+          "government_registry",
+          "company_records"
+        ],
+        "supported_modes": [
+          "json_endpoint",
+          "csv_endpoint"
+        ]
+      },
+      "sitemap-intelligence": {
+        "name": "Sitemap & Structured Data Intelligence",
+        "category": "website",
+        "version": "1.0.0",
+        "supports_pause": true,
+        "capabilities": [
+          "sitemap discovery via robots.txt",
+          "sitemap index + urlset parsing",
+          "url inventory count + lastmod range",
+          "json-ld type extraction",
+          "opengraph / twitter meta",
+          "canonical url detection",
+          "page classification hints"
+        ],
+        "target_entities": [
+          "sitemap_entry",
+          "url_inventory",
+          "structured_data"
+        ],
+        "supported_modes": [
+          "domain_audit"
+        ]
+      },
+      "universal-web": {
+        "name": "Universal Web Scraper",
+        "category": "universal",
+        "version": "2.0.0",
+        "supports_pause": true,
+        "capabilities": [
+          "auto-detect extraction (json-ld / og / embedded json / contacts)",
+          "CSS selector fields",
+          "repeating item lists",
+          "optional same-domain pagination",
+          "JS-heavy page detection",
+          "optional headless fallback (when installed)",
+          "robots.txt respect"
+        ],
+        "target_entities": [
+          "generic_webpage",
+          "auto_extract"
+        ],
+        "supported_modes": [
+          "selectors",
+          "auto"
+        ]
+      },
+      "website": {
+        "name": "Website Scraper",
+        "category": "website",
+        "version": "1.0.0",
+        "supports_pause": true,
+        "capabilities": [
+          "same-domain crawling",
+          "public email extraction",
+          "public phone extraction",
+          "social link extraction",
+          "robots.txt respect",
+          "depth and page limits"
+        ],
+        "target_entities": [
+          "webpage",
+          "contact_info",
+          "social_links"
+        ],
+        "supported_modes": [
+          "single_domain_crawl"
+        ]
+      }
+    },
+    "scrapers_live_test": {
+      "indiamart": {
+        "actor_id": "indiamart",
+        "job_id": "2af82aaf-82a8-4017-9a58-20bf69017790",
+        "terminal_status": "FAILED",
+        "records_found": 0,
+        "records_saved": 0,
+        "records_failed": 0,
+        "leads_persisted": 0,
+        "error": "No public IndiaMART content could be retrieved \u2014 walls or unrecognized markup. Nothing fabricated.",
+        "error_code": "SCRAPER_TARGET_BLOCKED",
+        "diagnostic_category": "UNKNOWN",
+        "deterministic_status": "FAILED",
+        "certified_status": "PASS",
+        "detail": "Honest reporting verified: No public IndiaMART content could be retrieved \u2014 walls or unrecognized markup. Nothing fabricated."
+      },
+      "justdial": {
+        "actor_id": "justdial",
+        "job_id": "84827eec-bb91-4006-b61a-539789597a41",
+        "terminal_status": "FAILED",
+        "records_found": 0,
+        "records_saved": 0,
+        "records_failed": 0,
+        "leads_persisted": 0,
+        "error": "No public listings could be retrieved from JustDial \u2014 the site served walls or unrecognized markup. Nothing fabricated.",
+        "error_code": "SCRAPER_TARGET_BLOCKED",
+        "diagnostic_category": "UNKNOWN",
+        "deterministic_status": "FAILED",
+        "certified_status": "PASS",
+        "detail": "Honest reporting verified: No public listings could be retrieved from JustDial \u2014 the site served walls or unrecognized markup. "
+      },
+      "google-maps": {
+        "actor_id": "google-maps",
+        "job_id": "c52b50b7-b016-4b25-a84d-8aad0dc29420",
+        "terminal_status": "FAILED",
+        "records_found": 0,
+        "records_saved": 0,
+        "records_failed": 0,
+        "leads_persisted": 0,
+        "error": "No maps provider configured. Set QBIT_MAPS_PROVIDER=http plus QBIT_MAPS_PROVIDER_URL (a compliant data endpoint). Direct scraping/evasion of Google is not supported by design.",
+        "error_code": "SCRAPER_CONFIGURATION_ERROR",
+        "diagnostic_category": "CONFIGURATION_ERROR",
+        "deterministic_status": "FAILED",
+        "certified_status": "PASS",
+        "detail": "Honest reporting verified: No maps provider configured. Set QBIT_MAPS_PROVIDER=http plus QBIT_MAPS_PROVIDER_URL (a compliant da"
+      },
+      "instagram": {
+        "actor_id": "instagram",
+        "job_id": "fbe2929a-42de-4fc2-af74-dc82b5a84ca0",
+        "terminal_status": "FAILED",
+        "records_found": 0,
+        "records_saved": 0,
+        "records_failed": 0,
+        "leads_persisted": 0,
+        "error": "No public content could be retrieved \u2014 Instagram is not serving logged-out pages to this network, or no target resolved. Nothing was fabricated.",
+        "error_code": "SCRAPER_TARGET_BLOCKED",
+        "diagnostic_category": "UNKNOWN",
+        "deterministic_status": "FAILED",
+        "certified_status": "PASS",
+        "detail": "Honest reporting verified: No public content could be retrieved \u2014 Instagram is not serving logged-out pages to this network, or"
+      },
+      "linkedin-public": {
+        "actor_id": "linkedin-public",
+        "job_id": "9308e3a4-309d-40c0-a648-eeb287db63fa",
+        "terminal_status": "FAILED",
+        "records_found": 0,
+        "records_saved": 0,
+        "records_failed": 0,
+        "leads_persisted": 0,
+        "error": "LinkedIn served authwalls/limits for all 1 target(s); public content was not accessible logged-out. Nothing fabricated.",
+        "error_code": "SCRAPER_TARGET_BLOCKED",
+        "diagnostic_category": "ACCESS_BLOCKED",
+        "deterministic_status": "FAILED",
+        "certified_status": "PASS",
+        "detail": "Honest reporting verified: LinkedIn served authwalls/limits for all 1 target(s); public content was not accessible logged-out. "
+      },
+      "meta-ads-library": {
+        "actor_id": "meta-ads-library",
+        "job_id": "44d6e76c-6a93-4d07-8361-cae5a2a1bd78",
+        "terminal_status": "FAILED",
+        "records_found": 0,
+        "records_saved": 0,
+        "records_failed": 0,
+        "leads_persisted": 0,
+        "error": "Ad Library unreachable: Disallowed by robots.txt: https://www.facebook.com/ads/library/?active_status=all&country=US&q=technology&media_type=all",
+        "error_code": "SCRAPER_TARGET_BLOCKED",
+        "diagnostic_category": "UNKNOWN",
+        "deterministic_status": "FAILED",
+        "certified_status": "PASS",
+        "detail": "Honest reporting verified: Ad Library unreachable: Disallowed by robots.txt: https://www.facebook.com/ads/library/?active_statu"
+      },
+      "email-finder": {
+        "actor_id": "email-finder",
+        "job_id": "58713683-c2a5-469b-bdff-05c628ecf624",
+        "terminal_status": "COMPLETED",
+        "records_found": 0,
+        "records_saved": 0,
+        "records_failed": 0,
+        "leads_persisted": 0,
+        "error": null,
+        "error_code": null,
+        "diagnostic_category": null,
+        "deterministic_status": "SOURCE_EXHAUSTED",
+        "certified_status": "PARTIAL",
+        "detail": "Job finished with status COMPLETED, 0 records."
+      },
+      "business-directory": {
+        "actor_id": "business-directory",
+        "job_id": "cbcb15a7-4bcb-46cb-a9d1-817624df8b14",
+        "terminal_status": "COMPLETED",
+        "records_found": 1,
+        "records_saved": 1,
+        "records_failed": 0,
+        "leads_persisted": 1,
+        "error": null,
+        "error_code": null,
+        "diagnostic_category": null,
+        "deterministic_status": "SOURCE_EXHAUSTED",
+        "certified_status": "PASS",
+        "detail": "Successfully extracted and persisted 1 records."
+      },
+      "public-data": {
+        "actor_id": "public-data",
+        "job_id": "9d838690-64cf-42f3-95f6-ee888f8c9026",
+        "terminal_status": "COMPLETED",
+        "records_found": 5,
+        "records_saved": 0,
+        "records_failed": 5,
+        "leads_persisted": 0,
+        "error": null,
+        "error_code": null,
+        "diagnostic_category": null,
+        "deterministic_status": "SOURCE_EXHAUSTED",
+        "certified_status": "PARTIAL",
+        "detail": "Job finished with status COMPLETED, 0 records."
+      },
+      "sitemap-intelligence": {
+        "actor_id": "sitemap-intelligence",
+        "job_id": "30bf74ea-cb9d-49ed-8a53-abf960503eba",
+        "terminal_status": "COMPLETED",
+        "records_found": 1,
+        "records_saved": 1,
+        "records_failed": 0,
+        "leads_persisted": 1,
+        "error": null,
+        "error_code": null,
+        "diagnostic_category": null,
+        "deterministic_status": "SOURCE_EXHAUSTED",
+        "certified_status": "PASS",
+        "detail": "Successfully extracted and persisted 1 records."
+      },
+      "website": {
+        "actor_id": "website",
+        "job_id": "48e02155-cfab-4ff3-adc7-12d0d85b4819",
+        "terminal_status": "COMPLETED",
+        "records_found": 0,
+        "records_saved": 0,
+        "records_failed": 0,
+        "leads_persisted": 0,
+        "error": null,
+        "error_code": null,
+        "diagnostic_category": null,
+        "deterministic_status": "SOURCE_EXHAUSTED",
+        "certified_status": "PARTIAL",
+        "detail": "Job finished with status COMPLETED, 0 records."
+      },
+      "universal-web": {
+        "actor_id": "universal-web",
+        "job_id": "5da19954-2aee-4f6f-b090-94c79ab2b100",
+        "terminal_status": "COMPLETED",
+        "records_found": 1,
+        "records_saved": 1,
+        "records_failed": 0,
+        "leads_persisted": 1,
+        "error": null,
+        "error_code": null,
+        "diagnostic_category": null,
+        "deterministic_status": "SOURCE_EXHAUSTED",
+        "certified_status": "PASS",
+        "detail": "Successfully extracted and persisted 1 records."
+      }
+    },
+    "source_lock_test": {
+      "primary_tool": "indiamart",
+      "source_locked": true,
+      "fallback_tool": null,
+      "dispatched_actor": "indiamart",
+      "silent_fallback_prevented": true
+    },
+    "auto_mode_test": {
+      "prompt": "Find shoe wholesalers in Modinagar",
+      "selected_tool": "indiamart",
+      "fallback_tool": "justdial",
+      "rationale": "AUTO MODE selected 'IndiaMART' (indiamart): entity match (supplier); IndiaMART top affinity for supplier & B2B product search. Fallback candidate: 'JustDial' (justdial)."
+    },
+    "completion_integrity": {
+      "scenario_under_status": "SOURCE_EXHAUSTED",
+      "scenario_under_pct": 15.0,
+      "scenario_reached_status": "TARGET_REACHED",
+      "no_false_completion_verified": true
+    },
+    "duplicate_inflation": {
+      "collected": 50,
+      "unique": 10,
+      "duplicates": 40,
+      "completion_percentage": 20.0,
+      "inflation_prevented": true
+    },
+    "diagnostics_test": {
+      "blocked": "ACCESS_BLOCKED",
+      "network": "TRANSIENT_NETWORK",
+      "markup": "MARKUP_CHANGED",
+      "configuration": "CONFIGURATION_ERROR"
+    },
+    "lead_validation": {
+      "valid_record_quality": "VALID",
+      "invalid_record_errors": [
+        "Invalid phone digit count (5)",
+        "Invalid email format: invalid-email-syntax",
+        "Invalid website host: ht!tp://bad-url"
+      ]
+    }
+  }
+}
