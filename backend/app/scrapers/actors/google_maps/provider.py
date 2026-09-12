@@ -66,6 +66,16 @@ def build_maps_provider(settings) -> MapsProvider | None:
         from app.scrapers.actors.google_maps.mock_provider import MockMapsProvider
 
         return MockMapsProvider()
+    if kind == "outscraper":
+        if not settings.QBIT_MAPS_PROVIDER_API_KEY:
+            raise ScraperConfigurationError(
+                "QBIT_MAPS_PROVIDER=outscraper requires QBIT_MAPS_PROVIDER_API_KEY"
+            )
+        base_url = (settings.QBIT_MAPS_PROVIDER_URL or "").strip() or OutscraperMapsProvider.DEFAULT_ENDPOINT
+        return OutscraperMapsProvider(
+            base_url=base_url,
+            api_key=settings.QBIT_MAPS_PROVIDER_API_KEY,
+        )
     if kind == "http":
         if not settings.QBIT_MAPS_PROVIDER_URL:
             raise ScraperConfigurationError(
@@ -76,6 +86,128 @@ def build_maps_provider(settings) -> MapsProvider | None:
             api_key=settings.QBIT_MAPS_PROVIDER_API_KEY,
         )
     raise ScraperConfigurationError(f"Unknown QBIT_MAPS_PROVIDER: {kind!r}")
+
+
+class OutscraperMapsProvider:
+    """Compliant Outscraper Google Maps API v3 provider adapter."""
+
+    name = "outscraper"
+    DEFAULT_ENDPOINT = "https://api.app.outscraper.com/maps/search-v3"
+
+    def __init__(self, base_url: str, api_key: str) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key.strip()
+
+    async def search(
+        self,
+        *,
+        query: str,
+        city: str | None,
+        state: str | None,
+        country: str | None,
+        language: str | None,
+        page_token: str | None,
+        max_results: int,
+        http,
+    ) -> tuple[list[dict], str | None]:
+        # Outscraper pagination uses skip offset
+        skip = 0
+        if page_token:
+            try:
+                skip = max(0, int(page_token))
+            except (ValueError, TypeError):
+                skip = 0
+
+        # Construct full query string if location components provided
+        loc_parts = [p.strip() for p in (city, state, country) if p and p.strip()]
+        full_query = query.strip()
+        if loc_parts and not any(p.lower() in full_query.lower() for p in loc_parts):
+            full_query = f"{full_query}, {', '.join(loc_parts)}"
+
+        limit = min(max_results, PROVIDER_PAGE_SIZE)
+        headers = {
+            "X-API-KEY": self.api_key,
+            "Authorization": f"Bearer {self.api_key}",
+        }
+        params: dict[str, str] = {
+            "query": full_query,
+            "limit": str(limit),
+            "skip": str(skip),
+            "async": "false",
+        }
+        if language:
+            params["language"] = language
+        if country:
+            params["region"] = country
+
+        url = f"{self.base_url}?{urlencode(params)}"
+        try:
+            resp = await http.get(url, headers=headers)
+        except Exception as exc:
+            raise ScraperProviderError(f"Outscraper connection failed: {exc}", retryable=True)
+
+        if resp.status_code == 401:
+            raise ScraperProviderError("Outscraper API authentication failed (invalid or missing API key)", retryable=False)
+        if resp.status_code == 402:
+            raise ScraperProviderError("Outscraper account quota exhausted or payment required", retryable=False)
+        if resp.status_code == 429:
+            raise ScraperProviderError("Outscraper rate limit exceeded", retryable=True)
+        if resp.status_code >= 500:
+            raise ScraperProviderError(f"Outscraper server error (HTTP {resp.status_code})", retryable=True)
+        if resp.status_code >= 400:
+            raise ScraperProviderError(f"Outscraper request failed (HTTP {resp.status_code}): {resp.text[:200]}", retryable=False)
+
+        try:
+            payload = resp.json()
+        except Exception as exc:
+            raise ScraperProviderError(f"Outscraper returned invalid JSON: {exc}", retryable=False)
+
+        # Outscraper returns {"status": "Success", "data": [[place1, place2, ...]]}
+        # Or {"data": [place1, place2, ...]} if dropDuplicates or single array format
+        raw_places: list[dict] = []
+        if isinstance(payload, dict):
+            data = payload.get("data")
+            if isinstance(data, list):
+                if len(data) > 0 and isinstance(data[0], list):
+                    raw_places = [item for item in data[0] if isinstance(item, dict)]
+                elif len(data) > 0 and isinstance(data[0], dict):
+                    raw_places = [item for item in data if isinstance(item, dict)]
+            elif isinstance(payload.get("results"), list):
+                raw_places = [item for item in payload["results"] if isinstance(item, dict)]
+
+        results: list[dict] = []
+        for place in raw_places:
+            email = place.get("email") or place.get("email_1")
+            if not email and isinstance(place.get("emails"), list) and place["emails"]:
+                email = str(place["emails"][0])
+
+            item: dict = {
+                "business_name": place.get("name") or place.get("business_name") or "",
+                "category": place.get("type") or place.get("category"),
+                "phone": place.get("phone"),
+                "email": email,
+                "website": place.get("site") or place.get("website"),
+                "address": place.get("full_address") or place.get("address"),
+                "city": place.get("city") or city,
+                "state": place.get("state") or state,
+                "country": place.get("country") or country,
+                "rating": place.get("rating"),
+                "review_count": place.get("reviews") or place.get("review_count"),
+                "source_url": place.get("location_link") or place.get("source_url"),
+                "metadata": {
+                    "provider": "outscraper",
+                    "place_id": place.get("place_id"),
+                    "google_id": place.get("google_id"),
+                    "subtypes": place.get("subtypes"),
+                },
+            }
+            results.append(item)
+
+        next_page_token: str | None = None
+        if len(raw_places) >= limit:
+            next_page_token = str(skip + len(raw_places))
+
+        return results, next_page_token
 
 
 class HttpMapsProvider:

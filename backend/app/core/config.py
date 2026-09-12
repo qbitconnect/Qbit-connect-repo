@@ -172,10 +172,11 @@ class Settings(BaseSettings):
     QBIT_MARKETING_MAX_AUDIENCE: int = Field(default=100000, ge=1)
 
     # --- Maps provider (Phase 3, google-maps actor) ----------------------------
-    #: none | http | mock — `mock` is for tests/dev ONLY, never production.
+    #: none | http | outscraper | mock — `mock` is for tests/dev ONLY, never production.
     QBIT_MAPS_PROVIDER: str = "none"
     QBIT_MAPS_PROVIDER_URL: str | None = None
     QBIT_MAPS_PROVIDER_API_KEY: str | None = None  # env only; never committed
+
 
     # --- WhatsApp Business provider (Phase 6 §2) --------------------------------
     #: provider registry id used when creating WhatsApp connections by default

@@ -71,9 +71,10 @@ class GoogleMapsActor(ScraperActor):
         provider = build_maps_provider(self._settings)
         if provider is None:
             raise ScraperConfigurationError(
-                "No maps provider configured. Set QBIT_MAPS_PROVIDER=http plus "
-                "QBIT_MAPS_PROVIDER_URL (a compliant data endpoint). Direct "
-                "scraping/evasion of Google is not supported by design."
+                "No maps provider configured. Set QBIT_MAPS_PROVIDER=outscraper "
+                "(with QBIT_MAPS_PROVIDER_API_KEY) or QBIT_MAPS_PROVIDER=http "
+                "(with QBIT_MAPS_PROVIDER_URL). Direct scraping/evasion of Google "
+                "is not supported by design."
             )
 
         page_token: str | None = None

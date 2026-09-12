@@ -97,7 +97,7 @@ class UrlAnalyzer:
                 confidence=0.95,
                 suggested_actor_id="google-maps",
                 message="Google Maps URL detected. Provider configuration required for compliant execution.",
-                input_payload={"query": query or u, "max_records": 100},
+                input_payload={"query": query or u, "max_results": 100, "max_records": 100},
             )
 
         # 2. Justdial URLs

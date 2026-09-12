@@ -236,6 +236,7 @@ class ExecutionPlanner:
             query = f"{task.keywords} in {task.location}" if task.location else task.keywords
             input_payload = {
                 "query": query,
+                "max_results": target_count,
                 "max_records": target_count,
             }
             steps.append(

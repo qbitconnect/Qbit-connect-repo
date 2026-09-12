@@ -63,8 +63,9 @@
           </p>
           <div style="font-size:11px;color:rgba(255,255,255,0.7);background:rgba(0,0,0,0.3);padding:8px 12px;border-radius:4px;font-family:monospace;line-height:1.5">
             To configure, add to your backend environment variables:<br>
-            <span style="color:#38bdf8">QBIT_MAPS_PROVIDER</span>=http<br>
-            <span style="color:#38bdf8">QBIT_MAPS_PROVIDER_URL</span>=https://your-maps-provider-endpoint
+            <span style="color:#38bdf8">QBIT_MAPS_PROVIDER</span>=outscraper<br>
+            <span style="color:#38bdf8">QBIT_MAPS_PROVIDER_API_KEY</span>=your-outscraper-api-key<br>
+            <span style="color:rgba(255,255,255,0.5)"># Or generic HTTP: QBIT_MAPS_PROVIDER=http + QBIT_MAPS_PROVIDER_URL</span>
           </div>
         </div>
       </div>
@@ -251,7 +252,7 @@
             </div>
 
             <div id="url-maps-warning" class="alert alert-warn" style="display:none;margin-top:10px;padding:8px 12px;font-size:12px">
-              ⚠️ Google Maps provider is not configured in this environment. Execution requires QBIT_MAPS_PROVIDER=http.
+              ⚠️ Google Maps provider is not configured in this environment. Execution requires QBIT_MAPS_PROVIDER=outscraper (or http).
             </div>
 
             <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.08)">
@@ -657,7 +658,7 @@
     if (detectedSource === 'google-maps' && !mapsConfigured) {
       msg.hidden = false;
       msg.className = 'validate-result bad';
-      msg.textContent = 'Cannot run: Google Maps provider is not configured in this environment (QBIT_MAPS_PROVIDER=none). Set QBIT_MAPS_PROVIDER=http to enable.';
+      msg.textContent = 'Cannot run: Google Maps provider is not configured in this environment (QBIT_MAPS_PROVIDER=none). Set QBIT_MAPS_PROVIDER=outscraper (or http) to enable.';
       return;
     }
 

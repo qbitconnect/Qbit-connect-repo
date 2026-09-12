@@ -17,6 +17,7 @@ Business listing extraction through a **pluggable compliant provider**
 | provider | class | purpose |
 |---|---|---|
 | `none` | — | default; actor DEGRADED |
+| `outscraper` | `OutscraperMapsProvider` | Outscraper Google Maps API v3 compliant provider |
 | `http` | `HttpMapsProvider` | operator's compliant data endpoint |
 | `mock` | `MockMapsProvider` | deterministic fixtures — tests/dev ONLY, refused in production |
 
